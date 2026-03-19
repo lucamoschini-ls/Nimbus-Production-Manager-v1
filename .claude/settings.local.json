@@ -15,7 +15,11 @@
       "Bash(ls /Users/luca/Lavoro/Tech/Repos/production_tool/src/app/*/loading.tsx)",
       "Bash(ls /Users/luca/Lavoro/Tech/Repos/production_tool/public/icon-*.svg)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth:*)"
     ]
   }
 }

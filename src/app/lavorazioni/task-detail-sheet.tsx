@@ -30,23 +30,7 @@ import {
   removeMateriale,
   searchTasks,
 } from "./dep-mat-actions";
-import type { StatoFornitore, TipologiaTask } from "@/lib/types";
-
-const TIPOLOGIE: { value: TipologiaTask; label: string }[] = [
-  { value: "carpenteria", label: "Carpenteria" },
-  { value: "verniciatura", label: "Verniciatura" },
-  { value: "elettrico", label: "Elettrico" },
-  { value: "idraulico", label: "Idraulico" },
-  { value: "trasporto", label: "Trasporto" },
-  { value: "acquisto", label: "Acquisto" },
-  { value: "montaggio", label: "Montaggio" },
-  { value: "audio_luci", label: "Audio/Luci" },
-  { value: "giardinaggio", label: "Giardinaggio" },
-  { value: "pulizia_manutenzione", label: "Pulizia/Manutenzione" },
-  { value: "decisione", label: "Decisione" },
-  { value: "amministrativo", label: "Amministrativo" },
-  { value: "misure_rilievo", label: "Misure/Rilievo" },
-];
+import type { StatoFornitore } from "@/lib/types";
 
 const STATI_TASK = [
   { value: "da_fare", label: "Da fare" },
@@ -113,15 +97,21 @@ interface FornitoreMin {
   stato: StatoFornitore;
 }
 
+interface TipologiaDb {
+  nome: string;
+  colore: string;
+}
+
 interface Props {
   task: TaskData | null;
   fornitori: FornitoreMin[];
+  tipologieDb: TipologiaDb[];
   open: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => Promise<void>;
 }
 
-export function TaskDetailSheet({ task, fornitori, open, onClose, onSave }: Props) {
+export function TaskDetailSheet({ task, fornitori, tipologieDb, open, onClose, onSave }: Props) {
   const [form, setForm] = useState({
     titolo: "",
     tipologia: "" as string,
@@ -233,8 +223,8 @@ export function TaskDetailSheet({ task, fornitori, open, onClose, onSave }: Prop
                 <SelectValue placeholder="Seleziona..." />
               </SelectTrigger>
               <SelectContent>
-                {TIPOLOGIE.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                {tipologieDb.map((t) => (
+                  <SelectItem key={t.nome} value={t.nome}>{t.nome.replace(/_/g, " ")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

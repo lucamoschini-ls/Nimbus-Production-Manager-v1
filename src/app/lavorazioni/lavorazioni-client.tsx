@@ -89,14 +89,23 @@ interface FornitoreMin {
   stato: StatoFornitore;
 }
 
+interface TipologiaDb {
+  nome: string;
+  colore: string;
+}
+
 interface Props {
   zone: Zona[];
   lavorazioni: Lavorazione[];
   tasks: TaskCompleta[];
   fornitori: FornitoreMin[];
+  tipologie: TipologiaDb[];
 }
 
-export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori }: Props) {
+export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie }: Props) {
+  // Build tipologia color map from DB
+  const tipColorMap: Record<string, string> = {};
+  tipologie.forEach((t) => { tipColorMap[t.nome] = t.colore; });
   const [expandedZone, setExpandedZone] = useState<Set<string>>(new Set(zone.map((z) => z.id)));
   const [selectedLav, setSelectedLav] = useState<string | null>(
     lavorazioni[0]?.id ?? null
@@ -317,11 +326,18 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori }: Props
                           <div className="flex flex-wrap items-center gap-1.5 mt-2">
                             {task.tipologia && (
                               <Badge
+                                style={
+                                  tipColorMap[task.tipologia]
+                                    ? { backgroundColor: tipColorMap[task.tipologia] + "20", color: tipColorMap[task.tipologia] }
+                                    : undefined
+                                }
                                 className={
-                                  TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600"
+                                  !tipColorMap[task.tipologia]
+                                    ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600")
+                                    : ""
                                 }
                               >
-                                {task.tipologia.replace("_", " ")}
+                                {task.tipologia.replace(/_/g, " ")}
                               </Badge>
                             )}
                             <Badge
@@ -517,6 +533,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori }: Props
       <TaskDetailSheet
         task={selectedTask}
         fornitori={fornitori}
+        tipologieDb={tipologie}
         open={!!selectedTask}
         onClose={() => setSelectedTask(null)}
         onSave={async (data) => {

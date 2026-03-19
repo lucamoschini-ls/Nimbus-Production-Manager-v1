@@ -9,6 +9,7 @@ import {
   Truck,
   Package,
   DollarSign,
+  Settings,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/fornitori", label: "Fornitori", icon: Truck },
   { href: "/materiali", label: "Materiali", icon: Package },
   { href: "/costi", label: "Costi", icon: DollarSign },
+  { href: "/impostazioni", label: "Impostazioni", icon: Settings },
 ];
 
 export function MobileNav() {
