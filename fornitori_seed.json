@@ -1,0 +1,200 @@
+[
+  {
+    "nome": "Luca",
+    "tipo": "Socio",
+    "spec": "Gestionale / PM",
+    "contatto": "",
+    "stato": "Attivo",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Alessandro",
+    "tipo": "Socio",
+    "spec": "Tecnico / Cantiere",
+    "contatto": "",
+    "stato": "Attivo",
+    "costo": "",
+    "note": "Leo"
+  },
+  {
+    "nome": "Facchini",
+    "tipo": "Manodopera",
+    "spec": "Carico/scarico, movimentazione",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Ingegnere",
+    "tipo": "Consulente",
+    "spec": "Licenza PS, sicurezza",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Leonardo Mikhail",
+    "tipo": "Fornitore",
+    "spec": "Distribuzione, stripled, DMX, quadri",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": "Critico"
+  },
+  {
+    "nome": "Squadra strutture",
+    "tipo": "Fornitore",
+    "spec": "Pedane, vialetti, anfiteatri, gradini",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": "Lavoro piu grosso"
+  },
+  {
+    "nome": "Squadra finiture",
+    "tipo": "Fornitore",
+    "spec": "Vasi,manutenzioni, ecc",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Mastroianni",
+    "tipo": "Fornitore",
+    "spec": "Cisterne, sanitrit, autoclave, reflue",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Sebach",
+    "tipo": "Fornitore",
+    "spec": "Container bagni",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Chef",
+    "tipo": "Fornitore",
+    "spec": "Cucina",
+    "contatto": "",
+    "stato": "Confermato",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Davino",
+    "tipo": "Fornitore",
+    "spec": "Set up audio-luci",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Fornitore AVL",
+    "tipo": "Fornitore",
+    "spec": "Noleggio service",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "NOLEGGIO TELAI",
+    "tipo": "Fornitore",
+    "spec": "Telai anfiteatri",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Trasportiamo",
+    "tipo": "Fornitore",
+    "spec": "Trasporto pesante",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Giardiniere",
+    "tipo": "Fornitore",
+    "spec": "Irrigazione, piante",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Tecnico audio/luci",
+    "tipo": "Fornitore",
+    "spec": "Presenza stagionale",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Fornitore distrib. elettrica",
+    "tipo": "Fornitore",
+    "spec": "Distribuzione elettrica",
+    "contatto": "",
+    "stato": "Da trovare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Rinalduzzi",
+    "tipo": "Fornitore",
+    "spec": "Noleggio strutture allestimento",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Lumiroma",
+    "tipo": "Fornitore",
+    "spec": "Portale",
+    "contatto": "",
+    "stato": "Confermato",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Costruzione Metalliche",
+    "tipo": "Fornitore",
+    "spec": "Gazebi",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Teti Acque",
+    "tipo": "Fornitore",
+    "spec": "Scarico acqua",
+    "contatto": "",
+    "stato": "Da contattare",
+    "costo": "",
+    "note": ""
+  },
+  {
+    "nome": "Fornitore piante all'ingrosso",
+    "tipo": "Fornitore",
+    "spec": "Piante all'ingrosso",
+    "contatto": "",
+    "stato": "Preventivo chiesto",
+    "costo": "",
+    "note": ""
+  }
+]
