@@ -42,20 +42,20 @@ interface Materiale {
 
 interface Zona { id: string; nome: string; }
 
-export interface TrasportoOp {
-  id: string; titolo: string; organizzato: boolean; stato: string;
-  data_inizio: string | null; data_fine: string | null; note: string | null;
-  luogo_partenza: string | null;
-  fornitore: { nome: string; stato: string } | null;
-  materiale: {
-    nome: string;
-    task: { titolo: string; lavorazione: { nome: string; zona: { nome: string; colore: string } } };
-  };
+interface OpInline {
+  id: string; materiale_id: string; titolo: string; tipologia: string | null;
+  organizzato: boolean; stato: string; fornitore: { nome: string; stato: string } | null;
 }
+
+const STATO_FORN_CLS: Record<string, string> = {
+  da_trovare: "bg-red-100 text-red-700", contattato: "bg-amber-100 text-amber-700",
+  confermato: "bg-blue-100 text-blue-700", sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
+  materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
+};
 
 interface Props {
   materiali: Materiale[]; zone: Zona[];
-  trasportoOps: TrasportoOp[];
+  opsByMat: Record<string, OpInline[]>;
 }
 
 function matStato(m: Materiale) {
@@ -103,8 +103,7 @@ function DateField({ id, field, val }: { id: string; field: string; val: string 
   );
 }
 
-export function MaterialiClient({ materiali, zone, trasportoOps }: Props) {
-  const [activeTab, setActiveTab] = useState<"materiali" | "trasporti">("materiali");
+export function MaterialiClient({ materiali, zone, opsByMat }: Props) {
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
   const [filterProvenienza, setFilterProvenienza] = useState("tutti");
@@ -129,23 +128,8 @@ export function MaterialiClient({ materiali, zone, trasportoOps }: Props) {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-4">Materiali e Logistica</h1>
+      <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-6">Materiali</h1>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-[#f5f5f7] rounded-lg p-1 w-fit">
-        <button onClick={() => setActiveTab("materiali")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "materiali" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>
-          Materiali ({totale})
-        </button>
-        <button onClick={() => setActiveTab("trasporti")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "trasporti" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>
-          Trasporti ({trasportoOps.length})
-        </button>
-      </div>
-
-      {activeTab === "trasporti" && (
-        <TrasportiSection ops={trasportoOps} />
-      )}
-
-      {activeTab === "materiali" && <>
       {/* Contatori */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
@@ -312,115 +296,35 @@ export function MaterialiClient({ materiali, zone, trasportoOps }: Props) {
                     className="w-full text-xs text-[#86868b] border-0 border-b border-[#e5e5e7] bg-transparent px-0 py-1 outline-none focus:border-[#1d1d1f] placeholder:text-[#d2d2d7]"
                   />
                 </div>
+
+                {/* ROW 5: Operazioni inline */}
+                {(opsByMat[m.id] || []).length > 0 && (
+                  <div className="mt-3 pt-2 border-t border-[#e5e5e7]">
+                    <p className="text-[9px] text-[#86868b] font-medium mb-1.5">Operazioni</p>
+                    <div className="space-y-1">
+                      {(opsByMat[m.id] || []).map((op) => (
+                        <div key={op.id} className="flex items-center gap-2 text-[11px]">
+                          {op.tipologia && <span className="text-[10px] text-[#86868b] bg-[#f5f5f7] px-1.5 py-0.5 rounded">{op.tipologia.replace(/_/g, " ")}</span>}
+                          {op.fornitore && <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100 text-gray-600"}`}>{op.fornitore.nome}</span>}
+                          <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer ml-auto">
+                            <input type="checkbox" checked={op.organizzato} onChange={(e) => {
+                              import("@/lib/supabase/client").then(({ createClient }) => {
+                                createClient().from("operazioni").update({ organizzato: e.target.checked }).eq("id", op.id).then(() => window.location.reload());
+                              });
+                            }} className="rounded border-[#e5e5e7] w-3 h-3" />
+                            {op.organizzato ? "Org." : "No"}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
-      </>}
     </div>
   );
 }
 
-// ========== TRASPORTI SECTION ==========
-
-const STATO_FORN_CLS: Record<string, string> = {
-  da_trovare: "bg-red-100 text-red-700", contattato: "bg-amber-100 text-amber-700",
-  confermato: "bg-blue-100 text-blue-700", sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
-  materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
-};
-
-function TrasportiSection({ ops }: { ops: TrasportoOp[] }) {
-  const daOrganizzare = ops.filter((o) => !o.organizzato).length;
-
-  // Raggruppa per luogo_partenza
-  const grouped: Record<string, TrasportoOp[]> = {};
-  ops.forEach((op) => {
-    const key = op.luogo_partenza?.trim() || "Da definire";
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(op);
-  });
-  const luoghi = Object.keys(grouped).sort((a, b) => {
-    if (a === "Da definire") return 1;
-    if (b === "Da definire") return -1;
-    return a.localeCompare(b);
-  });
-  const numLuoghi = luoghi.filter((l) => l !== "Da definire").length;
-
-  return (
-    <div>
-      {/* Contatori */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        {daOrganizzare > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-3">
-            <p className="text-sm font-medium text-amber-800">{daOrganizzare} trasport{daOrganizzare === 1 ? "o" : "i"} da organizzare</p>
-          </div>
-        )}
-        {numLuoghi > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-[12px] px-4 py-3">
-            <p className="text-sm font-medium text-blue-800">{numLuoghi} luogh{numLuoghi === 1 ? "o" : "i"} di partenza</p>
-          </div>
-        )}
-      </div>
-
-      {ops.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-[#86868b]">
-          <Package size={40} strokeWidth={1.2} />
-          <p className="text-sm mt-3 font-medium">Nessuna operazione di trasporto</p>
-          <p className="text-xs mt-1">Aggiungi operazioni con tipologia &ldquo;trasporto&rdquo; nei materiali</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {luoghi.map((luogo) => (
-            <div key={luogo}>
-              <h3 className="text-sm font-semibold text-[#1d1d1f] mb-2">
-                {luogo}
-                <span className="text-[#86868b] font-normal ml-2">({grouped[luogo].length} trasport{grouped[luogo].length === 1 ? "o" : "i"})</span>
-              </h3>
-              <div className="space-y-2">
-                {grouped[luogo].map((op) => (
-                  <div key={op.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-[#1d1d1f]">{op.titolo}</h4>
-                        <p className="text-[10px] text-[#86868b] mt-0.5">
-                          <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: op.materiale?.task?.lavorazione?.zona?.colore }} />
-                          {op.materiale?.task?.lavorazione?.zona?.nome} &gt; {op.materiale?.task?.titolo} &gt; {op.materiale?.nome}
-                        </p>
-                      </div>
-                      <label className="flex items-center gap-1.5 text-xs cursor-pointer flex-shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={op.organizzato}
-                          onChange={(e) => {
-                            import("@/lib/supabase/client").then(({ createClient }) => {
-                              const sb = createClient();
-                              sb.from("operazioni").update({ organizzato: e.target.checked }).eq("id", op.id).then(() => window.location.reload());
-                            });
-                          }}
-                          className="rounded border-[#e5e5e7] w-4 h-4"
-                        />
-                        <span className={op.organizzato ? "text-green-700 font-medium" : "text-[#86868b]"}>
-                          {op.organizzato ? "Organizzato" : "Da organizzare"}
-                        </span>
-                      </label>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      {op.fornitore && (
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100 text-gray-600"}`}>
-                          {op.fornitore.nome} — {op.fornitore.stato.replace(/_/g, " ")}
-                        </span>
-                      )}
-                      {op.data_fine && <span className="text-[#86868b]">{new Date(op.data_fine).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}</span>}
-                      {op.note && <span className="text-[#86868b] truncate">{op.note}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}

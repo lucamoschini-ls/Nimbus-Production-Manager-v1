@@ -50,6 +50,31 @@ export async function createTipologia(data: { nome: string; colore: string; ordi
   revalidatePath("/impostazioni");
 }
 
+// ========== LUOGHI ==========
+
+export async function createLuogo(data: { nome: string; ordine: number }) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("luoghi").insert(data);
+  if (error) throw new Error(error.message);
+  revalidatePath("/impostazioni");
+}
+
+export async function updateLuogo(id: string, data: Record<string, unknown>) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("luoghi").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/impostazioni");
+}
+
+export async function deleteLuogo(id: string) {
+  const supabase = await createClient();
+  const { count } = await supabase.from("operazioni").select("*", { count: "exact", head: true }).eq("luogo_id", id);
+  if (count && count > 0) throw new Error(`Impossibile eliminare: ${count} operazioni usano questo luogo`);
+  const { error } = await supabase.from("luoghi").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/impostazioni");
+}
+
 export async function deleteTipologia(id: string, nome: string) {
   const supabase = await createClient();
   // Check if any task uses this tipologia

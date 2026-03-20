@@ -4,9 +4,10 @@ import { ImpostazioniClient } from "./impostazioni-client";
 export default async function ImpostazioniPage() {
   const supabase = await createClient();
 
-  const [{ data: zone }, { data: tipologie }] = await Promise.all([
+  const [{ data: zone }, { data: tipologie }, { data: luoghi }] = await Promise.all([
     supabase.from("zone").select("*").order("ordine"),
     supabase.from("tipologie").select("*").order("ordine"),
+    supabase.from("luoghi").select("*").order("ordine"),
   ]);
 
   // Count lavorazioni per zona
@@ -37,6 +38,7 @@ export default async function ImpostazioniPage() {
       tipologie={tipologie ?? []}
       zonaLavCount={zonaLavCount}
       tipTaskCount={tipTaskCount}
+      luoghi={luoghi ?? []}
     />
   );
 }

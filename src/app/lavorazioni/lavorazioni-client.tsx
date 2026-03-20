@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TaskDetailSheet } from "./task-detail-sheet";
 import { updateTask, createTask, createLavorazione, deleteLavorazione, deleteTask, updateLavorazione } from "./actions";
 import { updateMaterialeQuantities, updateMaterialeDataNecessaria } from "./dep-mat-actions";
+import { cycleTaskStato } from "./cycle-actions";
 import type { Zona, StatoFornitore } from "@/lib/types";
 
 // FIX 2: module-level variable survives re-mounts from loading.tsx
@@ -52,19 +53,24 @@ interface TaskCompleta {
 }
 interface FornitoreMin { id: string; nome: string; stato: StatoFornitore; }
 interface TipologiaDb { nome: string; colore: string; }
-interface MaterialeInline {
+export interface OpInCard { id: string; titolo: string; tipologia: string | null; organizzato: boolean; stato: string; fornitore: { nome: string } | null; }
+export interface MaterialeInline {
   id: string; task_id: string; nome: string; quantita: number | null; unita: string | null;
   quantita_disponibile: number | null; quantita_ordinata: number | null;
   provenienza: string | null; data_necessaria: string | null; giorni_consegna: number | null;
+  operazioni: OpInCard[];
 }
 interface DeleteConfirm { type: "lavorazione" | "task"; id: string; title: string; hasChildren: boolean; }
+
+interface LuogoMin { id: string; nome: string; }
 
 interface Props {
   zone: Zona[]; lavorazioni: Lavorazione[]; tasks: TaskCompleta[];
   fornitori: FornitoreMin[]; tipologie: TipologiaDb[]; materiali: MaterialeInline[];
+  luoghi: LuogoMin[]; initialTaskId?: string;
 }
 
-export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali }: Props) {
+export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali, luoghi, initialTaskId }: Props) {
   const tipColorMap: Record<string, string> = {};
   tipologie.forEach((t) => { tipColorMap[t.nome] = t.colore; });
 
@@ -107,6 +113,17 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   }, [selectedLav]);
 
   const [selectedTask, setSelectedTask] = useState<TaskCompleta | null>(null);
+
+  // PUNTO 9: auto-select task from URL param
+  useEffect(() => {
+    if (initialTaskId) {
+      const t = tasks.find((tk) => tk.id === initialTaskId);
+      if (t) {
+        selectLav(t.lavorazione_id);
+        setSelectedTask(t);
+      }
+    }
+  }, [initialTaskId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [addingTaskTo, setAddingTaskTo] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
@@ -357,9 +374,13 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                                   className={!tipColorMap[task.tipologia] ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600") : ""}
                                 >{task.tipologia.replace(/_/g, " ")}</Badge>
                               )}
-                              <Badge className={STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); if (["da_fare","in_corso","completata"].includes(task.stato)) { _savedLavId = selectedLav; cycleTaskStato(task.id, task.stato); } }}
+                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors cursor-pointer hover:opacity-80 ${STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}
+                                title="Click per cambiare stato"
+                              >
                                 {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
-                              </Badge>
+                              </button>
                             </div>
                             {attesaMotivo && <p className="text-xs text-amber-600 mt-1.5">{attesaMotivo}</p>}
                             {taskMat.length > 0 && (
@@ -409,6 +430,18 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                                       className="text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 w-[110px] bg-transparent" />
                                   </div>
                                 </div>
+                                {/* Operazioni sotto il materiale */}
+                                {(m.operazioni || []).length > 0 && (
+                                  <div className="ml-5 mt-1 space-y-0.5">
+                                    {(m.operazioni || []).map((op) => (
+                                      <div key={op.id} className="flex items-center gap-1.5 text-[10px] text-[#86868b]">
+                                        <span className="text-[#86868b]">{op.tipologia ? op.tipologia.replace(/_/g, " ") : op.titolo}</span>
+                                        {op.fornitore && <span className="text-[#1d1d1f] font-medium">{op.fornitore.nome}</span>}
+                                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${op.organizzato ? "bg-green-500" : "bg-[#d2d2d7]"}`} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -509,7 +542,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
         )}
       </div>
 
-      <TaskDetailSheet task={selectedTask} fornitori={fornitori} tipologieDb={tipologie} zone={zone} lavorazioni={lavorazioni} open={!!selectedTask}
+      <TaskDetailSheet task={selectedTask} fornitori={fornitori} tipologieDb={tipologie} zone={zone} lavorazioni={lavorazioni} luoghi={luoghi} open={!!selectedTask}
         onClose={() => setSelectedTask(null)}
         onSave={async (data) => { if (selectedTask) { _savedLavId = selectedLav; await updateTask(selectedTask.id, data); setSelectedTask(null); } }}
       />

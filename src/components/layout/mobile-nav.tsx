@@ -18,6 +18,7 @@ const navItems = [
   { href: "/gantt", label: "Gantt", icon: GanttChart },
   { href: "/fornitori", label: "Fornitori", icon: Truck },
   { href: "/materiali", label: "Materiali", icon: Package },
+  { href: "/trasporti", label: "Trasporti", icon: Truck },
   { href: "/costi", label: "Costi", icon: DollarSign },
   { href: "/impostazioni", label: "Impostazioni", icon: Settings },
 ];

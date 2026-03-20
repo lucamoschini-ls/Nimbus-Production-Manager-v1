@@ -4,7 +4,7 @@ import { MaterialiClient } from "./materiali-client";
 export default async function MaterialiPage() {
   const supabase = await createClient();
 
-  const [{ data: materiali }, { data: zone }, { data: trasportoOps }] = await Promise.all([
+  const [{ data: materiali }, { data: zone }, { data: operazioni }] = await Promise.all([
     supabase
       .from("materiali")
       .select(`
@@ -21,29 +21,15 @@ export default async function MaterialiPage() {
     supabase.from("zone").select("id, nome").order("ordine"),
     supabase
       .from("operazioni")
-      .select(`
-        id, titolo, organizzato, stato, data_inizio, data_fine, note, luogo_partenza,
-        fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato),
-        materiale:materiali!operazioni_materiale_id_fkey(
-          nome,
-          task:task!materiali_task_id_fkey(
-            titolo,
-            lavorazione:lavorazioni!task_lavorazione_id_fkey(
-              nome,
-              zona:zone!lavorazioni_zona_id_fkey(nome, colore)
-            )
-          )
-        )
-      `)
-      .eq("tipologia", "trasporto")
-      .order("data_fine", { ascending: true, nullsFirst: false }),
+      .select("id, materiale_id, titolo, tipologia, organizzato, stato, fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato)")
+      .order("ordine"),
   ]);
 
-  return (
-    <MaterialiClient
-      materiali={materiali ?? []}
-      zone={zone ?? []}
-      trasportoOps={(trasportoOps ?? []) as unknown as import("./materiali-client").TrasportoOp[]}
-    />
-  );
+  // Group operazioni by materiale_id
+  type OpInline = { id: string; materiale_id: string; titolo: string; tipologia: string | null; organizzato: boolean; stato: string; fornitore: { nome: string; stato: string } | null };
+  const allOps = (operazioni ?? []) as unknown as OpInline[];
+  const opsByMat: Record<string, OpInline[]> = {};
+  allOps.forEach((o) => { if (!opsByMat[o.materiale_id]) opsByMat[o.materiale_id] = []; opsByMat[o.materiale_id].push(o); });
+
+  return <MaterialiClient materiali={materiali ?? []} zone={zone ?? []} opsByMat={opsByMat} />;
 }

@@ -228,12 +228,14 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat }: P
                     {/* Task bar */}
                     {row.type === "task" && row.startDay >= 0 && row.endDay >= 0 && (() => {
                       return (
-                        <div className="absolute rounded-sm" style={{
+                        <div className="absolute rounded-sm cursor-pointer hover:brightness-110" style={{
                           left: row.startDay * dayWidth + 2,
                           width: Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4),
                           top: 9, height: ROW_HEIGHT - 18,
                           backgroundColor: STATO_BAR_COLORS[row.task.stato_calcolato] ?? "#d1d5db",
-                        }} title={`${row.task.titolo} (${row.task.stato_calcolato})`} />
+                        }} title={`${row.task.titolo} (${row.task.stato_calcolato})`}
+                          onClick={() => window.location.href = `/lavorazioni?task=${row.task.id}`}
+                        />
                       );
                     })()}
                     {/* Operazione bar */}

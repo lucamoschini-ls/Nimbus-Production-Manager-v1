@@ -104,18 +104,21 @@ interface TipologiaDb {
   colore: string;
 }
 
+interface LuogoMin { id: string; nome: string; }
+
 interface Props {
   task: TaskData | null;
   fornitori: FornitoreMin[];
   tipologieDb: TipologiaDb[];
   zone: ZonaMin[];
   lavorazioni: LavorazioneMin[];
+  luoghi: LuogoMin[];
   open: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => Promise<void>;
 }
 
-export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, open, onClose, onSave }: Props) {
+export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, luoghi, open, onClose, onSave }: Props) {
   const [form, setForm] = useState({
     titolo: "",
     tipologia: "" as string,
@@ -406,7 +409,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
 
           {/* MATERIALI */}
           {task && (
-            <MaterialiSection taskId={task.id} fornitori={fornitori} />
+            <MaterialiSection taskId={task.id} fornitori={fornitori} luoghi={luoghi} />
           )}
 
           {/* Save */}
@@ -614,7 +617,7 @@ interface OperazioneData {
   id: string; materiale_id: string; titolo: string; tipologia: string | null;
   fornitore_id: string | null; stato_fornitore_minimo: string; organizzato: boolean;
   stato: string; stato_calcolato: string; durata_ore: number | null; note: string | null;
-  luogo_partenza: string | null;
+  luogo_id: string | null;
   fornitore: { id: string; nome: string; stato: string } | null;
 }
 
@@ -632,7 +635,7 @@ function matStatoDetail(m: MaterialeData) {
   return { label: "Da acquistare", cls: "bg-red-100 text-red-700" };
 }
 
-function MaterialiSection({ taskId, fornitori }: { taskId: string; fornitori: { id: string; nome: string; stato: StatoFornitore }[] }) {
+function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; fornitori: { id: string; nome: string; stato: StatoFornitore }[]; luoghi: LuogoMin[] }) {
   const [materiali, setMateriali] = useState<MaterialeData[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedMat, setExpandedMat] = useState<Set<string>>(new Set());
@@ -710,7 +713,7 @@ function MaterialiSection({ taskId, fornitori }: { taskId: string; fornitori: { 
                 {isExpOps ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                 Operazioni
               </button>
-              {isExpOps && <OperazioniSubSection materialeId={m.id} fornitori={fornitori} />}
+              {isExpOps && <OperazioniSubSection materialeId={m.id} fornitori={fornitori} luoghi={luoghi} />}
             </div>
           );
         })}
@@ -740,7 +743,7 @@ function MaterialiSection({ taskId, fornitori }: { taskId: string; fornitori: { 
 
 // ========== OPERAZIONI SUB-MATERIALE ==========
 
-function OperazioniSubSection({ materialeId, fornitori }: { materialeId: string; fornitori: { id: string; nome: string; stato: StatoFornitore }[] }) {
+function OperazioniSubSection({ materialeId, fornitori, luoghi }: { materialeId: string; fornitori: { id: string; nome: string; stato: StatoFornitore }[]; luoghi: LuogoMin[] }) {
   const [ops, setOps] = useState<OperazioneData[]>([]);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -751,12 +754,6 @@ function OperazioniSubSection({ materialeId, fornitori }: { materialeId: string;
   }, [materialeId]);
 
   useEffect(() => { load(); }, [load]);
-
-  const handleAdd = async () => {
-    if (!newTitle.trim()) return;
-    await addOperazione(materialeId, newTitle.trim());
-    setNewTitle(""); setAdding(false); await load();
-  };
 
   const saveField = async (id: string, field: string, value: unknown) => {
     await updateOperazione(id, { [field]: value }); await load();
@@ -785,19 +782,36 @@ function OperazioniSubSection({ materialeId, fornitori }: { materialeId: string;
             </label>
             <button onClick={async () => { await removeOperazione(op.id); await load(); }} className="text-[#d2d2d7] hover:text-red-500"><X size={10} /></button>
           </div>
-          <input defaultValue={op.luogo_partenza ?? ""} onBlur={(e) => saveField(op.id, "luogo_partenza", e.target.value || null)}
-            placeholder="Luogo partenza (es. Monterosi, Guidonia...)"
-            className="ml-0 text-[10px] text-[#86868b] bg-transparent border-0 border-b border-[#e5e5e7]/50 outline-none w-full focus:border-[#1d1d1f] placeholder:text-[#d2d2d7]" />
+          <select defaultValue={op.luogo_id ?? ""} onChange={(e) => saveField(op.id, "luogo_id", e.target.value || null)}
+            className="ml-0 text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white w-full">
+            <option value="">Luogo partenza...</option>
+            {luoghi.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+          </select>
         </div>
       ))}
       {adding ? (
-        <div className="flex gap-1">
-          <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            placeholder="Titolo operazione" className="flex-1 text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 outline-none" />
-          <Button size="sm" onClick={handleAdd} disabled={!newTitle.trim()} className="text-[10px] h-5 px-2">OK</Button>
+        <div className="flex gap-1 items-center">
+          <select
+            autoFocus
+            value={newTitle}
+            onChange={(e) => {
+              setNewTitle(e.target.value);
+              if (e.target.value) { addOperazione(materialeId, e.target.value).then(() => { setNewTitle(""); setAdding(false); load(); }); }
+            }}
+            className="flex-1 text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white"
+          >
+            <option value="">Scegli tipologia...</option>
+            <option value="Trasporto">Trasporto</option>
+            <option value="Acquisto">Acquisto</option>
+            <option value="Acquisto e trasporto">Acquisto e trasporto</option>
+            <option value="Noleggio">Noleggio</option>
+            <option value="Montaggio">Montaggio</option>
+            <option value="Altro">Altro</option>
+          </select>
+          <button onClick={() => setAdding(false)} className="text-[10px] text-[#86868b]">Annulla</button>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="text-[10px] text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-0.5"><Plus size={9} /> Aggiungi operazione</button>
+        <button onClick={() => setAdding(true)} className="text-[10px] text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-0.5"><Plus size={9} /> Operazione</button>
       )}
     </div>
   );

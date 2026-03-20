@@ -27,11 +27,14 @@ interface Tipologia {
   ordine: number;
 }
 
+interface Luogo { id: string; nome: string; indirizzo: string | null; note: string | null; ordine: number; }
+
 interface Props {
   zone: Zona[];
   tipologie: Tipologia[];
   zonaLavCount: Record<string, number>;
   tipTaskCount: Record<string, number>;
+  luoghi: Luogo[];
 }
 
 const STATI_FORNITORE = [
@@ -78,8 +81,9 @@ export function ImpostazioniClient({
   tipologie,
   zonaLavCount,
   tipTaskCount,
+  luoghi,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"zone" | "tipologie" | "stati">("zone");
+  const [activeTab, setActiveTab] = useState<"zone" | "tipologie" | "luoghi" | "stati">("zone");
 
   return (
     <div>
@@ -91,6 +95,7 @@ export function ImpostazioniClient({
           [
             { key: "zone", label: "Zone" },
             { key: "tipologie", label: "Tipologie" },
+            { key: "luoghi", label: "Luoghi" },
             { key: "stati", label: "Stati fornitore" },
           ] as const
         ).map((tab) => (
@@ -114,6 +119,7 @@ export function ImpostazioniClient({
       {activeTab === "tipologie" && (
         <TipologieSection tipologie={tipologie} tipTaskCount={tipTaskCount} />
       )}
+      {activeTab === "luoghi" && <LuoghiSection luoghi={luoghi} />}
       {activeTab === "stati" && <StatiFornitoreSection />}
     </div>
   );
@@ -586,6 +592,63 @@ function StatiFornitoreSection() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ========== LUOGHI SECTION ==========
+
+function LuoghiSection({ luoghi }: { luoghi: Luogo[] }) {
+  const [adding, setAdding] = useState(false);
+  const [newNome, setNewNome] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAdd = async () => {
+    if (!newNome.trim()) return;
+    try {
+      const { createLuogo } = await import("./actions");
+      await createLuogo({ nome: newNome.trim(), ordine: luoghi.length });
+      setNewNome(""); setAdding(false);
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  const handleDelete = async (l: Luogo) => {
+    if (!confirm(`Eliminare "${l.nome}"?`)) return;
+    try {
+      const { deleteLuogo } = await import("./actions");
+      await deleteLuogo(l.id);
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  return (
+    <div className="bg-white rounded-[12px] border border-[#e5e5e7]">
+      <div className="px-5 py-4 border-b border-[#e5e5e7] flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-[#1d1d1f]">Luoghi di partenza ({luoghi.length})</h2>
+        <Button size="sm" className="gap-1.5" onClick={() => setAdding(true)}><Plus size={14} /> Aggiungi</Button>
+      </div>
+      {error && <div className="mx-5 mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">{error} <button onClick={() => setError(null)} className="ml-2 underline">Chiudi</button></div>}
+      <div className="divide-y divide-[#e5e5e7]">
+        {luoghi.map((l) => (
+          <div key={l.id} className="flex items-center justify-between px-5 py-3">
+            <div>
+              <input
+                defaultValue={l.nome}
+                onBlur={async (e) => { if (e.target.value !== l.nome) { const { updateLuogo } = await import("./actions"); await updateLuogo(l.id, { nome: e.target.value }); } }}
+                className="text-sm text-[#1d1d1f] font-medium bg-transparent border-0 outline-none focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-2"
+              />
+              {l.indirizzo && <p className="text-xs text-[#86868b]">{l.indirizzo}</p>}
+            </div>
+            <button onClick={() => handleDelete(l)} className="p-1 text-[#d2d2d7] hover:text-red-500"><Trash2 size={14} /></button>
+          </div>
+        ))}
+      </div>
+      {adding && (
+        <div className="px-5 py-3 flex gap-2 border-t border-[#e5e5e7]">
+          <input autoFocus value={newNome} onChange={(e) => setNewNome(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} placeholder="Nome luogo" className="flex-1 text-sm border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring" />
+          <Button size="sm" onClick={handleAdd} disabled={!newNome.trim()}>Salva</Button>
+          <button onClick={() => setAdding(false)} className="text-xs text-[#86868b]">Annulla</button>
+        </div>
+      )}
     </div>
   );
 }

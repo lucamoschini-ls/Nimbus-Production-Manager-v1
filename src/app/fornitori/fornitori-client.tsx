@@ -71,15 +71,30 @@ interface Permesso {
   note: string | null;
 }
 
+interface TaskForFornitore {
+  id: string; titolo: string; zona_nome: string; lavorazione_nome: string; lavorazione_id: string; stato_calcolato: string;
+}
+
+const STATO_TASK_COLORS: Record<string, string> = {
+  da_fare: "bg-gray-100 text-gray-600", in_corso: "bg-blue-100 text-blue-700",
+  completata: "bg-green-100 text-green-700", bloccata: "bg-red-100 text-red-700",
+  in_attesa_fornitore: "bg-amber-100 text-amber-700", in_attesa_dipendenza: "bg-amber-100 text-amber-700",
+  in_attesa_materiali: "bg-amber-100 text-amber-700", in_attesa_permesso: "bg-amber-100 text-amber-700",
+};
+
+const FORN_CYCLE: StatoFornitore[] = ["da_trovare", "contattato", "confermato", "sopralluogo_fatto", "materiali_definiti", "pronto"];
+
 interface Props {
   fornitori: Fornitore[];
   permessi: Permesso[];
+  tasksByFornitore: Record<string, TaskForFornitore[]>;
 }
 
-export function FornitoriClient({ fornitori, permessi }: Props) {
+export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props) {
   const [activeTab, setActiveTab] = useState<"fornitori" | "permessi">("fornitori");
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [selectedFornitore, setSelectedFornitore] = useState<Fornitore | null>(null);
+  const [expandedFornitore, setExpandedFornitore] = useState<string | null>(null);
   const [selectedPermesso, setSelectedPermesso] = useState<Permesso | null>(null);
   const [isNewFornitore, setIsNewFornitore] = useState(false);
   const [isNewPermesso, setIsNewPermesso] = useState(false);
@@ -162,40 +177,56 @@ export function FornitoriClient({ fornitori, permessi }: Props) {
       {/* Fornitori Grid */}
       {activeTab === "fornitori" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredFornitori.map((fornitore) => (
-            <button
-              key={fornitore.id}
-              onClick={() => setSelectedFornitore(fornitore)}
-              className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 text-left hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-[#1d1d1f]">
-                    {fornitore.nome}
-                  </h3>
-                  {fornitore.specializzazione && (
-                    <p className="text-xs text-[#86868b] mt-0.5 line-clamp-1">
-                      {fornitore.specializzazione}
-                    </p>
-                  )}
+          {filteredFornitori.map((fornitore) => {
+            const fornTasks = tasksByFornitore[fornitore.id] || [];
+            const isExpanded = expandedFornitore === fornitore.id;
+            return (
+              <div key={fornitore.id} className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+                <div className="p-5 cursor-pointer hover:bg-[#f5f5f7]/30 transition-colors" onClick={() => setSelectedFornitore(fornitore)}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#1d1d1f]">{fornitore.nome}</h3>
+                      {fornitore.specializzazione && <p className="text-xs text-[#86868b] mt-0.5 line-clamp-1">{fornitore.specializzazione}</p>}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const idx = FORN_CYCLE.indexOf(fornitore.stato);
+                        const next = FORN_CYCLE[(idx + 1) % FORN_CYCLE.length];
+                        updateFornitore(fornitore.id, { stato: next });
+                      }}
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${STATO_FORNITORE_COLORS[fornitore.stato]}`}
+                      title="Click per avanzare stato"
+                    >
+                      {STATO_FORNITORE_LABELS[fornitore.stato]}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-[#86868b]">
+                    {fornitore.tipo && <span>{fornitore.tipo}</span>}
+                    <button onClick={(e) => { e.stopPropagation(); setExpandedFornitore(isExpanded ? null : fornitore.id); }} className="hover:text-[#1d1d1f] underline-offset-2 hover:underline">
+                      {fornitore.task_totali} task
+                    </button>
+                    {fornitore.task_bloccate_da_me > 0 && <span className="text-red-500">{fornitore.task_bloccate_da_me} bloccate</span>}
+                  </div>
                 </div>
-                <Badge
-                  className={STATO_FORNITORE_COLORS[fornitore.stato]}
-                >
-                  {STATO_FORNITORE_LABELS[fornitore.stato]}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-[#86868b]">
-                {fornitore.tipo && <span>{fornitore.tipo}</span>}
-                <span>{fornitore.task_totali} task</span>
-                {fornitore.task_bloccate_da_me > 0 && (
-                  <span className="text-red-500">
-                    {fornitore.task_bloccate_da_me} bloccate
-                  </span>
+                {isExpanded && fornTasks.length > 0 && (
+                  <div className="border-t border-[#e5e5e7] bg-[#f5f5f7]/30 px-5 py-3 space-y-1.5">
+                    {fornTasks.map((t) => (
+                      <a key={t.id} href={`/lavorazioni?task=${t.id}`} className="flex items-center justify-between text-xs hover:bg-white rounded px-2 py-1.5 -mx-2 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[#1d1d1f] truncate block">{t.titolo}</span>
+                          <span className="text-[10px] text-[#86868b]">{t.zona_nome} &gt; {t.lavorazione_nome}</span>
+                        </div>
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ml-2 ${STATO_TASK_COLORS[t.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}>
+                          {t.stato_calcolato.replace(/_/g, " ")}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
                 )}
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
 
