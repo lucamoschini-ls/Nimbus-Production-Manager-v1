@@ -21,6 +21,15 @@ export async function updateOperazioneFromMateriali(id: string, data: Record<str
   revalidatePath("/trasporti");
 }
 
+export async function addOperazioneFromMateriali(materialeId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("operazioni").insert({ materiale_id: materialeId, titolo: "Nuova operazione" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/materiali");
+  revalidatePath("/lavorazioni");
+  revalidatePath("/trasporti");
+}
+
 export async function deleteOperazioneFromMateriali(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("operazioni").delete().eq("id", id);

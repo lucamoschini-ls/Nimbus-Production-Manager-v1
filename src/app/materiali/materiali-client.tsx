@@ -5,7 +5,7 @@ import { Package, Filter } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali } from "./actions";
+import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali } from "./actions";
 
 const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
 const PROVENIENZA = [
@@ -347,6 +347,12 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi }
                       </div>
                     ))}
                   </div>
+                  <button
+                    onClick={() => addOperazioneFromMateriali(m.id)}
+                    className="mt-1.5 text-[10px] text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-0.5"
+                  >
+                    + Operazione
+                  </button>
                 </div>
               </div>
             );
