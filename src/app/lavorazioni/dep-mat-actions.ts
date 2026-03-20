@@ -124,12 +124,17 @@ export async function getOperazioniByMateriale(materialeId: string) {
   return data ?? [];
 }
 
-export async function addOperazione(materialeId: string, titolo: string) {
+export async function addOperazione(materialeId: string, titolo: string, tipologia?: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("operazioni").insert({ materiale_id: materialeId, titolo });
+  const { error } = await supabase.from("operazioni").insert({
+    materiale_id: materialeId,
+    titolo,
+    tipologia: tipologia || null,
+  });
   if (error) throw new Error(error.message);
   revalidatePath("/lavorazioni");
   revalidatePath("/materiali");
+  revalidatePath("/trasporti");
 }
 
 export async function updateOperazione(id: string, data: Record<string, unknown>) {

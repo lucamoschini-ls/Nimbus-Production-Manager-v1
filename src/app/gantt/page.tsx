@@ -4,7 +4,7 @@ import { GanttClient } from "./gantt-client";
 export default async function GanttPage() {
   const supabase = await createClient();
 
-  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: materiali }, { data: operazioni }] = await Promise.all([
+  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: materiali }, { data: operazioni }, { data: tipologie }] = await Promise.all([
     supabase.from("zone").select("*").order("ordine"),
     supabase.from("lavorazioni").select("*").order("ordine"),
     supabase
@@ -19,7 +19,12 @@ export default async function GanttPage() {
       .from("operazioni")
       .select("id, materiale_id, titolo, tipologia, stato, stato_calcolato, data_inizio, data_fine, fornitore_id, fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato)")
       .order("ordine"),
+    supabase.from("tipologie").select("nome, colore").order("ordine"),
   ]);
+
+  // Build tipologia color map
+  const tipColorMap: Record<string, string> = {};
+  tipologie?.forEach((t: { nome: string; colore: string }) => { tipColorMap[t.nome] = t.colore; });
 
   // Group operazioni by materiale_id
   type OpInfo = { id: string; materiale_id: string; titolo: string; tipologia: string | null; stato: string; stato_calcolato: string; data_inizio: string | null; data_fine: string | null; fornitore_id: string | null; fornitore: { nome: string; stato: string } | null };
@@ -37,6 +42,7 @@ export default async function GanttPage() {
       tasks={tasks ?? []}
       materiali={materiali ?? []}
       opsByMat={opsByMat}
+      tipColorMap={tipColorMap}
     />
   );
 }

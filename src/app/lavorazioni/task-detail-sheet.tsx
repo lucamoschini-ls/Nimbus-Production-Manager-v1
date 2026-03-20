@@ -746,7 +746,6 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
 function OperazioniSubSection({ materialeId, fornitori, luoghi }: { materialeId: string; fornitori: { id: string; nome: string; stato: StatoFornitore }[]; luoghi: LuogoMin[] }) {
   const [ops, setOps] = useState<OperazioneData[]>([]);
   const [adding, setAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
 
   const load = useCallback(async () => {
     const data = await getOperazioniByMateriale(materialeId);
@@ -793,20 +792,21 @@ function OperazioniSubSection({ materialeId, fornitori, luoghi }: { materialeId:
         <div className="flex gap-1 items-center">
           <select
             autoFocus
-            value={newTitle}
+            value=""
             onChange={(e) => {
-              setNewTitle(e.target.value);
-              if (e.target.value) { addOperazione(materialeId, e.target.value).then(() => { setNewTitle(""); setAdding(false); load(); }); }
+              if (!e.target.value) return;
+              const [tipologia, label] = e.target.value.split("|");
+              addOperazione(materialeId, label, tipologia).then(() => { setAdding(false); load(); });
             }}
             className="flex-1 text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white"
           >
             <option value="">Scegli tipologia...</option>
-            <option value="Trasporto">Trasporto</option>
-            <option value="Acquisto">Acquisto</option>
-            <option value="Acquisto e trasporto">Acquisto e trasporto</option>
-            <option value="Noleggio">Noleggio</option>
-            <option value="Montaggio">Montaggio</option>
-            <option value="Altro">Altro</option>
+            <option value="trasporto|Trasporto">Trasporto</option>
+            <option value="acquisto|Acquisto">Acquisto</option>
+            <option value="acquisto_e_trasporto|Acquisto e trasporto">Acquisto e trasporto</option>
+            <option value="noleggio|Noleggio">Noleggio</option>
+            <option value="montaggio|Montaggio">Montaggio</option>
+            <option value="|Altro">Altro</option>
           </select>
           <button onClick={() => setAdding(false)} className="text-[10px] text-[#86868b]">Annulla</button>
         </div>
