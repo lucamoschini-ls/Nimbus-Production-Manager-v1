@@ -29,6 +29,7 @@ import {
   updateMateriale,
   removeMateriale,
   searchTasks,
+  getCatalogo,
   getOperazioniByMateriale,
   addOperazione,
   updateOperazione,
@@ -133,6 +134,11 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
     ore_lavoro: "",
     costo_ora: "",
     note: "",
+    fornitore_supporto_id: "" as string,
+    stato_fornitore_supporto_minimo: "pronto" as StatoFornitore,
+    supporto_numero_persone: "",
+    supporto_ore_lavoro: "",
+    supporto_costo_ora: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -152,6 +158,11 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
         ore_lavoro: task.ore_lavoro?.toString() ?? "",
         costo_ora: task.costo_ora?.toString() ?? "",
         note: task.note ?? "",
+        fornitore_supporto_id: (task as unknown as Record<string, unknown>).fornitore_supporto_id as string ?? "",
+        stato_fornitore_supporto_minimo: ((task as unknown as Record<string, unknown>).stato_fornitore_supporto_minimo as StatoFornitore) ?? "pronto",
+        supporto_numero_persone: ((task as unknown as Record<string, unknown>).supporto_numero_persone as number)?.toString() ?? "",
+        supporto_ore_lavoro: ((task as unknown as Record<string, unknown>).supporto_ore_lavoro as number)?.toString() ?? "",
+        supporto_costo_ora: ((task as unknown as Record<string, unknown>).supporto_costo_ora as number)?.toString() ?? "",
       });
     }
   }, [task]);
@@ -173,6 +184,11 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
         ore_lavoro: form.ore_lavoro ? parseFloat(form.ore_lavoro) : null,
         costo_ora: form.costo_ora ? parseFloat(form.costo_ora) : null,
         note: form.note || null,
+        fornitore_supporto_id: form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" ? form.fornitore_supporto_id : null,
+        stato_fornitore_supporto_minimo: form.stato_fornitore_supporto_minimo,
+        supporto_numero_persone: form.supporto_numero_persone ? parseInt(form.supporto_numero_persone) : null,
+        supporto_ore_lavoro: form.supporto_ore_lavoro ? parseFloat(form.supporto_ore_lavoro) : null,
+        supporto_costo_ora: form.supporto_costo_ora ? parseFloat(form.supporto_costo_ora) : null,
       });
     } finally {
       setSaving(false);
@@ -290,6 +306,36 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                 </SelectContent>
               </Select>
             </div>
+          )}
+
+          {/* Fornitore supporto */}
+          {form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" ? (
+            <div className="bg-[#f5f5f7] rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-[#86868b]">Fornitore supporto</label>
+                <button onClick={() => setForm({ ...form, fornitore_supporto_id: "none", stato_fornitore_supporto_minimo: "pronto" })} className="text-[10px] text-red-500">Rimuovi</button>
+              </div>
+              <Select value={form.fornitore_supporto_id} onValueChange={(v) => setForm({ ...form, fornitore_supporto_id: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{fornitori.map((f) => (<SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>))}</SelectContent>
+              </Select>
+              <Select value={form.stato_fornitore_supporto_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_supporto_minimo: v as StatoFornitore })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="confermato">Confermato</SelectItem><SelectItem value="sopralluogo_fatto">Sopralluogo fatto</SelectItem>
+                  <SelectItem value="materiali_definiti">Materiali definiti</SelectItem><SelectItem value="pronto">Pronto</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-3 gap-2">
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Persone</label><Input type="number" value={form.supporto_numero_persone} onChange={(e) => setForm({ ...form, supporto_numero_persone: e.target.value })} /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Ore</label><Input type="number" value={form.supporto_ore_lavoro} onChange={(e) => setForm({ ...form, supporto_ore_lavoro: e.target.value })} /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Costo/ora</label><Input type="number" value={form.supporto_costo_ora} onChange={(e) => setForm({ ...form, supporto_costo_ora: e.target.value })} /></div>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setForm({ ...form, fornitore_supporto_id: "" })} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
+              <Plus size={12} /> Aggiungi fornitore supporto
+            </button>
           )}
 
           {/* Stato */}
@@ -639,7 +685,9 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
   const [materiali, setMateriali] = useState<MaterialeData[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedMat, setExpandedMat] = useState<Set<string>>(new Set());
-  const [newMat, setNewMat] = useState({ nome: "", quantita: "", unita: "pz", prezzo_unitario: "", provenienza: "acquisto", giorni_consegna: "", note: "" });
+  const [catalogo, setCatalogo] = useState<{ id: string; nome: string; tipologia_materiale: string; unita_default: string | null; prezzo_unitario_default: number | null; provenienza_default: string | null }[]>([]);
+  const [catSearch, setCatSearch] = useState("");
+  const [newMat, setNewMat] = useState({ nome: "", quantita: "", unita: "pz", prezzo_unitario: "", provenienza: "acquisto", giorni_consegna: "", note: "", catalogo_id: "" });
 
   const loadMateriali = useCallback(async () => {
     const data = await getMateriali(taskId);
@@ -648,10 +696,39 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
 
   useEffect(() => { loadMateriali(); }, [loadMateriali]);
 
+  const openForm = async () => {
+    const cat = await getCatalogo();
+    setCatalogo(cat as typeof catalogo);
+    setShowForm(true);
+  };
+
+  const selectFromCatalogo = (catItem: typeof catalogo[0]) => {
+    setNewMat({
+      nome: catItem.nome,
+      quantita: "",
+      unita: catItem.unita_default ?? "pz",
+      prezzo_unitario: catItem.prezzo_unitario_default?.toString() ?? "",
+      provenienza: catItem.provenienza_default ?? "acquisto",
+      giorni_consegna: "",
+      note: "",
+      catalogo_id: catItem.id,
+    });
+    setCatSearch("");
+  };
+
   const handleAdd = async () => {
     if (!newMat.nome.trim()) return;
-    await addMateriale({ task_id: taskId, nome: newMat.nome, quantita: newMat.quantita ? parseFloat(newMat.quantita) : undefined, unita: newMat.unita || undefined, prezzo_unitario: newMat.prezzo_unitario ? parseFloat(newMat.prezzo_unitario) : undefined, provenienza: newMat.provenienza || undefined, giorni_consegna: newMat.giorni_consegna ? parseInt(newMat.giorni_consegna) : undefined, note: newMat.note || undefined });
-    setNewMat({ nome: "", quantita: "", unita: "pz", prezzo_unitario: "", provenienza: "acquisto", giorni_consegna: "", note: "" });
+    await addMateriale({
+      task_id: taskId, nome: newMat.nome,
+      quantita: newMat.quantita ? parseFloat(newMat.quantita) : undefined,
+      unita: newMat.unita || undefined,
+      prezzo_unitario: newMat.prezzo_unitario ? parseFloat(newMat.prezzo_unitario) : undefined,
+      provenienza: newMat.provenienza || undefined,
+      giorni_consegna: newMat.giorni_consegna ? parseInt(newMat.giorni_consegna) : undefined,
+      note: newMat.note || undefined,
+      catalogo_id: newMat.catalogo_id || undefined,
+    });
+    setNewMat({ nome: "", quantita: "", unita: "pz", prezzo_unitario: "", provenienza: "acquisto", giorni_consegna: "", note: "", catalogo_id: "" });
     setShowForm(false); await loadMateriali();
   };
 
@@ -671,7 +748,7 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
     <div className="border-t border-[#e5e5e7] pt-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-semibold text-[#1d1d1f] flex items-center gap-1.5"><Package size={13} /> Materiali ({materiali.length})</h3>
-        <button onClick={() => setShowForm(!showForm)} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1"><Plus size={12} /> Aggiungi</button>
+        <button onClick={openForm} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1"><Plus size={12} /> Aggiungi</button>
       </div>
 
       {materiali.length === 0 && !showForm && <p className="text-xs text-[#86868b]">Nessun materiale</p>}
@@ -721,20 +798,64 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
 
       {showForm && (
         <div className="mt-3 bg-white border border-[#e5e5e7] rounded-lg p-3 space-y-2.5">
-          <input autoFocus value={newMat.nome} onChange={(e) => setNewMat({ ...newMat, nome: e.target.value })} placeholder="Nome materiale" className="w-full text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
-          <div className="grid grid-cols-3 gap-2">
-            <input type="number" value={newMat.quantita} onChange={(e) => setNewMat({ ...newMat, quantita: e.target.value })} placeholder="Qty" className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
-            <select value={newMat.unita} onChange={(e) => setNewMat({ ...newMat, unita: e.target.value })} className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white">{UNITA_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
-            <input type="number" value={newMat.prezzo_unitario} onChange={(e) => setNewMat({ ...newMat, prezzo_unitario: e.target.value })} placeholder="Prezzo" className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select value={newMat.provenienza} onChange={(e) => setNewMat({ ...newMat, provenienza: e.target.value })} className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white">{PROVENIENZA_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select>
-            <input type="number" value={newMat.giorni_consegna} onChange={(e) => setNewMat({ ...newMat, giorni_consegna: e.target.value })} placeholder="Gg consegna" className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleAdd} disabled={!newMat.nome.trim()} className="flex-1 text-xs">Salva</Button>
-            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="text-xs">Annulla</Button>
-          </div>
+          {/* Catalogo search */}
+          {!newMat.nome && (
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-2 text-[#86868b]" />
+              <input autoFocus value={catSearch} onChange={(e) => setCatSearch(e.target.value)} placeholder="Cerca nel catalogo o crea nuovo..."
+                className="w-full text-xs border border-[#e5e5e7] rounded pl-8 pr-3 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+              {catSearch.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-[#e5e5e7] rounded-lg shadow-md max-h-48 overflow-y-auto">
+                  {(() => {
+                    const q = catSearch.toLowerCase();
+                    const filtered = catalogo.filter(c => c.nome.toLowerCase().includes(q));
+                    const groups: Record<string, typeof catalogo> = {};
+                    filtered.forEach(c => { const k = c.tipologia_materiale; if (!groups[k]) groups[k] = []; groups[k].push(c); });
+                    return (
+                      <>
+                        {Object.entries(groups).map(([tipo, items]) => (
+                          <div key={tipo}>
+                            <div className="px-3 py-1 text-[9px] text-[#86868b] font-semibold uppercase bg-[#f5f5f7]">{tipo}</div>
+                            {items.map(c => (
+                              <button key={c.id} onClick={() => selectFromCatalogo(c)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#f5f5f7] border-b border-[#e5e5e7]/50 last:border-0">
+                                {c.nome} {c.unita_default && <span className="text-[#86868b]">({c.unita_default})</span>}
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                        <button onClick={() => { setNewMat({ ...newMat, nome: catSearch }); setCatSearch(""); }} className="w-full text-left px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 font-medium">
+                          + Nuovo: {catSearch}
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Fields after selection */}
+          {newMat.nome && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-[#1d1d1f]">{newMat.nome}</span>
+                {newMat.catalogo_id && <span className="text-[9px] text-[#86868b] bg-[#f5f5f7] px-1.5 py-0.5 rounded">catalogo</span>}
+                <button onClick={() => setNewMat({ ...newMat, nome: "", catalogo_id: "" })} className="text-[10px] text-[#86868b] hover:text-[#1d1d1f] ml-auto">Cambia</button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <input type="number" value={newMat.quantita} onChange={(e) => setNewMat({ ...newMat, quantita: e.target.value })} placeholder="Qty" className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+                <select value={newMat.unita} onChange={(e) => setNewMat({ ...newMat, unita: e.target.value })} className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white">{UNITA_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                <input type="number" value={newMat.prezzo_unitario} onChange={(e) => setNewMat({ ...newMat, prezzo_unitario: e.target.value })} placeholder="Prezzo" className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={newMat.provenienza} onChange={(e) => setNewMat({ ...newMat, provenienza: e.target.value })} className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white">{PROVENIENZA_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select>
+                <input type="number" value={newMat.giorni_consegna} onChange={(e) => setNewMat({ ...newMat, giorni_consegna: e.target.value })} placeholder="Gg consegna" className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleAdd} disabled={!newMat.nome.trim()} className="flex-1 text-xs">Salva</Button>
+                <Button size="sm" variant="ghost" onClick={() => { setShowForm(false); setNewMat({ nome: "", quantita: "", unita: "pz", prezzo_unitario: "", provenienza: "acquisto", giorni_consegna: "", note: "", catalogo_id: "" }); }} className="text-xs">Annulla</Button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

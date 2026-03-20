@@ -30,6 +30,20 @@ export async function addOperazioneFromMateriali(materialeId: string) {
   revalidatePath("/trasporti");
 }
 
+export async function updateCatalogoItem(id: string, data: Record<string, unknown>) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("catalogo_materiali").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/materiali");
+}
+
+export async function addCatalogoItem(data: { nome: string; tipologia_materiale?: string; unita_default?: string; prezzo_unitario_default?: number; provenienza_default?: string }) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("catalogo_materiali").insert(data);
+  if (error) throw new Error(error.message);
+  revalidatePath("/materiali");
+}
+
 export async function deleteOperazioneFromMateriali(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("operazioni").delete().eq("id", id);

@@ -67,6 +67,7 @@ export async function addMateriale(data: {
   provenienza?: string;
   giorni_consegna?: number;
   note?: string;
+  catalogo_id?: string;
 }) {
   const supabase = await createClient();
   const { error } = await supabase.from("materiali").insert(data);
@@ -111,6 +112,18 @@ export async function updateMaterialeDataNecessaria(id: string, data_necessaria:
 }
 
 // ========== SEARCH TASKS (per dropdown dipendenze) ==========
+
+// ========== CATALOGO ==========
+
+export async function getCatalogo() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("catalogo_materiali")
+    .select("*")
+    .order("tipologia_materiale")
+    .order("nome");
+  return data ?? [];
+}
 
 // ========== OPERAZIONI (figlie dei materiali) ==========
 

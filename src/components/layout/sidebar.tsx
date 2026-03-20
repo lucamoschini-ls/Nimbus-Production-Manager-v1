@@ -10,6 +10,7 @@ import {
   Package,
   DollarSign,
   Settings,
+  ClipboardList,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/fornitori", label: "Fornitori", icon: Truck },
   { href: "/materiali", label: "Materiali", icon: Package },
   { href: "/trasporti", label: "Trasporti", icon: Truck },
+  { href: "/presenze", label: "Presenze", icon: ClipboardList },
   { href: "/costi", label: "Costi", icon: DollarSign },
   { href: "/impostazioni", label: "Impostazioni", icon: Settings },
 ];

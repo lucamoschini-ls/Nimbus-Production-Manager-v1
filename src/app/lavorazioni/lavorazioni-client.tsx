@@ -389,7 +389,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                               </p>
                             )}
                           </div>
-                          {task.fornitore_nome && <span className="text-xs text-[#86868b] flex-shrink-0">{task.fornitore_nome}</span>}
+                          {task.fornitore_nome && <span className="text-xs text-[#86868b] flex-shrink-0">{task.fornitore_nome}{(task as unknown as Record<string, unknown>).fornitore_supporto_nome ? ` + ${(task as unknown as Record<string, unknown>).fornitore_supporto_nome}` : ""}</span>}
                         </div>
                       </div>
 

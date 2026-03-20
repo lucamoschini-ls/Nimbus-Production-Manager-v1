@@ -5,7 +5,7 @@ import { Package, Filter } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali } from "./actions";
+import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali, updateCatalogoItem, addCatalogoItem } from "./actions";
 
 const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
 const PROVENIENZA = [
@@ -56,11 +56,19 @@ const STATO_FORN_CLS: Record<string, string> = {
   materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
 };
 
+interface CatAgg {
+  id: string; nome: string; tipologia_materiale: string; unita_default: string | null;
+  prezzo_unitario_default: number | null; provenienza_default: string | null; note: string | null;
+  task_count: number; qty_totale: number; qty_disponibile: number;
+  tasks: { id: string; titolo: string; data_inizio: string | null; data_fine: string | null }[];
+}
+
 interface Props {
   materiali: Materiale[]; zone: Zona[];
   opsByMat: Record<string, OpFull[]>;
   fornitori: { id: string; nome: string }[];
   luoghi: { id: string; nome: string }[];
+  catalogo: CatAgg[];
 }
 
 function matStato(m: Materiale) {
@@ -113,7 +121,8 @@ function saveOp(id: string, field: string, value: unknown) {
   updateOperazioneFromMateriali(id, { [field]: value });
 }
 
-export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi }: Props) {
+export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, catalogo }: Props) {
+  const [activeTab, setActiveTab] = useState<"materiali" | "catalogo">("materiali");
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
   const [filterProvenienza, setFilterProvenienza] = useState("tutti");
@@ -138,8 +147,16 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi }
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-6">Materiali</h1>
+      <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-4">Materiali</h1>
 
+      <div className="flex gap-1 mb-6 bg-[#f5f5f7] rounded-lg p-1 w-fit">
+        <button onClick={() => setActiveTab("materiali")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "materiali" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Materiali ({totale})</button>
+        <button onClick={() => setActiveTab("catalogo")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "catalogo" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Catalogo ({catalogo.length})</button>
+      </div>
+
+      {activeTab === "catalogo" && <CatalogoTab catalogo={catalogo} />}
+
+      {activeTab === "materiali" && <>
       {/* Contatori */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
@@ -359,6 +376,96 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi }
           })}
         </div>
       )}
+      </>}
+    </div>
+  );
+}
+
+// ========== CATALOGO TAB ==========
+
+const TIP_MAT_COLORS: Record<string, string> = {
+  strutturale: "bg-orange-100 text-orange-700",
+  consumo: "bg-blue-100 text-blue-700",
+  attrezzo: "bg-purple-100 text-purple-700",
+};
+
+function CatalogoTab({ catalogo }: { catalogo: CatAgg[] }) {
+  const [filterTip, setFilterTip] = useState("tutti");
+  const [adding, setAdding] = useState(false);
+  const [newNome, setNewNome] = useState("");
+
+  const filtered = filterTip === "tutti" ? catalogo : catalogo.filter(c => c.tipologia_materiale === filterTip);
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Select value={filterTip} onValueChange={setFilterTip}>
+          <SelectTrigger className="w-[160px]"><Filter size={14} className="mr-1.5 text-[#86868b]" /><SelectValue placeholder="Tipologia" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti">Tutte</SelectItem>
+            <SelectItem value="strutturale">Strutturale</SelectItem>
+            <SelectItem value="consumo">Consumo</SelectItem>
+            <SelectItem value="attrezzo">Attrezzo</SelectItem>
+          </SelectContent>
+        </Select>
+        <button onClick={() => setAdding(true)} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1 ml-auto">+ Aggiungi al catalogo</button>
+      </div>
+
+      {adding && (
+        <div className="flex gap-2 mb-4 items-center">
+          <input autoFocus value={newNome} onChange={(e) => setNewNome(e.target.value)} placeholder="Nome materiale" className="flex-1 text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+          <button onClick={async () => { if (newNome.trim()) { await addCatalogoItem({ nome: newNome.trim() }); setNewNome(""); setAdding(false); } }} className="text-xs bg-[#1d1d1f] text-white rounded px-3 py-1.5">Salva</button>
+          <button onClick={() => setAdding(false)} className="text-xs text-[#86868b]">Annulla</button>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {filtered.map((c) => {
+          const daAcq = Math.max(c.qty_totale - c.qty_disponibile, 0);
+          // Conflict check for attrezzi
+          let conflict = "";
+          if (c.tipologia_materiale === "attrezzo" && c.tasks.length > 1) {
+            for (let i = 0; i < c.tasks.length; i++) {
+              for (let j = i + 1; j < c.tasks.length; j++) {
+                const a = c.tasks[i], b = c.tasks[j];
+                if (a.data_inizio && a.data_fine && b.data_inizio && b.data_fine) {
+                  if (a.data_inizio <= b.data_fine && b.data_inizio <= a.data_fine) {
+                    conflict = `Conflitto: ${a.titolo} e ${b.titolo} si sovrappongono`;
+                    break;
+                  }
+                }
+              }
+              if (conflict) break;
+            }
+          }
+
+          return (
+            <div key={c.id} className={`bg-white rounded-[12px] border p-4 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) updateCatalogoItem(c.id, { nome: e.target.value }); }}
+                  className="text-sm font-medium text-[#1d1d1f] bg-transparent border-0 outline-none flex-1 min-w-[120px] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-2" />
+                <select defaultValue={c.tipologia_materiale} onChange={(e) => updateCatalogoItem(c.id, { tipologia_materiale: e.target.value })}
+                  className="text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
+                  <option value="strutturale">strutturale</option><option value="consumo">consumo</option><option value="attrezzo">attrezzo</option>
+                </select>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TIP_MAT_COLORS[c.tipologia_materiale] ?? "bg-gray-100"}`}>{c.tipologia_materiale}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-[#86868b]">
+                <span>{c.task_count} task</span>
+                <span>Totale: <span className="text-[#1d1d1f] font-medium">{c.qty_totale}{c.unita_default ? ` ${c.unita_default}` : ""}</span></span>
+                <span>Disponibile: <span className="text-[#1d1d1f] font-medium">{c.qty_disponibile}</span></span>
+                {daAcq > 0 && <span className="text-red-600 font-medium">Da acquistare: {daAcq}</span>}
+              </div>
+              {c.tasks.length > 0 && (
+                <div className="mt-2 text-[10px] text-[#86868b]">
+                  {c.tasks.map((t, i) => <span key={t.id}>{i > 0 && ", "}{t.titolo}</span>)}
+                </div>
+              )}
+              {conflict && <p className="mt-2 text-xs text-orange-600 font-medium">{conflict}</p>}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
