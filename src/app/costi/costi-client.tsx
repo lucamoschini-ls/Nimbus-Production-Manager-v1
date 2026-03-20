@@ -7,6 +7,7 @@ interface CostoZona { zona: string; costo_manodopera: number; costo_materiali: n
 interface TaskConCosto {
   id: string; titolo: string; zona_nome: string; zona_colore: string; zona_ordine: number;
   lavorazione_nome: string; costo_manodopera: number | null; fornitore_nome: string | null;
+  data_inizio: string | null; durata_ore: number | null;
   supporto_numero_persone: number | null; supporto_ore_lavoro: number | null; supporto_costo_ora: number | null;
 }
 export interface PresenzaCosto {
@@ -95,6 +96,47 @@ export function CostiClient({ costiZona, taskConCosti, presenze }: Props) {
             <div className="grid grid-cols-4 gap-4 px-4 py-3 bg-[#f5f5f7]">
               <span className="text-sm font-bold">TOTALE</span><span className="text-sm font-bold text-right">{eur(totPrevMano)}</span><span className="text-sm font-bold text-right">{eur(totPrevMat)}</span><span className="text-sm font-bold text-right">{eur(totPrev)}</span>
             </div>
+          </div>
+
+          {/* Stima per giorno */}
+          <h3 className="text-sm font-semibold text-[#1d1d1f] mt-6 mb-3">Stima per giorno</h3>
+          <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+            <div className="grid grid-cols-4 gap-4 px-4 py-2 border-b border-[#e5e5e7] bg-[#f5f5f7]">
+              <span className="text-xs font-semibold">Data</span><span className="text-xs font-semibold">Task</span><span className="text-xs font-semibold text-right">Ore</span><span className="text-xs font-semibold text-right">Costo</span>
+            </div>
+            {(() => {
+              const HOURS_PER_DAY = 11;
+              const dayMap: Record<string, { titolo: string; ore: number; costo: number }[]> = {};
+              taskConCosti.forEach(t => {
+                if (!t.data_inizio || !t.durata_ore) return;
+                const days = Math.ceil(t.durata_ore / HOURS_PER_DAY);
+                const costoPerOra = t.costo_manodopera && t.durata_ore ? t.costo_manodopera / t.durata_ore : 0;
+                for (let d = 0; d < days; d++) {
+                  const date: Date = new Date(t.data_inizio + "T12:00:00");
+                  date.setDate(date.getDate() + d);
+                  const key = date.toISOString().split("T")[0];
+                  const oreDay = d < days - 1 ? HOURS_PER_DAY : (t.durata_ore % HOURS_PER_DAY || HOURS_PER_DAY);
+                  if (!dayMap[key]) dayMap[key] = [];
+                  dayMap[key].push({ titolo: t.titolo, ore: oreDay, costo: oreDay * costoPerOra });
+                }
+              });
+              const sortedDays = Object.keys(dayMap).sort();
+              return sortedDays.length === 0 ? (
+                <p className="px-4 py-3 text-xs text-[#86868b]">Nessuna task con data inizio e durata</p>
+              ) : sortedDays.map(day => {
+                const items = dayMap[day];
+                const totOre = items.reduce((s, i) => s + i.ore, 0);
+                const totCosto = items.reduce((s, i) => s + i.costo, 0);
+                return (
+                  <div key={day} className="grid grid-cols-4 gap-4 px-4 py-2 border-b border-[#e5e5e7] last:border-0 text-xs">
+                    <span className="text-[#1d1d1f] font-medium">{new Date(day + "T12:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}</span>
+                    <span className="text-[#86868b] truncate">{items.map(i => i.titolo).join(", ")}</span>
+                    <span className="text-right">{totOre}h</span>
+                    <span className="text-right font-medium">{eur(totCosto)}</span>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
       )}

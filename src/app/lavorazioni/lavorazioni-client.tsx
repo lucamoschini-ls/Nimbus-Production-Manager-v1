@@ -58,7 +58,7 @@ export interface MaterialeInline {
   id: string; task_id: string; nome: string; quantita: number | null; unita: string | null;
   quantita_disponibile: number | null; quantita_ordinata: number | null;
   provenienza: string | null; data_necessaria: string | null; giorni_consegna: number | null;
-  operazioni: OpInCard[];
+  catalogo_id: string | null; operazioni: OpInCard[];
 }
 interface DeleteConfirm { type: "lavorazione" | "task"; id: string; title: string; hasChildren: boolean; }
 
@@ -68,9 +68,10 @@ interface Props {
   zone: Zona[]; lavorazioni: Lavorazione[]; tasks: TaskCompleta[];
   fornitori: FornitoreMin[]; tipologie: TipologiaDb[]; materiali: MaterialeInline[];
   luoghi: LuogoMin[]; initialTaskId?: string;
+  attrezziConflicts?: Record<string, string>;
 }
 
-export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali, luoghi, initialTaskId }: Props) {
+export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali, luoghi, initialTaskId, attrezziConflicts = {} }: Props) {
   const tipColorMap: Record<string, string> = {};
   tipologie.forEach((t) => { tipColorMap[t.nome] = t.colore; });
 
@@ -410,6 +411,9 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                                   </span>
                                   <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stato.cls}`}>{stato.label}</span>
                                 </div>
+                                {attrezziConflicts[m.id] && (
+                                  <p className="text-[10px] text-orange-600 mt-0.5 ml-5 font-medium">Conflitto: {attrezziConflicts[m.id]}</p>
+                                )}
                                 <div className="flex items-end gap-2 mt-1 ml-5">
                                   <div className="flex flex-col">
                                     <span className="text-[9px] text-[#86868b] leading-none mb-0.5">Disp.</span>

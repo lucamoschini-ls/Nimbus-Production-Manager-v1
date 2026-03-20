@@ -184,7 +184,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
         ore_lavoro: form.ore_lavoro ? parseFloat(form.ore_lavoro) : null,
         costo_ora: form.costo_ora ? parseFloat(form.costo_ora) : null,
         note: form.note || null,
-        fornitore_supporto_id: form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" ? form.fornitore_supporto_id : null,
+        fornitore_supporto_id: form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" && form.fornitore_supporto_id !== "_new" ? form.fornitore_supporto_id : null,
         stato_fornitore_supporto_minimo: form.stato_fornitore_supporto_minimo,
         supporto_numero_persone: form.supporto_numero_persone ? parseInt(form.supporto_numero_persone) : null,
         supporto_ore_lavoro: form.supporto_ore_lavoro ? parseFloat(form.supporto_ore_lavoro) : null,
@@ -315,8 +315,8 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                 <label className="text-xs font-medium text-[#86868b]">Fornitore supporto</label>
                 <button onClick={() => setForm({ ...form, fornitore_supporto_id: "none", stato_fornitore_supporto_minimo: "pronto" })} className="text-[10px] text-red-500">Rimuovi</button>
               </div>
-              <Select value={form.fornitore_supporto_id} onValueChange={(v) => setForm({ ...form, fornitore_supporto_id: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={form.fornitore_supporto_id === "_new" ? undefined : form.fornitore_supporto_id} onValueChange={(v) => setForm({ ...form, fornitore_supporto_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Seleziona fornitore..." /></SelectTrigger>
                 <SelectContent>{fornitori.map((f) => (<SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>))}</SelectContent>
               </Select>
               <Select value={form.stato_fornitore_supporto_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_supporto_minimo: v as StatoFornitore })}>
@@ -333,7 +333,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
               </div>
             </div>
           ) : (
-            <button onClick={() => setForm({ ...form, fornitore_supporto_id: "" })} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
+            <button onClick={() => setForm({ ...form, fornitore_supporto_id: "_new" })} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
               <Plus size={12} /> Aggiungi fornitore supporto
             </button>
           )}

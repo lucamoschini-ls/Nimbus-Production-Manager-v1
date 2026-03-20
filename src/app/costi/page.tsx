@@ -7,7 +7,7 @@ export default async function CostiPage() {
   const [{ data: costiZona }, { data: taskConCosti }, { data: presenze }] = await Promise.all([
     supabase.from("v_costi_zona").select("*"),
     supabase.from("v_task_completa")
-      .select("id, titolo, zona_nome, zona_colore, zona_ordine, lavorazione_nome, costo_manodopera, fornitore_nome, supporto_numero_persone, supporto_ore_lavoro, supporto_costo_ora")
+      .select("id, titolo, zona_nome, zona_colore, zona_ordine, lavorazione_nome, costo_manodopera, fornitore_nome, data_inizio, durata_ore, supporto_numero_persone, supporto_ore_lavoro, supporto_costo_ora")
       .or("costo_manodopera.gt.0")
       .order("zona_ordine"),
     supabase.from("presenze")

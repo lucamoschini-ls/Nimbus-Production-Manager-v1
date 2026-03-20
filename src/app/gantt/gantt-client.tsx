@@ -23,7 +23,7 @@ interface OpInfo {
   stato_calcolato: string; data_inizio: string | null; data_fine: string | null;
   fornitore_id: string | null; fornitore: { nome: string; stato: string } | null;
 }
-interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; opsByMat: Record<string, OpInfo[]>; tipColorMap: Record<string, string>; }
+interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; opsByMat: Record<string, OpInfo[]>; tipColorMap: Record<string, string>; conflictTaskIds?: string[]; }
 
 const STATO_BAR_COLORS: Record<string, string> = {
   da_fare: "#d1d5db", in_corso: "#3b82f6", completata: "#22c55e", bloccata: "#ef4444",
@@ -31,7 +31,8 @@ const STATO_BAR_COLORS: Record<string, string> = {
   in_attesa_materiali: "#f59e0b", in_attesa_permesso: "#f59e0b",
 };
 
-export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tipColorMap }: Props) {
+export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tipColorMap, conflictTaskIds = [] }: Props) {
+  const conflictSet = new Set(conflictTaskIds);
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
   const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set(lavorazioni.map(l => l.id)));
   const [popupTask, setPopupTask] = useState<{ task: Task; x: number; y: number } | null>(null);
@@ -234,6 +235,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                           width: Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4),
                           top: 9, height: ROW_HEIGHT - 18,
                           backgroundColor: (row.task.tipologia && tipColorMap[row.task.tipologia]) ? tipColorMap[row.task.tipologia] : (STATO_BAR_COLORS[row.task.stato_calcolato] ?? "#d1d5db"),
+                          ...(conflictSet.has(row.task.id) ? { border: "2px dashed #f97316" } : {}),
                         }} title={`${row.task.titolo} (${row.task.stato_calcolato})`}
                           onClick={(e) => setPopupTask({ task: row.task, x: e.clientX, y: e.clientY })}
                         />
