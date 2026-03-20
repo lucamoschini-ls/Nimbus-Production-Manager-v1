@@ -303,7 +303,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                       return (
                         <div
                           key={lav.id}
-                          className={`group flex items-center pr-1 transition-colors ${
+                          className={`group/lav flex items-center pr-1 transition-colors ${
                             isSelected
                               ? "bg-[#f5f5f7] text-[#1d1d1f]"
                               : "text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]/50"
@@ -325,7 +325,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                               e.stopPropagation();
                               handleDeleteLav(lav);
                             }}
-                            className="p-1 rounded text-[#86868b] opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
+                            className="p-1 rounded text-[#d2d2d7] opacity-0 group-hover/lav:opacity-100 hover:!text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
                           >
                             <Trash2 size={12} />
                           </button>
@@ -422,62 +422,57 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                   return (
                     <div
                       key={task.id}
-                      className="group relative bg-white rounded-[12px] border border-[#e5e5e7] p-4 hover:shadow-md transition-shadow"
+                      className="group/card relative bg-white rounded-[12px] border border-[#e5e5e7] p-4 pr-10 hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => setSelectedTask(task)}
                     >
-                      <button
-                        onClick={() => setSelectedTask(task)}
-                        className="w-full text-left"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-medium text-[#1d1d1f] pr-8">
-                              {task.titolo}
-                            </h3>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                              {task.tipologia && (
-                                <Badge
-                                  style={
-                                    tipColorMap[task.tipologia]
-                                      ? { backgroundColor: tipColorMap[task.tipologia] + "20", color: tipColorMap[task.tipologia] }
-                                      : undefined
-                                  }
-                                  className={
-                                    !tipColorMap[task.tipologia]
-                                      ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600")
-                                      : ""
-                                  }
-                                >
-                                  {task.tipologia.replace(/_/g, " ")}
-                                </Badge>
-                              )}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-[#1d1d1f]">
+                            {task.titolo}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                            {task.tipologia && (
                               <Badge
+                                style={
+                                  tipColorMap[task.tipologia]
+                                    ? { backgroundColor: tipColorMap[task.tipologia] + "20", color: tipColorMap[task.tipologia] }
+                                    : undefined
+                                }
                                 className={
-                                  STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"
+                                  !tipColorMap[task.tipologia]
+                                    ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600")
+                                    : ""
                                 }
                               >
-                                {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
+                                {task.tipologia.replace(/_/g, " ")}
                               </Badge>
-                            </div>
-                            {attesaMotivo && (
-                              <p className="text-xs text-amber-600 mt-1.5">
-                                {attesaMotivo}
-                              </p>
                             )}
+                            <Badge
+                              className={
+                                STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"
+                              }
+                            >
+                              {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
+                            </Badge>
                           </div>
-                          {task.fornitore_nome && (
-                            <span className="text-xs text-[#86868b] flex-shrink-0">
-                              {task.fornitore_nome}
-                            </span>
+                          {attesaMotivo && (
+                            <p className="text-xs text-amber-600 mt-1.5">
+                              {attesaMotivo}
+                            </p>
                           )}
                         </div>
-                      </button>
-                      {/* FIX 3: Delete task button */}
+                        {task.fornitore_nome && (
+                          <span className="text-xs text-[#86868b] flex-shrink-0">
+                            {task.fornitore_nome}
+                          </span>
+                        )}
+                      </div>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteTask(task);
                         }}
-                        className="absolute top-3 right-3 p-1.5 rounded-md text-[#86868b] opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
+                        className="absolute top-3.5 right-3 p-1 rounded text-[#d2d2d7] opacity-0 group-hover/card:opacity-100 hover:!text-red-500 hover:bg-red-50 transition-all"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -613,21 +608,23 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
             <h1 className="text-xl font-semibold text-[#1d1d1f] mb-4">{selectedLavData?.nome}</h1>
             <div className="space-y-2">
               {selectedLavTasks.map((task) => (
-                <div key={task.id} className="relative bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-                  <button onClick={() => setSelectedTask(task)} className="w-full text-left">
-                    <h3 className="text-sm font-medium text-[#1d1d1f] pr-8">{task.titolo}</h3>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      <Badge className={STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}>
-                        {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
-                      </Badge>
-                      {task.fornitore_nome && (
-                        <span className="text-xs text-[#86868b]">{task.fornitore_nome}</span>
-                      )}
-                    </div>
-                  </button>
+                <div
+                  key={task.id}
+                  className="relative bg-white rounded-[12px] border border-[#e5e5e7] p-4 pr-10 cursor-pointer"
+                  onClick={() => setSelectedTask(task)}
+                >
+                  <h3 className="text-sm font-medium text-[#1d1d1f]">{task.titolo}</h3>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    <Badge className={STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}>
+                      {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
+                    </Badge>
+                    {task.fornitore_nome && (
+                      <span className="text-xs text-[#86868b]">{task.fornitore_nome}</span>
+                    )}
+                  </div>
                   <button
-                    onClick={() => handleDeleteTask(task)}
-                    className="absolute top-3 right-3 p-1.5 rounded-md text-[#86868b] hover:text-red-500 hover:bg-red-50"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteTask(task); }}
+                    className="absolute top-3.5 right-3 p-1 rounded text-[#d2d2d7] hover:text-red-500 hover:bg-red-50 transition-colors"
                   >
                     <Trash2 size={14} />
                   </button>
