@@ -5,7 +5,7 @@ import { Package, Filter } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { updateMaterialeField } from "./actions";
+import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali } from "./actions";
 
 const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
 const PROVENIENZA = [
@@ -42,9 +42,12 @@ interface Materiale {
 
 interface Zona { id: string; nome: string; }
 
-interface OpInline {
+interface OpFull {
   id: string; materiale_id: string; titolo: string; tipologia: string | null;
-  organizzato: boolean; stato: string; fornitore: { nome: string; stato: string } | null;
+  fornitore_id: string | null; luogo_id: string | null; organizzato: boolean;
+  stato: string; durata_ore: number | null; note: string | null;
+  fornitore: { id: string; nome: string; stato: string } | null;
+  luogo: { id: string; nome: string } | null;
 }
 
 const STATO_FORN_CLS: Record<string, string> = {
@@ -55,7 +58,9 @@ const STATO_FORN_CLS: Record<string, string> = {
 
 interface Props {
   materiali: Materiale[]; zone: Zona[];
-  opsByMat: Record<string, OpInline[]>;
+  opsByMat: Record<string, OpFull[]>;
+  fornitori: { id: string; nome: string }[];
+  luoghi: { id: string; nome: string }[];
 }
 
 function matStato(m: Materiale) {
@@ -103,7 +108,12 @@ function DateField({ id, field, val }: { id: string; field: string; val: string 
   );
 }
 
-export function MaterialiClient({ materiali, zone, opsByMat }: Props) {
+function saveOp(id: string, field: string, value: unknown) {
+  if (field === "_delete") { deleteOperazioneFromMateriali(id); return; }
+  updateOperazioneFromMateriali(id, { [field]: value });
+}
+
+export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi }: Props) {
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
   const [filterProvenienza, setFilterProvenienza] = useState("tutti");
@@ -297,28 +307,47 @@ export function MaterialiClient({ materiali, zone, opsByMat }: Props) {
                   />
                 </div>
 
-                {/* ROW 5: Operazioni inline */}
-                {(opsByMat[m.id] || []).length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-[#e5e5e7]">
-                    <p className="text-[9px] text-[#86868b] font-medium mb-1.5">Operazioni</p>
-                    <div className="space-y-1">
-                      {(opsByMat[m.id] || []).map((op) => (
-                        <div key={op.id} className="flex items-center gap-2 text-[11px]">
-                          {op.tipologia && <span className="text-[10px] text-[#86868b] bg-[#f5f5f7] px-1.5 py-0.5 rounded">{op.tipologia.replace(/_/g, " ")}</span>}
-                          {op.fornitore && <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100 text-gray-600"}`}>{op.fornitore.nome}</span>}
-                          <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer ml-auto">
-                            <input type="checkbox" checked={op.organizzato} onChange={(e) => {
-                              import("@/lib/supabase/client").then(({ createClient }) => {
-                                createClient().from("operazioni").update({ organizzato: e.target.checked }).eq("id", op.id).then(() => window.location.reload());
-                              });
-                            }} className="rounded border-[#e5e5e7] w-3 h-3" />
-                            {op.organizzato ? "Organizzato" : "Non org."}
+                {/* ROW 5: Operazioni editabili */}
+                <div className="mt-3 pt-2 border-t border-[#e5e5e7]">
+                  <p className="text-[9px] text-[#86868b] font-medium mb-1.5">Operazioni ({(opsByMat[m.id] || []).length})</p>
+                  <div className="space-y-2">
+                    {(opsByMat[m.id] || []).map((op) => (
+                      <div key={op.id} className="bg-[#f5f5f7] rounded-lg px-2.5 py-2">
+                        <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+                          <input defaultValue={op.titolo} onBlur={(e) => saveOp(op.id, "titolo", e.target.value)}
+                            className="flex-1 min-w-[80px] bg-transparent border-0 outline-none text-[#1d1d1f] font-medium focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1 text-[11px]" />
+                          <select defaultValue={op.tipologia ?? ""} onChange={(e) => saveOp(op.id, "tipologia", e.target.value || null)}
+                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+                            <option value="">--</option>
+                            <option value="trasporto">trasporto</option><option value="acquisto">acquisto</option>
+                            <option value="acquisto_e_trasporto">acquisto e trasporto</option><option value="noleggio">noleggio</option>
+                            <option value="montaggio">montaggio</option>
+                          </select>
+                          <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveOp(op.id, "fornitore_id", e.target.value || null)}
+                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white max-w-[100px]">
+                            <option value="">Fornitore...</option>
+                            {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                          </select>
+                          {op.fornitore && <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-medium ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100"}`}>{op.fornitore.stato.replace(/_/g, " ")}</span>}
+                          <select defaultValue={op.stato} onChange={(e) => saveOp(op.id, "stato", e.target.value)}
+                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+                            <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
+                          </select>
+                          <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer flex-shrink-0">
+                            <input type="checkbox" checked={op.organizzato} onChange={(e) => saveOp(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-3 h-3" />
+                            Org.
                           </label>
+                          <select defaultValue={op.luogo_id ?? ""} onChange={(e) => saveOp(op.id, "luogo_id", e.target.value || null)}
+                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+                            <option value="">Luogo...</option>
+                            {luoghi.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                          </select>
+                          <button onClick={() => saveOp(op.id, "_delete", true)} className="text-[#d2d2d7] hover:text-red-500 flex-shrink-0"><span className="text-xs">x</span></button>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
             );
           })}

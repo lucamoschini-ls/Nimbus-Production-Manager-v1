@@ -73,6 +73,7 @@ interface Permesso {
 
 interface TaskForFornitore {
   id: string; titolo: string; zona_nome: string; lavorazione_nome: string; lavorazione_id: string; stato_calcolato: string;
+  via?: string;
 }
 
 const STATO_TASK_COLORS: Record<string, string> = {
@@ -95,6 +96,7 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [selectedFornitore, setSelectedFornitore] = useState<Fornitore | null>(null);
   const [expandedFornitore, setExpandedFornitore] = useState<string | null>(null);
+  const [taskFilter, setTaskFilter] = useState<"tutte" | "bloccate" | "in_corso" | "completate">("tutte");
   const [selectedPermesso, setSelectedPermesso] = useState<Permesso | null>(null);
   const [isNewFornitore, setIsNewFornitore] = useState(false);
   const [isNewPermesso, setIsNewPermesso] = useState(false);
@@ -210,18 +212,40 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
                   </div>
                 </div>
                 {isExpanded && fornTasks.length > 0 && (
-                  <div className="border-t border-[#e5e5e7] bg-[#f5f5f7]/30 px-5 py-3 space-y-1.5">
-                    {fornTasks.map((t) => (
-                      <a key={t.id} href={`/lavorazioni?task=${t.id}`} className="flex items-center justify-between text-xs hover:bg-white rounded px-2 py-1.5 -mx-2 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-[#1d1d1f] truncate block">{t.titolo}</span>
-                          <span className="text-[10px] text-[#86868b]">{t.zona_nome} &gt; {t.lavorazione_nome}</span>
+                  <div className="border-t border-[#e5e5e7] bg-[#f5f5f7]/30 px-5 py-3">
+                    {/* Filtri */}
+                    <div className="flex gap-1 mb-2">
+                      {(["tutte", "bloccate", "in_corso", "completate"] as const).map((f) => (
+                        <button key={f} onClick={(e) => { e.stopPropagation(); setTaskFilter(f); }}
+                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${taskFilter === f ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b] hover:text-[#1d1d1f]"}`}>
+                          {f === "tutte" ? "Tutte" : f === "bloccate" ? "Bloccate" : f === "in_corso" ? "In corso" : "Completate"}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="space-y-1">
+                      {fornTasks.filter((t) => {
+                        if (taskFilter === "bloccate") return t.stato_calcolato.startsWith("in_attesa") || t.stato_calcolato === "bloccata";
+                        if (taskFilter === "in_corso") return t.stato_calcolato === "in_corso";
+                        if (taskFilter === "completate") return t.stato_calcolato === "completata";
+                        return true;
+                      }).map((t) => (
+                        <div key={t.id} className="flex items-center gap-2 text-xs hover:bg-white rounded px-2 py-1.5 -mx-2 transition-colors">
+                          <button onClick={(e) => { e.stopPropagation(); import("../lavorazioni/cycle-actions").then(({ cycleTaskStato }) => cycleTaskStato(t.id, t.stato_calcolato)); }}
+                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 cursor-pointer hover:opacity-80 ${STATO_TASK_COLORS[t.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}
+                            title="Click per ciclare stato">
+                            {t.stato_calcolato.replace(/_/g, " ")}
+                          </button>
+                          <a href={`/lavorazioni?task=${t.id}`} className="flex-1 min-w-0 hover:underline">
+                            <span className="text-[#1d1d1f] truncate block">{t.titolo}</span>
+                            <span className="text-[10px] text-[#86868b]">{t.zona_nome} &gt; {t.lavorazione_nome}</span>
+                            {t.via && <span className="text-[10px] text-violet-500 block">{t.via}</span>}
+                          </a>
+                          {t.stato_calcolato.startsWith("in_attesa") && (
+                            <span className="text-[10px] text-red-500 flex-shrink-0">{t.stato_calcolato.replace(/_/g, " ")}</span>
+                          )}
                         </div>
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ml-2 ${STATO_TASK_COLORS[t.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}>
-                          {t.stato_calcolato.replace(/_/g, " ")}
-                        </span>
-                      </a>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

@@ -11,3 +11,21 @@ export async function updateMaterialeField(id: string, data: Record<string, unkn
   revalidatePath("/lavorazioni");
   revalidatePath("/gantt");
 }
+
+export async function updateOperazioneFromMateriali(id: string, data: Record<string, unknown>) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("operazioni").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/materiali");
+  revalidatePath("/lavorazioni");
+  revalidatePath("/trasporti");
+}
+
+export async function deleteOperazioneFromMateriali(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("operazioni").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/materiali");
+  revalidatePath("/lavorazioni");
+  revalidatePath("/trasporti");
+}
