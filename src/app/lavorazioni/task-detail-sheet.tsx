@@ -620,6 +620,7 @@ interface OperazioneData {
   id: string; materiale_id: string; titolo: string; tipologia: string | null;
   fornitore_id: string | null; stato_fornitore_minimo: string; organizzato: boolean;
   stato: string; stato_calcolato: string; durata_ore: number | null; note: string | null;
+  luogo_partenza: string | null;
   fornitore: { id: string; nome: string; stato: string } | null;
 }
 
@@ -762,24 +763,29 @@ function OperazioniSubSection({ materialeId, fornitori }: { materialeId: string;
   return (
     <div className="mt-1.5 ml-2 pl-2 border-l-2 border-[#e5e5e7] space-y-1">
       {ops.map((op) => (
-        <div key={op.id} className="flex items-center gap-1.5 text-[11px]">
-          <input defaultValue={op.titolo} onBlur={(e) => { if (e.target.value !== op.titolo) saveField(op.id, "titolo", e.target.value); }}
-            className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[#1d1d1f] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1" />
-          <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveField(op.id, "fornitore_id", e.target.value || null)}
-            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white max-w-[90px]">
-            <option value="">--</option>
-            {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-          </select>
-          {op.fornitore && <span className={`px-1 py-0.5 rounded-full text-[8px] font-medium ${STATO_FORN_COLORS[op.fornitore.stato] ?? "bg-gray-100"}`}>{op.fornitore.stato.replace(/_/g, " ")}</span>}
-          <select defaultValue={op.stato} onChange={(e) => saveField(op.id, "stato", e.target.value)}
-            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
-            <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
-          </select>
-          <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer flex-shrink-0">
-            <input type="checkbox" checked={op.organizzato} onChange={(e) => saveField(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-3 h-3" />
-            Organizzato
-          </label>
-          <button onClick={async () => { await removeOperazione(op.id); await load(); }} className="text-[#d2d2d7] hover:text-red-500"><X size={10} /></button>
+        <div key={op.id} className="space-y-1">
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <input defaultValue={op.titolo} onBlur={(e) => { if (e.target.value !== op.titolo) saveField(op.id, "titolo", e.target.value); }}
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[#1d1d1f] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1" />
+            <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveField(op.id, "fornitore_id", e.target.value || null)}
+              className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white max-w-[90px]">
+              <option value="">--</option>
+              {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+            {op.fornitore && <span className={`px-1 py-0.5 rounded-full text-[8px] font-medium ${STATO_FORN_COLORS[op.fornitore.stato] ?? "bg-gray-100"}`}>{op.fornitore.stato.replace(/_/g, " ")}</span>}
+            <select defaultValue={op.stato} onChange={(e) => saveField(op.id, "stato", e.target.value)}
+              className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+              <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
+            </select>
+            <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer flex-shrink-0">
+              <input type="checkbox" checked={op.organizzato} onChange={(e) => saveField(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-3 h-3" />
+              Organizzato
+            </label>
+            <button onClick={async () => { await removeOperazione(op.id); await load(); }} className="text-[#d2d2d7] hover:text-red-500"><X size={10} /></button>
+          </div>
+          <input defaultValue={op.luogo_partenza ?? ""} onBlur={(e) => saveField(op.id, "luogo_partenza", e.target.value || null)}
+            placeholder="Luogo partenza (es. Monterosi, Guidonia...)"
+            className="ml-0 text-[10px] text-[#86868b] bg-transparent border-0 border-b border-[#e5e5e7]/50 outline-none w-full focus:border-[#1d1d1f] placeholder:text-[#d2d2d7]" />
         </div>
       ))}
       {adding ? (
