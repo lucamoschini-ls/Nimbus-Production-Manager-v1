@@ -191,42 +191,102 @@ export function CostiClient({ costiZona, taskConCosti, presenze }: Props) {
       )}
 
       {/* ===== CONFRONTO ===== */}
-      {tab === "confronto" && (
-        <div>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-              <p className="text-xs text-[#86868b]">Preventivo</p><p className="text-xl font-bold text-[#1d1d1f] mt-1">{eur(totPrev)}</p>
-            </div>
-            <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-              <p className="text-xs text-[#86868b]">Consuntivo</p><p className="text-xl font-bold text-[#1d1d1f] mt-1">{eur(totCons)}</p>
-            </div>
-            <div className={`rounded-[12px] border p-4 ${totCons > totPrev ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
-              <p className="text-xs text-[#86868b]">Differenza</p>
-              <p className={`text-xl font-bold mt-1 ${totCons > totPrev ? "text-red-600" : "text-green-600"}`}>{totCons > totPrev ? "+" : ""}{eur(totCons - totPrev)}</p>
-            </div>
-          </div>
+      {tab === "confronto" && (() => {
+        // Build preventivo per giorno
+        const HOURS_PER_DAY = 11;
+        const prevByDay: Record<string, { ore: number; costo: number }> = {};
+        taskConCosti.forEach(t => {
+          if (!t.data_inizio || !t.durata_ore) return;
+          const days = Math.ceil(t.durata_ore / HOURS_PER_DAY);
+          const costoPerOra = t.costo_manodopera && t.durata_ore ? t.costo_manodopera / t.durata_ore : 0;
+          for (let d = 0; d < days; d++) {
+            const dt: Date = new Date(t.data_inizio + "T12:00:00");
+            dt.setDate(dt.getDate() + d);
+            const key = dt.toISOString().split("T")[0];
+            const oreDay = d < days - 1 ? HOURS_PER_DAY : (t.durata_ore % HOURS_PER_DAY || HOURS_PER_DAY);
+            if (!prevByDay[key]) prevByDay[key] = { ore: 0, costo: 0 };
+            prevByDay[key].ore += oreDay;
+            prevByDay[key].costo += oreDay * costoPerOra;
+          }
+        });
+        // Build consuntivo per giorno
+        const consByDay2: Record<string, { ore: number; costo: number }> = {};
+        presenze.forEach(p => {
+          if (!consByDay2[p.data]) consByDay2[p.data] = { ore: 0, costo: 0 };
+          consByDay2[p.data].ore += p.ore * p.numero_persone;
+          consByDay2[p.data].costo += p.costo_totale ?? 0;
+        });
+        const allDays = Array.from(new Set([...Object.keys(prevByDay), ...Object.keys(consByDay2)])).sort();
 
-          <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
-            <div className="grid grid-cols-4 gap-4 px-4 py-3 border-b border-[#e5e5e7] bg-[#f5f5f7]">
-              <span className="text-xs font-semibold">Fornitore</span><span className="text-xs font-semibold text-right">Preventivo</span>
-              <span className="text-xs font-semibold text-right">Consuntivo</span><span className="text-xs font-semibold text-right">Diff.</span>
+        return (
+          <div>
+            {/* Totali */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
+                <p className="text-xs text-[#86868b]">Preventivo</p><p className="text-xl font-bold text-[#1d1d1f] mt-1">{eur(totPrev)}</p>
+              </div>
+              <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
+                <p className="text-xs text-[#86868b]">Consuntivo</p><p className="text-xl font-bold text-[#1d1d1f] mt-1">{eur(totCons)}</p>
+              </div>
+              <div className={`rounded-[12px] border p-4 ${totCons > totPrev ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
+                <p className="text-xs text-[#86868b]">Differenza</p>
+                <p className={`text-xl font-bold mt-1 ${totCons > totPrev ? "text-red-600" : "text-green-600"}`}>{totCons > totPrev ? "+" : ""}{eur(totCons - totPrev)}</p>
+              </div>
             </div>
-            {allFornNomi.map(nome => {
-              const prev = prevByForn[nome] ?? 0;
-              const cons = consByForn[nome]?.costo ?? 0;
-              const diff = cons - prev;
-              return (
-                <div key={nome} className="grid grid-cols-4 gap-4 px-4 py-2.5 border-b border-[#e5e5e7] last:border-0 text-sm">
-                  <span className="font-medium text-[#1d1d1f]">{nome}</span>
-                  <span className="text-right text-[#86868b]">{prev > 0 ? eur(prev) : "-"}</span>
-                  <span className="text-right text-[#86868b]">{cons > 0 ? eur(cons) : "-"}</span>
-                  <span className={`text-right font-medium ${diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : "text-[#86868b]"}`}>{diff !== 0 ? (diff > 0 ? "+" : "") + eur(diff) : "-"}</span>
-                </div>
-              );
-            })}
+
+            {/* Per giorno */}
+            <h3 className="text-sm font-semibold text-[#1d1d1f] mb-3">Confronto per giorno</h3>
+            <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden mb-6">
+              <div className="grid grid-cols-5 gap-3 px-4 py-2 border-b border-[#e5e5e7] bg-[#f5f5f7]">
+                <span className="text-xs font-semibold">Data</span>
+                <span className="text-xs font-semibold text-right">Prev. ore</span>
+                <span className="text-xs font-semibold text-right">Prev. costo</span>
+                <span className="text-xs font-semibold text-right">Cons. costo</span>
+                <span className="text-xs font-semibold text-right">Diff.</span>
+              </div>
+              {allDays.map(day => {
+                const p = prevByDay[day] ?? { ore: 0, costo: 0 };
+                const cn = consByDay2[day] ?? { ore: 0, costo: 0 };
+                const diff = cn.costo - p.costo;
+                return (
+                  <div key={day} className="grid grid-cols-5 gap-3 px-4 py-2 border-b border-[#e5e5e7] last:border-0 text-xs">
+                    <span className="text-[#1d1d1f] font-medium">{new Date(day + "T12:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", weekday: "short" })}</span>
+                    <span className="text-right text-[#86868b]">{p.ore > 0 ? `${p.ore}h` : "-"}</span>
+                    <span className="text-right text-[#86868b]">{p.costo > 0 ? eur(p.costo) : "-"}</span>
+                    <span className="text-right text-[#86868b]">{cn.costo > 0 ? eur(cn.costo) : "-"}</span>
+                    <span className={`text-right font-medium ${diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : "text-[#86868b]"}`}>
+                      {p.costo > 0 || cn.costo > 0 ? (diff > 0 ? "+" : "") + eur(diff) : "-"}
+                    </span>
+                  </div>
+                );
+              })}
+              {allDays.length === 0 && <p className="px-4 py-3 text-xs text-[#86868b]">Nessun dato</p>}
+            </div>
+
+            {/* Per fornitore */}
+            <h3 className="text-sm font-semibold text-[#1d1d1f] mb-3">Confronto per fornitore</h3>
+            <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+              <div className="grid grid-cols-4 gap-4 px-4 py-2 border-b border-[#e5e5e7] bg-[#f5f5f7]">
+                <span className="text-xs font-semibold">Fornitore</span><span className="text-xs font-semibold text-right">Preventivo</span>
+                <span className="text-xs font-semibold text-right">Consuntivo</span><span className="text-xs font-semibold text-right">Diff.</span>
+              </div>
+              {allFornNomi.map(nome => {
+                const prev = prevByForn[nome] ?? 0;
+                const cons = consByForn[nome]?.costo ?? 0;
+                const diff = cons - prev;
+                return (
+                  <div key={nome} className="grid grid-cols-4 gap-4 px-4 py-2.5 border-b border-[#e5e5e7] last:border-0 text-sm">
+                    <span className="font-medium text-[#1d1d1f]">{nome}</span>
+                    <span className="text-right text-[#86868b]">{prev > 0 ? eur(prev) : "-"}</span>
+                    <span className="text-right text-[#86868b]">{cons > 0 ? eur(cons) : "-"}</span>
+                    <span className={`text-right font-medium ${diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : "text-[#86868b]"}`}>{diff !== 0 ? (diff > 0 ? "+" : "") + eur(diff) : "-"}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
