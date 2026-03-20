@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { Package, Filter } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { updateMaterialeField } from "./actions";
 
-const PROVENIENZA_COLORS: Record<string, string> = {
-  acquisto: "bg-pink-100 text-pink-700",
-  magazzino: "bg-gray-100 text-gray-600",
-  noleggio: "bg-blue-100 text-blue-700",
-  con_fornitore: "bg-violet-100 text-violet-700",
-};
+const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
+const PROVENIENZA = [
+  { value: "acquisto", label: "Acquisto" },
+  { value: "magazzino", label: "Magazzino" },
+  { value: "noleggio", label: "Noleggio" },
+  { value: "con_fornitore", label: "Con fornitore" },
+];
 
 interface Materiale {
   id: string;
@@ -27,7 +28,6 @@ interface Materiale {
   quantita_da_acquistare: number | null;
   giorni_consegna: number | null;
   data_ordine: string | null;
-  data_consegna_prevista: string | null;
   data_necessaria: string | null;
   note: string | null;
   task: {
@@ -47,19 +47,41 @@ function matStato(m: Materiale) {
   const disp = m.quantita_disponibile ?? 0;
   const ord = m.quantita_ordinata ?? 0;
   const tot = m.quantita ?? 0;
-  if (tot > 0 && disp >= tot) return { label: "Completo", cls: "bg-green-100 text-green-700" };
-  if (ord > 0 && disp > 0) return { label: "Parziale", cls: "bg-amber-100 text-amber-700" };
-  if (ord > 0) return { label: "Ordinato", cls: "bg-amber-100 text-amber-700" };
-  return { label: "Da acquistare", cls: "bg-red-100 text-red-700" };
+  if (tot > 0 && disp >= tot) return { label: "Completo", cls: "bg-green-100 text-green-700", key: "completo" };
+  if (ord > 0 && disp > 0) return { label: "Parziale", cls: "bg-amber-100 text-amber-700", key: "parziale" };
+  if (ord > 0) return { label: "Ordinato", cls: "bg-amber-100 text-amber-700", key: "ordinato" };
+  return { label: "Da acquistare", cls: "bg-red-100 text-red-700", key: "da_acquistare" };
 }
 
-function matStatoKey(m: Materiale): string {
-  const disp = m.quantita_disponibile ?? 0;
-  const ord = m.quantita_ordinata ?? 0;
-  const tot = m.quantita ?? 0;
-  if (tot > 0 && disp >= tot) return "completo";
-  if (ord > 0) return "ordinato";
-  return "da_acquistare";
+function save(id: string, field: string, raw: string, type: "number" | "string" | "date") {
+  let value: unknown;
+  if (type === "number") value = raw ? parseFloat(raw) : null;
+  else if (type === "date") value = raw || null;
+  else value = raw || null;
+  updateMaterialeField(id, { [field]: value });
+}
+
+// Inline editable number field
+function Num({ id, field, val, w = "w-[70px]" }: { id: string; field: string; val: number | null; w?: string }) {
+  return (
+    <input
+      type="number"
+      defaultValue={val ?? ""}
+      onBlur={(e) => save(id, field, e.target.value, "number")}
+      className={`${w} text-xs border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white text-center`}
+    />
+  );
+}
+
+function DateField({ id, field, val }: { id: string; field: string; val: string | null }) {
+  return (
+    <input
+      type="date"
+      defaultValue={val ?? ""}
+      onChange={(e) => save(id, field, e.target.value, "date")}
+      className="text-xs border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white"
+    />
+  );
 }
 
 export function MaterialiClient({ materiali, zone }: Props) {
@@ -69,15 +91,20 @@ export function MaterialiClient({ materiali, zone }: Props) {
 
   const filtered = materiali.filter((m) => {
     if (filterZona !== "tutti" && m.task?.lavorazione?.zona?.id !== filterZona) return false;
-    if (filterStato !== "tutti" && matStatoKey(m) !== filterStato) return false;
+    if (filterStato !== "tutti") {
+      const k = matStato(m).key;
+      if (filterStato === "ordinato" && k !== "ordinato" && k !== "parziale") return false;
+      if (filterStato === "da_acquistare" && k !== "da_acquistare") return false;
+      if (filterStato === "completo" && k !== "completo") return false;
+    }
     if (filterProvenienza !== "tutti" && m.provenienza !== filterProvenienza) return false;
     return true;
   });
 
   const totale = materiali.length;
-  const daAcquistare = materiali.filter((m) => matStatoKey(m) === "da_acquistare").length;
-  const ordinati = materiali.filter((m) => matStatoKey(m) === "ordinato").length;
-  const completi = materiali.filter((m) => matStatoKey(m) === "completo").length;
+  const daAcquistare = materiali.filter((m) => matStato(m).key === "da_acquistare").length;
+  const ordinati = materiali.filter((m) => ["ordinato", "parziale"].includes(matStato(m).key)).length;
+  const completi = materiali.filter((m) => matStato(m).key === "completo").length;
   const costoTotale = materiali.reduce((sum, m) => sum + (m.costo_totale ?? 0), 0);
 
   return (
@@ -95,7 +122,7 @@ export function MaterialiClient({ materiali, zone }: Props) {
           <p className="text-xl font-semibold text-red-600 mt-1">{daAcquistare}</p>
         </div>
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-          <p className="text-xs text-[#86868b] font-medium">Ordinati</p>
+          <p className="text-xs text-[#86868b] font-medium">Ordinati / Parziali</p>
           <p className="text-xl font-semibold text-amber-600 mt-1">{ordinati}</p>
         </div>
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
@@ -127,10 +154,10 @@ export function MaterialiClient({ materiali, zone }: Props) {
             <SelectValue placeholder="Stato" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti gli stati</SelectItem>
+            <SelectItem value="tutti">Tutti</SelectItem>
             <SelectItem value="da_acquistare">Da acquistare</SelectItem>
-            <SelectItem value="ordinato">Ordinato</SelectItem>
-            <SelectItem value="completo">Completo</SelectItem>
+            <SelectItem value="ordinato">Ordinati / Parziali</SelectItem>
+            <SelectItem value="completo">Completi</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filterProvenienza} onValueChange={setFilterProvenienza}>
@@ -139,10 +166,7 @@ export function MaterialiClient({ materiali, zone }: Props) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="tutti">Tutte</SelectItem>
-            <SelectItem value="acquisto">Acquisto</SelectItem>
-            <SelectItem value="magazzino">Magazzino</SelectItem>
-            <SelectItem value="noleggio">Noleggio</SelectItem>
-            <SelectItem value="con_fornitore">Con fornitore</SelectItem>
+            {PROVENIENZA.map((p) => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}
           </SelectContent>
         </Select>
       </div>
@@ -155,40 +179,103 @@ export function MaterialiClient({ materiali, zone }: Props) {
           <p className="text-xs mt-1">Aggiungi materiali dalle singole task nella sezione Lavorazioni</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="space-y-3">
           {filtered.map((m) => {
             const stato = matStato(m);
-            const disp = m.quantita_disponibile ?? 0;
-            const tot = m.quantita ?? 0;
+            const daAcq = m.quantita_da_acquistare ?? 0;
             return (
               <div key={m.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="text-sm font-medium text-[#1d1d1f]">{m.nome}</h3>
-                  <Badge className={`${stato.cls} text-[10px]`}>{stato.label}</Badge>
+                {/* ROW 1: Nome + task */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-[#1d1d1f]">{m.nome}</h3>
+                    <p className="text-[11px] text-[#86868b] mt-0.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: m.task?.lavorazione?.zona?.colore }} />
+                      {m.task?.lavorazione?.zona?.nome} &gt; {m.task?.lavorazione?.nome} &gt; {m.task?.titolo}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>{stato.label}</span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-xs text-[#86868b] mb-2">
-                  {tot > 0 && (
-                    <span className="font-medium text-[#1d1d1f]">
-                      {disp}/{tot}{m.unita ? ` ${m.unita}` : ""}
-                    </span>
-                  )}
-                  {(m.quantita_ordinata ?? 0) > 0 && (
-                    <span>({m.quantita_ordinata} ordinat{(m.quantita_ordinata ?? 0) === 1 ? "o" : "i"})</span>
-                  )}
-                  {m.costo_totale != null && (
-                    <span>{m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
-                  )}
-                  {m.provenienza && (
-                    <Badge className={`text-[10px] ${PROVENIENZA_COLORS[m.provenienza] ?? ""}`}>
-                      {m.provenienza.replace("_", " ")}
-                    </Badge>
-                  )}
+                {/* ROW 2: Quantita e stato */}
+                <div className="flex flex-wrap items-end gap-3 mb-3">
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Necessaria</label>
+                    <Num id={m.id} field="quantita" val={m.quantita} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Unita</label>
+                    <select
+                      defaultValue={m.unita ?? "pz"}
+                      onChange={(e) => save(m.id, "unita", e.target.value, "string")}
+                      className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white w-[65px]"
+                    >
+                      {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Disponibile</label>
+                    <Num id={m.id} field="quantita_disponibile" val={m.quantita_disponibile} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Ordinata</label>
+                    <Num id={m.id} field="quantita_ordinata" val={m.quantita_ordinata} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Da acquistare</label>
+                    <div className={`w-[70px] text-xs border border-transparent rounded px-2 py-1 text-center font-medium ${daAcq > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {daAcq}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="text-[10px] text-[#86868b] border-t border-[#e5e5e7] pt-2 mt-2">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: m.task?.lavorazione?.zona?.colore }} />
-                  {m.task?.lavorazione?.zona?.nome} &gt; {m.task?.titolo}
+                {/* ROW 3: Date e costi */}
+                <div className="flex flex-wrap items-end gap-3 border-t border-[#e5e5e7] pt-3">
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Necessaria entro</label>
+                    <DateField id={m.id} field="data_necessaria" val={m.data_necessaria} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Gg consegna</label>
+                    <Num id={m.id} field="giorni_consegna" val={m.giorni_consegna} w="w-[60px]" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Data ordine</label>
+                    <DateField id={m.id} field="data_ordine" val={m.data_ordine} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Provenienza</label>
+                    <select
+                      defaultValue={m.provenienza ?? "acquisto"}
+                      onChange={(e) => save(m.id, "provenienza", e.target.value, "string")}
+                      className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+                    >
+                      {PROVENIENZA.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Prezzo unit.</label>
+                    <div className="flex items-center gap-1">
+                      <Num id={m.id} field="prezzo_unitario" val={m.prezzo_unitario} w="w-[70px]" />
+                      <span className="text-[10px] text-[#86868b]">EUR</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Costo totale</label>
+                    <div className="text-xs font-medium text-[#1d1d1f] px-2 py-1">
+                      {m.costo_totale != null ? m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" }) : "-"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ROW 4: Note */}
+                <div className="mt-3">
+                  <input
+                    defaultValue={m.note ?? ""}
+                    onBlur={(e) => save(m.id, "note", e.target.value, "string")}
+                    placeholder="Note..."
+                    className="w-full text-xs text-[#86868b] border-0 border-b border-[#e5e5e7] bg-transparent px-0 py-1 outline-none focus:border-[#1d1d1f] placeholder:text-[#d2d2d7]"
+                  />
                 </div>
               </div>
             );

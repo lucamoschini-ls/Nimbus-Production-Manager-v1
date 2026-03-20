@@ -83,9 +83,8 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali }: Props) {
           for (const m of taskMat) {
             if (!m.data_necessaria) continue;
             const matEnd = differenceInDays(parseISO(m.data_necessaria), startDate);
-            const matStart = m.giorni_consegna
-              ? differenceInDays(subDays(parseISO(m.data_necessaria), m.giorni_consegna), startDate)
-              : matEnd;
+            const ggConsegna = m.giorni_consegna ?? 3;
+            const matStart = differenceInDays(subDays(parseISO(m.data_necessaria), ggConsegna), startDate);
             rows.push({ type: "mat", mat: m, startDay: matStart, endDay: matEnd });
           }
         }

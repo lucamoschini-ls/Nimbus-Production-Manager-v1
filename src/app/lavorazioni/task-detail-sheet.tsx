@@ -70,6 +70,7 @@ const STATO_CALCOLATO_COLORS: Record<string, string> = {
 
 interface TaskData {
   id: string;
+  lavorazione_id: string;
   titolo: string;
   tipologia: string | null;
   fornitore_id: string | null;
@@ -91,6 +92,9 @@ interface TaskData {
   lavorazione_nome: string;
 }
 
+interface ZonaMin { id: string; nome: string; colore: string; }
+interface LavorazioneMin { id: string; zona_id: string; nome: string; }
+
 interface FornitoreMin {
   id: string;
   nome: string;
@@ -106,12 +110,14 @@ interface Props {
   task: TaskData | null;
   fornitori: FornitoreMin[];
   tipologieDb: TipologiaDb[];
+  zone: ZonaMin[];
+  lavorazioni: LavorazioneMin[];
   open: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => Promise<void>;
 }
 
-export function TaskDetailSheet({ task, fornitori, tipologieDb, open, onClose, onSave }: Props) {
+export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, open, onClose, onSave }: Props) {
   const [form, setForm] = useState({
     titolo: "",
     tipologia: "" as string,
@@ -213,6 +219,34 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, open, onClose, o
               value={form.titolo}
               onChange={(e) => setForm({ ...form, titolo: e.target.value })}
             />
+          </div>
+
+          {/* Lavorazione */}
+          <div>
+            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Lavorazione</label>
+            <select
+              value={task?.lavorazione_id ?? ""}
+              onChange={async (e) => {
+                if (task && e.target.value !== task.lavorazione_id) {
+                  await onSave({ lavorazione_id: e.target.value });
+                }
+              }}
+              className="flex h-10 w-full rounded-lg border border-[#e5e5e7] bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {zone.map((z) => {
+                const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
+                if (zoneLav.length === 0) return null;
+                return (
+                  <optgroup key={z.id} label={z.nome}>
+                    {zoneLav.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {z.nome} &gt; {l.nome}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
           </div>
 
           {/* Tipologia */}

@@ -470,7 +470,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
         )}
       </div>
 
-      <TaskDetailSheet task={selectedTask} fornitori={fornitori} tipologieDb={tipologie} open={!!selectedTask}
+      <TaskDetailSheet task={selectedTask} fornitori={fornitori} tipologieDb={tipologie} zone={zone} lavorazioni={lavorazioni} open={!!selectedTask}
         onClose={() => setSelectedTask(null)}
         onSave={async (data) => { if (selectedTask) { _savedLavId = selectedLav; await updateTask(selectedTask.id, data); setSelectedTask(null); } }}
       />
