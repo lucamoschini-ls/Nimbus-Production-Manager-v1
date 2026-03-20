@@ -356,7 +356,7 @@ async function main() {
       stato_fornitore_minimo: fornitoreId ? "pronto" : "pronto",
       stato: "da_fare",
       data_fine: t.deadline || null,
-      durata_giorni: t.gg ? Math.round(t.gg) : null,
+      durata_ore: t.gg ? Math.round(t.gg) * 11 : null,
       note: t.note || null,
       ordine: inserted,
     };

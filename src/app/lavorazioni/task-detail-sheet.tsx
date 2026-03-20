@@ -82,7 +82,7 @@ interface TaskData {
   motivo_blocco: string | null;
   data_inizio: string | null;
   data_fine: string | null;
-  durata_giorni: number | null;
+  durata_ore: number | null;
   numero_persone: number | null;
   ore_lavoro: number | null;
   costo_ora: number | null;
@@ -127,7 +127,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
     motivo_blocco: "",
     data_inizio: "",
     data_fine: "",
-    durata_giorni: "",
+    durata_ore: "",
     numero_persone: "",
     ore_lavoro: "",
     costo_ora: "",
@@ -146,7 +146,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
         motivo_blocco: task.motivo_blocco ?? "",
         data_inizio: task.data_inizio ?? "",
         data_fine: task.data_fine ?? "",
-        durata_giorni: task.durata_giorni?.toString() ?? "",
+        durata_ore: task.durata_ore?.toString() ?? "",
         numero_persone: task.numero_persone?.toString() ?? "",
         ore_lavoro: task.ore_lavoro?.toString() ?? "",
         costo_ora: task.costo_ora?.toString() ?? "",
@@ -167,7 +167,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
         motivo_blocco: form.stato === "bloccata" ? form.motivo_blocco || null : null,
         data_inizio: form.data_inizio || null,
         data_fine: form.data_fine || null,
-        durata_giorni: form.durata_giorni ? parseInt(form.durata_giorni) : null,
+        durata_ore: form.durata_ore ? parseFloat(form.durata_ore) : null,
         numero_persone: form.numero_persone ? parseInt(form.numero_persone) : null,
         ore_lavoro: form.ore_lavoro ? parseFloat(form.ore_lavoro) : null,
         costo_ora: form.costo_ora ? parseFloat(form.costo_ora) : null,
@@ -350,12 +350,20 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Durata (giorni)</label>
+            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Durata (ore)</label>
             <Input
               type="number"
-              value={form.durata_giorni}
-              onChange={(e) => setForm({ ...form, durata_giorni: e.target.value })}
+              value={form.durata_ore}
+              onChange={(e) => setForm({ ...form, durata_ore: e.target.value })}
             />
+            {form.durata_ore && parseFloat(form.durata_ore) > 0 && (
+              <p className="text-[10px] text-[#86868b] mt-1">
+                {parseFloat(form.durata_ore) <= 11
+                  ? "Meno di 1 giornata"
+                  : `~${Math.ceil(parseFloat(form.durata_ore) / 11)} giorni`}
+                {" "}(giornata lavorativa 7-18)
+              </p>
+            )}
           </div>
 
           {/* Costi */}

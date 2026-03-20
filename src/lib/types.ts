@@ -96,7 +96,7 @@ export interface Task {
   motivo_blocco: string | null;
   data_inizio: string | null;
   data_fine: string | null;
-  durata_giorni: number | null;
+  durata_ore: number | null;
   numero_persone: number | null;
   ore_lavoro: number | null;
   costo_ora: number | null;

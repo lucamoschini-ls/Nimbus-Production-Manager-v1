@@ -44,7 +44,7 @@ interface TaskCompleta {
   fornitore_id: string | null; fornitore_nome: string | null; fornitore_stato: StatoFornitore | null;
   stato_fornitore_minimo: StatoFornitore; stato: string; stato_calcolato: string;
   motivo_blocco: string | null; data_inizio: string | null; data_fine: string | null;
-  durata_giorni: number | null; numero_persone: number | null; ore_lavoro: number | null;
+  durata_ore: number | null; numero_persone: number | null; ore_lavoro: number | null;
   costo_ora: number | null; costo_manodopera: number | null; note: string | null;
   ordine: number; zona_nome: string; zona_colore: string; lavorazione_nome: string;
   materiali_mancanti: number; materiali_totali: number;
