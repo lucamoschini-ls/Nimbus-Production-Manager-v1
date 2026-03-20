@@ -33,7 +33,7 @@ const STATO_BAR_COLORS: Record<string, string> = {
 
 export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat }: Props) {
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
-  const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set());
+  const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set(lavorazioni.map(l => l.id)));
 
   const ZONA_COLORS: Record<string, string> = {};
   zone.forEach((z) => (ZONA_COLORS[z.id] = z.colore));

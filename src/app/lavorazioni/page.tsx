@@ -11,7 +11,7 @@ export default async function LavorazioniPage() {
       supabase.from("v_task_completa").select("*").order("ordine"),
       supabase.from("fornitori").select("id, nome, stato").order("nome"),
       supabase.from("tipologie").select("nome, colore").order("ordine"),
-      supabase.from("materiali").select("id, task_id, nome, quantita, unita, quantita_disponibile, quantita_ordinata, data_necessaria, giorni_consegna").order("created_at"),
+      supabase.from("materiali").select("id, task_id, nome, quantita, unita, quantita_disponibile, quantita_ordinata, provenienza, data_necessaria, giorni_consegna").order("created_at"),
     ]);
 
   return (

@@ -12,7 +12,7 @@ const PROVENIENZA = [
   { value: "acquisto", label: "Acquisto" },
   { value: "magazzino", label: "Magazzino" },
   { value: "noleggio", label: "Noleggio" },
-  { value: "con_fornitore", label: "Con fornitore" },
+  { value: "in_loco", label: "In loco" },
 ];
 
 interface Materiale {
@@ -62,9 +62,13 @@ function matStato(m: Materiale) {
   const disp = m.quantita_disponibile ?? 0;
   const ord = m.quantita_ordinata ?? 0;
   const tot = m.quantita ?? 0;
+  const prov = m.provenienza;
+  if (prov === "in_loco") return { label: "In loco", cls: "bg-violet-100 text-violet-700", key: "in_loco" };
   if (tot > 0 && disp >= tot) return { label: "Completo", cls: "bg-green-100 text-green-700", key: "completo" };
+  if (prov === "magazzino" && disp < tot) return { label: "In magazzino", cls: "bg-amber-100 text-amber-700", key: "magazzino" };
   if (ord > 0 && disp > 0) return { label: "Parziale", cls: "bg-amber-100 text-amber-700", key: "parziale" };
   if (ord > 0) return { label: "Ordinato", cls: "bg-amber-100 text-amber-700", key: "ordinato" };
+  if (prov === "noleggio") return { label: "Da noleggiare", cls: "bg-red-100 text-red-700", key: "da_noleggiare" };
   return { label: "Da acquistare", cls: "bg-red-100 text-red-700", key: "da_acquistare" };
 }
 
@@ -109,18 +113,18 @@ export function MaterialiClient({ materiali, zone, trasportoOps }: Props) {
     if (filterZona !== "tutti" && m.task?.lavorazione?.zona?.id !== filterZona) return false;
     if (filterStato !== "tutti") {
       const k = matStato(m).key;
-      if (filterStato === "ordinato" && k !== "ordinato" && k !== "parziale") return false;
-      if (filterStato === "da_acquistare" && k !== "da_acquistare") return false;
-      if (filterStato === "completo" && k !== "completo") return false;
+      if (filterStato === "ordinato" && k !== "ordinato" && k !== "parziale" && k !== "magazzino") return false;
+      if (filterStato === "da_acquistare" && k !== "da_acquistare" && k !== "da_noleggiare") return false;
+      if (filterStato === "completo" && k !== "completo" && k !== "in_loco") return false;
     }
     if (filterProvenienza !== "tutti" && m.provenienza !== filterProvenienza) return false;
     return true;
   });
 
   const totale = materiali.length;
-  const daAcquistare = materiali.filter((m) => matStato(m).key === "da_acquistare").length;
-  const ordinati = materiali.filter((m) => ["ordinato", "parziale"].includes(matStato(m).key)).length;
-  const completi = materiali.filter((m) => matStato(m).key === "completo").length;
+  const daAcquistare = materiali.filter((m) => ["da_acquistare", "da_noleggiare"].includes(matStato(m).key)).length;
+  const ordinati = materiali.filter((m) => ["ordinato", "parziale", "magazzino"].includes(matStato(m).key)).length;
+  const completi = materiali.filter((m) => ["completo", "in_loco"].includes(matStato(m).key)).length;
   const costoTotale = materiali.reduce((sum, m) => sum + (m.costo_totale ?? 0), 0);
 
   return (

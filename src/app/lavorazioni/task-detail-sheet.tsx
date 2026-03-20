@@ -593,14 +593,8 @@ const PROVENIENZA_OPTIONS = [
   { value: "acquisto", label: "Acquisto" },
   { value: "magazzino", label: "Magazzino" },
   { value: "noleggio", label: "Noleggio" },
-  { value: "con_fornitore", label: "Con fornitore" },
+  { value: "in_loco", label: "In loco" },
 ];
-const PROVENIENZA_COLORS: Record<string, string> = {
-  acquisto: "bg-pink-100 text-pink-700",
-  magazzino: "bg-gray-100 text-gray-600",
-  noleggio: "bg-blue-100 text-blue-700",
-  con_fornitore: "bg-violet-100 text-violet-700",
-};
 
 interface MaterialeData {
   id: string; nome: string; quantita: number | null; unita: string | null;
@@ -628,9 +622,13 @@ function matStatoDetail(m: MaterialeData) {
   const disp = m.quantita_disponibile ?? 0;
   const ord = m.quantita_ordinata ?? 0;
   const tot = m.quantita ?? 0;
+  const prov = m.provenienza;
+  if (prov === "in_loco") return { label: "In loco", cls: "bg-violet-100 text-violet-700" };
   if (tot > 0 && disp >= tot) return { label: "Completo", cls: "bg-green-100 text-green-700" };
+  if (prov === "magazzino") return { label: "In magazzino", cls: "bg-amber-100 text-amber-700" };
   if (ord > 0 && disp > 0) return { label: "Parziale", cls: "bg-amber-100 text-amber-700" };
   if (ord > 0) return { label: "Ordinato", cls: "bg-amber-100 text-amber-700" };
+  if (prov === "noleggio") return { label: "Da noleggiare", cls: "bg-red-100 text-red-700" };
   return { label: "Da acquistare", cls: "bg-red-100 text-red-700" };
 }
 
@@ -654,8 +652,8 @@ function MaterialiSection({ taskId, fornitori }: { taskId: string; fornitori: { 
     setShowForm(false); await loadMateriali();
   };
 
-  const handleUpdateQty = async (id: string, field: string, value: string) => {
-    await updateMateriale(id, { [field]: value ? parseFloat(value) : 0 }); await loadMateriali();
+  const handleUpdateField = async (id: string, field: string, value: unknown) => {
+    await updateMateriale(id, { [field]: value }); await loadMateriali();
   };
 
   const handleRemove = async (id: string) => { await removeMateriale(id); await loadMateriali(); };
@@ -678,30 +676,34 @@ function MaterialiSection({ taskId, fornitori }: { taskId: string; fornitori: { 
       <div className="space-y-2">
         {materiali.map((m) => {
           const stato = matStatoDetail(m);
-          const disp = m.quantita_disponibile ?? 0;
-          const tot = m.quantita ?? 0;
           const isExpOps = expandedMat.has(m.id);
           return (
             <div key={m.id} className="bg-[#f5f5f7] rounded-lg px-3 py-2.5">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-medium text-[#1d1d1f]">{m.nome}</p>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stato.cls}`}>{stato.label}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                    {tot > 0 && <span className="text-[10px] font-medium text-[#1d1d1f]">{disp}/{tot}{m.unita ? ` ${m.unita}` : ""}</span>}
-                    {m.costo_totale != null && <span className="text-[10px] font-medium text-[#1d1d1f]">= {m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>}
-                    {m.provenienza && <Badge className={`text-[10px] ${PROVENIENZA_COLORS[m.provenienza] ?? "bg-gray-100 text-gray-600"}`}>{m.provenienza.replace("_", " ")}</Badge>}
-                  </div>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <input defaultValue={m.nome} onBlur={(e) => { if (e.target.value !== m.nome) handleUpdateField(m.id, "nome", e.target.value); }}
+                    className="text-xs font-medium text-[#1d1d1f] bg-transparent border-0 outline-none flex-1 min-w-0 focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1.5" />
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>{stato.label}</span>
                 </div>
                 <button onClick={() => handleRemove(m.id)} className="text-[#86868b] hover:text-red-500 mt-0.5"><X size={12} /></button>
               </div>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Disponibile</label><input type="number" defaultValue={m.quantita_disponibile ?? 0} onBlur={(e) => handleUpdateQty(m.id, "quantita_disponibile", e.target.value)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" /></div>
-                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Ordinata</label><input type="number" defaultValue={m.quantita_ordinata ?? 0} onBlur={(e) => handleUpdateQty(m.id, "quantita_ordinata", e.target.value)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" /></div>
-                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Da acquistare</label><div className="text-[11px] text-[#86868b] px-2 py-1">{m.quantita_da_acquistare ?? "-"}</div></div>
+              <div className="grid grid-cols-4 gap-1.5 mt-2">
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Quantita</label><input type="number" defaultValue={m.quantita ?? ""} onBlur={(e) => handleUpdateField(m.id, "quantita", e.target.value ? parseFloat(e.target.value) : null)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Disponibile</label><input type="number" defaultValue={m.quantita_disponibile ?? 0} onBlur={(e) => handleUpdateField(m.id, "quantita_disponibile", e.target.value ? parseFloat(e.target.value) : 0)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Ordinata</label><input type="number" defaultValue={m.quantita_ordinata ?? 0} onBlur={(e) => handleUpdateField(m.id, "quantita_ordinata", e.target.value ? parseFloat(e.target.value) : 0)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Da acquist.</label><div className="text-[11px] text-[#86868b] px-2 py-1">{m.quantita_da_acquistare ?? "-"}</div></div>
               </div>
+              <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Provenienza</label><select defaultValue={m.provenienza ?? "acquisto"} onChange={(e) => handleUpdateField(m.id, "provenienza", e.target.value)} className="w-full text-[10px] border border-[#e5e5e7] rounded px-1 py-1 bg-white">{PROVENIENZA_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Prezzo unit.</label><input type="number" defaultValue={m.prezzo_unitario ?? ""} onBlur={(e) => handleUpdateField(m.id, "prezzo_unitario", e.target.value ? parseFloat(e.target.value) : null)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Gg consegna</label><input type="number" defaultValue={m.giorni_consegna ?? ""} onBlur={(e) => handleUpdateField(m.id, "giorni_consegna", e.target.value ? parseInt(e.target.value) : null)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Costo tot.</label><div className="text-[11px] text-[#86868b] px-2 py-1">{m.costo_totale != null ? m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" }) : "-"}</div></div>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Data necessaria</label><input type="date" defaultValue={m.data_necessaria ?? ""} onChange={(e) => handleUpdateField(m.id, "data_necessaria", e.target.value || null)} className="w-full text-[10px] border border-[#e5e5e7] rounded px-1.5 py-1 bg-white outline-none" /></div>
+                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Data ordine</label><input type="date" defaultValue={m.data_ordine ?? ""} onChange={(e) => handleUpdateField(m.id, "data_ordine", e.target.value || null)} className="w-full text-[10px] border border-[#e5e5e7] rounded px-1.5 py-1 bg-white outline-none" /></div>
+              </div>
+              <input defaultValue={m.note ?? ""} onBlur={(e) => handleUpdateField(m.id, "note", e.target.value || null)} placeholder="Note..." className="w-full text-[10px] text-[#86868b] mt-1.5 bg-transparent border-0 border-b border-[#e5e5e7]/50 outline-none focus:border-[#1d1d1f] placeholder:text-[#d2d2d7] px-0 py-0.5" />
 
               {/* Operazioni sub-materiale */}
               <button onClick={() => toggleMatOps(m.id)} className="flex items-center gap-1 mt-2 text-[10px] text-[#86868b] hover:text-[#1d1d1f]">

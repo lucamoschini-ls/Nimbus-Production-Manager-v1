@@ -55,7 +55,7 @@ interface TipologiaDb { nome: string; colore: string; }
 interface MaterialeInline {
   id: string; task_id: string; nome: string; quantita: number | null; unita: string | null;
   quantita_disponibile: number | null; quantita_ordinata: number | null;
-  data_necessaria: string | null; giorni_consegna: number | null;
+  provenienza: string | null; data_necessaria: string | null; giorni_consegna: number | null;
 }
 interface DeleteConfirm { type: "lavorazione" | "task"; id: string; title: string; hasChildren: boolean; }
 
@@ -112,6 +112,15 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
   const [newLavName, setNewLavName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
+  const [editingLavName, setEditingLavName] = useState<string | null>(null);
+
+  const saveLavName = async (lavId: string, newName: string) => {
+    if (newName.trim()) {
+      _savedLavId = selectedLav;
+      await updateLavorazione(lavId, { nome: newName.trim() });
+    }
+    setEditingLavName(null);
+  };
 
   const toggleZone = (id: string) => {
     const next = new Set(expandedZone);
@@ -172,9 +181,13 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
     const disp = m.quantita_disponibile ?? 0;
     const ord = m.quantita_ordinata ?? 0;
     const tot = m.quantita ?? 0;
+    const prov = m.provenienza;
+    if (prov === "in_loco") return { label: "In loco", cls: "bg-violet-100 text-violet-700" };
     if (tot > 0 && disp >= tot) return { label: "Completo", cls: "bg-green-100 text-green-700" };
+    if (prov === "magazzino") return { label: "In magazzino", cls: "bg-amber-100 text-amber-700" };
     if (ord > 0 && disp > 0) return { label: "Parziale", cls: "bg-amber-100 text-amber-700" };
     if (ord > 0) return { label: "Ordinato", cls: "bg-amber-100 text-amber-700" };
+    if (prov === "noleggio") return { label: "Da noleggiare", cls: "bg-red-100 text-red-700" };
     return { label: "Da acquistare", cls: "bg-red-100 text-red-700" };
   }
 
@@ -234,10 +247,23 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                       const isSelected = selectedLav === lav.id;
                       return (
                         <div key={lav.id} className={`group/lav flex items-center pr-1 transition-colors ${isSelected ? "bg-[#f5f5f7] text-[#1d1d1f]" : "text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]/50"}`}>
-                          <button onClick={() => selectLav(lav.id)} className={`flex-1 flex items-center justify-between px-4 py-2 text-left text-xs ${isSelected ? "font-medium" : ""}`}>
-                            <span className="truncate">{lav.nome}</span>
+                          <div className={`flex-1 flex items-center justify-between px-4 py-2 text-xs ${isSelected ? "font-medium" : ""}`}>
+                            {editingLavName === lav.id ? (
+                              <input
+                                autoFocus
+                                defaultValue={lav.nome}
+                                onBlur={(e) => saveLavName(lav.id, e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") saveLavName(lav.id, (e.target as HTMLInputElement).value); if (e.key === "Escape") setEditingLavName(null); }}
+                                className="flex-1 min-w-0 text-xs border border-[#e5e5e7] rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <button onClick={() => selectLav(lav.id)} onDoubleClick={(e) => { e.stopPropagation(); setEditingLavName(lav.id); }} className="flex-1 truncate text-left" title="Doppio click per rinominare">
+                                {lav.nome}
+                              </button>
+                            )}
                             <span className="text-[10px] ml-2 flex-shrink-0">{lavTasks.length}</span>
-                          </button>
+                          </div>
                           <button onClick={(e) => { e.stopPropagation(); handleDeleteLav(lav); }} className="p-1 rounded text-[#d2d2d7] opacity-0 group-hover/lav:opacity-100 hover:!text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
                             <Trash2 size={12} />
                           </button>
@@ -289,7 +315,19 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                   )}
                   <span className="text-[#1d1d1f] font-medium">{selectedLavData.nome}</span>
                 </div>
-                <h1 className="text-xl font-semibold text-[#1d1d1f]">{selectedLavData.nome}</h1>
+                {editingLavName === selectedLavData.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={selectedLavData.nome}
+                    onBlur={(e) => saveLavName(selectedLavData.id, e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveLavName(selectedLavData.id, (e.target as HTMLInputElement).value); if (e.key === "Escape") setEditingLavName(null); }}
+                    className="text-xl font-semibold text-[#1d1d1f] border border-[#e5e5e7] rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-ring w-full"
+                  />
+                ) : (
+                  <h1 className="text-xl font-semibold text-[#1d1d1f] cursor-pointer hover:text-blue-600" onDoubleClick={() => setEditingLavName(selectedLavData.id)} title="Doppio click per rinominare">
+                    {selectedLavData.nome}
+                  </h1>
+                )}
                 {selectedLavTasks.length > 0 && (
                   <div className="flex items-center gap-3 mt-2">
                     <div className="flex-1 max-w-xs h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
@@ -448,9 +486,10 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
             <div className="space-y-2">
               {lavorazioni.filter((l) => l.zona_id === mobileZona).map((lav) => {
                 const lt = tasks.filter((t) => t.lavorazione_id === lav.id);
-                return (<button key={lav.id} onClick={() => { selectLav(lav.id); setMobileView("tasks"); }} className="w-full bg-white rounded-[12px] border border-[#e5e5e7] p-4 text-left flex items-center justify-between">
+                return (<div key={lav.id} className="relative bg-white rounded-[12px] border border-[#e5e5e7] p-4 pr-10 flex items-center justify-between cursor-pointer" onClick={() => { selectLav(lav.id); setMobileView("tasks"); }}>
                   <span className="text-sm font-medium text-[#1d1d1f]">{lav.nome}</span><span className="text-xs text-[#86868b]">{lt.length} task</span>
-                </button>);
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteLav(lav); }} className="absolute top-3.5 right-3 p-1 rounded text-[#d2d2d7] hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                </div>);
               })}
             </div>
           </div>
