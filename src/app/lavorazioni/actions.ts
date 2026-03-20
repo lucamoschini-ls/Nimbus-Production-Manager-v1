@@ -31,3 +31,17 @@ export async function createLavorazione(data: {
   if (error) throw new Error(error.message);
   revalidatePath("/lavorazioni");
 }
+
+export async function deleteLavorazione(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("lavorazioni").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+}
+
+export async function deleteTask(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("task").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+}

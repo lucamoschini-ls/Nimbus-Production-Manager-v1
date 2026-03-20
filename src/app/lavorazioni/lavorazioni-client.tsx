@@ -1,11 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TaskDetailSheet } from "./task-detail-sheet";
-import { updateTask, createTask, createLavorazione } from "./actions";
+import { updateTask, createTask, createLavorazione, deleteLavorazione, deleteTask } from "./actions";
 import type { Zona, StatoFornitore } from "@/lib/types";
 
 const STATO_COLORS: Record<string, string> = {
@@ -102,10 +112,18 @@ interface Props {
   tipologie: TipologiaDb[];
 }
 
+// Delete confirmation dialog state
+interface DeleteConfirm {
+  type: "lavorazione" | "task";
+  id: string;
+  title: string;
+  hasChildren: boolean;
+}
+
 export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie }: Props) {
-  // Build tipologia color map from DB
   const tipColorMap: Record<string, string> = {};
   tipologie.forEach((t) => { tipColorMap[t.nome] = t.colore; });
+
   const [expandedZone, setExpandedZone] = useState<Set<string>>(new Set(zone.map((z) => z.id)));
   const [selectedLav, setSelectedLav] = useState<string | null>(
     lavorazioni[0]?.id ?? null
@@ -115,6 +133,21 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
   const [newLavName, setNewLavName] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
+
+  // FIX 2: ref for scroll-to-top
+  const taskAreaRef = useRef<HTMLDivElement>(null);
+
+  const selectLav = (id: string) => {
+    setSelectedLav(id);
+  };
+
+  // Scroll to top when selectedLav changes
+  useEffect(() => {
+    if (taskAreaRef.current) {
+      taskAreaRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [selectedLav]);
 
   const toggleZone = (id: string) => {
     const next = new Set(expandedZone);
@@ -145,15 +178,75 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
     return null;
   }
 
-  // Mobile: zone list → lavorazioni → tasks (drill-down)
+  // FIX 1: Delete lavorazione
+  const handleDeleteLav = (lav: Lavorazione) => {
+    const lavTasks = tasks.filter((t) => t.lavorazione_id === lav.id);
+    if (lavTasks.length === 0) {
+      // No tasks — delete directly
+      deleteLavorazione(lav.id);
+      if (selectedLav === lav.id) setSelectedLav(null);
+    } else {
+      setDeleteConfirm({
+        type: "lavorazione",
+        id: lav.id,
+        title: lav.nome,
+        hasChildren: true,
+      });
+    }
+  };
+
+  // FIX 3: Delete task
+  const handleDeleteTask = (task: TaskCompleta) => {
+    setDeleteConfirm({
+      type: "task",
+      id: task.id,
+      title: task.titolo,
+      hasChildren: false,
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    if (deleteConfirm.type === "lavorazione") {
+      await deleteLavorazione(deleteConfirm.id);
+      if (selectedLav === deleteConfirm.id) setSelectedLav(null);
+    } else {
+      await deleteTask(deleteConfirm.id);
+    }
+    setDeleteConfirm(null);
+  };
+
+  // Mobile
   const [mobileView, setMobileView] = useState<"zone" | "lavorazioni" | "tasks">("zone");
   const [mobileZona, setMobileZona] = useState<string | null>(null);
 
   return (
     <div>
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteConfirm?.type === "lavorazione"
+                ? `Eliminare ${deleteConfirm?.title}?`
+                : `Eliminare task?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirm?.type === "lavorazione"
+                ? `La lavorazione "${deleteConfirm?.title}" e tutte le sue task verranno eliminate. Questa azione non può essere annullata.`
+                : `La task "${deleteConfirm?.title}" verrà eliminata con tutti i materiali e le dipendenze collegate.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Desktop: two columns */}
       <div className="hidden md:flex gap-0 -mx-6 -mt-6 min-h-[calc(100vh-0px)]">
-        {/* Left sidebar: zone + lavorazioni */}
+        {/* Left sidebar */}
         <div className="w-[280px] min-w-[280px] border-r border-[#e5e5e7] bg-white overflow-y-auto">
           <div className="p-4 border-b border-[#e5e5e7]">
             <h2 className="text-sm font-semibold text-[#1d1d1f]">Zone e Lavorazioni</h2>
@@ -208,23 +301,37 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                       );
                       const isSelected = selectedLav === lav.id;
                       return (
-                        <button
+                        <div
                           key={lav.id}
-                          onClick={() => setSelectedLav(lav.id)}
-                          className={`w-full flex items-center justify-between px-4 py-2 text-left text-xs transition-colors ${
+                          className={`group flex items-center pr-1 transition-colors ${
                             isSelected
-                              ? "bg-[#f5f5f7] text-[#1d1d1f] font-medium"
+                              ? "bg-[#f5f5f7] text-[#1d1d1f]"
                               : "text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]/50"
                           }`}
                         >
-                          <span className="truncate">{lav.nome}</span>
-                          <span className="text-[10px] ml-2 flex-shrink-0">
-                            {lavTasks.length}
-                          </span>
-                        </button>
+                          <button
+                            onClick={() => selectLav(lav.id)}
+                            className={`flex-1 flex items-center justify-between px-4 py-2 text-left text-xs ${
+                              isSelected ? "font-medium" : ""
+                            }`}
+                          >
+                            <span className="truncate">{lav.nome}</span>
+                            <span className="text-[10px] ml-2 flex-shrink-0">
+                              {lavTasks.length}
+                            </span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteLav(lav);
+                            }}
+                            className="p-1 rounded text-[#86868b] opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       );
                     })}
-                    {/* Add lavorazione button */}
                     {addingLavTo === z.id ? (
                       <form
                         className="px-4 py-2 flex gap-1"
@@ -261,8 +368,8 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
           })}
         </div>
 
-        {/* Right: task list for selected lavorazione */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Right: task list */}
+        <div className="flex-1 overflow-y-auto p-6" ref={taskAreaRef}>
           {selectedLavData ? (
             <>
               <div className="mb-6">
@@ -313,54 +420,68 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                 {selectedLavTasks.map((task) => {
                   const attesaMotivo = getAttesaMotivo(task);
                   return (
-                    <button
+                    <div
                       key={task.id}
-                      onClick={() => setSelectedTask(task)}
-                      className="w-full bg-white rounded-[12px] border border-[#e5e5e7] p-4 text-left hover:shadow-md transition-shadow"
+                      className="group relative bg-white rounded-[12px] border border-[#e5e5e7] p-4 hover:shadow-md transition-shadow"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-medium text-[#1d1d1f]">
-                            {task.titolo}
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                            {task.tipologia && (
+                      <button
+                        onClick={() => setSelectedTask(task)}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-medium text-[#1d1d1f] pr-8">
+                              {task.titolo}
+                            </h3>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                              {task.tipologia && (
+                                <Badge
+                                  style={
+                                    tipColorMap[task.tipologia]
+                                      ? { backgroundColor: tipColorMap[task.tipologia] + "20", color: tipColorMap[task.tipologia] }
+                                      : undefined
+                                  }
+                                  className={
+                                    !tipColorMap[task.tipologia]
+                                      ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600")
+                                      : ""
+                                  }
+                                >
+                                  {task.tipologia.replace(/_/g, " ")}
+                                </Badge>
+                              )}
                               <Badge
-                                style={
-                                  tipColorMap[task.tipologia]
-                                    ? { backgroundColor: tipColorMap[task.tipologia] + "20", color: tipColorMap[task.tipologia] }
-                                    : undefined
-                                }
                                 className={
-                                  !tipColorMap[task.tipologia]
-                                    ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600")
-                                    : ""
+                                  STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"
                                 }
                               >
-                                {task.tipologia.replace(/_/g, " ")}
+                                {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
                               </Badge>
+                            </div>
+                            {attesaMotivo && (
+                              <p className="text-xs text-amber-600 mt-1.5">
+                                {attesaMotivo}
+                              </p>
                             )}
-                            <Badge
-                              className={
-                                STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"
-                              }
-                            >
-                              {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
-                            </Badge>
                           </div>
-                          {attesaMotivo && (
-                            <p className="text-xs text-amber-600 mt-1.5">
-                              {attesaMotivo}
-                            </p>
+                          {task.fornitore_nome && (
+                            <span className="text-xs text-[#86868b] flex-shrink-0">
+                              {task.fornitore_nome}
+                            </span>
                           )}
                         </div>
-                        {task.fornitore_nome && (
-                          <span className="text-xs text-[#86868b] flex-shrink-0">
-                            {task.fornitore_nome}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                      </button>
+                      {/* FIX 3: Delete task button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTask(task);
+                        }}
+                        className="absolute top-3 right-3 p-1.5 rounded-md text-[#86868b] opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -410,7 +531,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
         </div>
       </div>
 
-      {/* Mobile: drill-down navigation */}
+      {/* Mobile: drill-down */}
       <div className="md:hidden">
         {mobileView === "zone" && (
           <div>
@@ -434,20 +555,12 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                     className="w-full bg-white rounded-[12px] border border-[#e5e5e7] p-4 text-left"
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: z.colore }}
-                      />
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: z.colore }} />
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-[#1d1d1f]">
-                          {z.nome}
-                        </div>
+                        <div className="text-sm font-medium text-[#1d1d1f]">{z.nome}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${pct}%`, backgroundColor: z.colore }}
-                            />
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: z.colore }} />
                           </div>
                           <span className="text-[10px] text-[#86868b]">{completed}/{zoneTasks.length}</span>
                         </div>
@@ -463,10 +576,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
 
         {mobileView === "lavorazioni" && mobileZona && (
           <div>
-            <button
-              onClick={() => setMobileView("zone")}
-              className="text-xs text-[#86868b] mb-3 hover:text-[#1d1d1f]"
-            >
+            <button onClick={() => setMobileView("zone")} className="text-xs text-[#86868b] mb-3 hover:text-[#1d1d1f]">
               ← Zone
             </button>
             <h1 className="text-xl font-semibold text-[#1d1d1f] mb-4">
@@ -497,32 +607,31 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
 
         {mobileView === "tasks" && selectedLav && (
           <div>
-            <button
-              onClick={() => setMobileView("lavorazioni")}
-              className="text-xs text-[#86868b] mb-3 hover:text-[#1d1d1f]"
-            >
+            <button onClick={() => setMobileView("lavorazioni")} className="text-xs text-[#86868b] mb-3 hover:text-[#1d1d1f]">
               ← {zone.find((z) => z.id === mobileZona)?.nome}
             </button>
-            <h1 className="text-xl font-semibold text-[#1d1d1f] mb-4">
-              {selectedLavData?.nome}
-            </h1>
+            <h1 className="text-xl font-semibold text-[#1d1d1f] mb-4">{selectedLavData?.nome}</h1>
             <div className="space-y-2">
               {selectedLavTasks.map((task) => (
-                <button
-                  key={task.id}
-                  onClick={() => setSelectedTask(task)}
-                  className="w-full bg-white rounded-[12px] border border-[#e5e5e7] p-4 text-left"
-                >
-                  <h3 className="text-sm font-medium text-[#1d1d1f]">{task.titolo}</h3>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    <Badge className={STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}>
-                      {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
-                    </Badge>
-                    {task.fornitore_nome && (
-                      <span className="text-xs text-[#86868b]">{task.fornitore_nome}</span>
-                    )}
-                  </div>
-                </button>
+                <div key={task.id} className="relative bg-white rounded-[12px] border border-[#e5e5e7] p-4">
+                  <button onClick={() => setSelectedTask(task)} className="w-full text-left">
+                    <h3 className="text-sm font-medium text-[#1d1d1f] pr-8">{task.titolo}</h3>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <Badge className={STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}>
+                        {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
+                      </Badge>
+                      {task.fornitore_nome && (
+                        <span className="text-xs text-[#86868b]">{task.fornitore_nome}</span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTask(task)}
+                    className="absolute top-3 right-3 p-1.5 rounded-md text-[#86868b] hover:text-red-500 hover:bg-red-50"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
