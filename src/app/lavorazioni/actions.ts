@@ -45,3 +45,10 @@ export async function deleteTask(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/lavorazioni");
 }
+
+export async function updateLavorazione(id: string, data: Record<string, unknown>) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("lavorazioni").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+}

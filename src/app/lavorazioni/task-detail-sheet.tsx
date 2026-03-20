@@ -581,25 +581,31 @@ interface MaterialeData {
   prezzo_unitario: number | null;
   costo_totale: number | null;
   provenienza: string | null;
-  ordinato: boolean;
-  in_cantiere: boolean;
+  quantita_disponibile: number | null;
+  quantita_ordinata: number | null;
+  quantita_da_acquistare: number | null;
   giorni_consegna: number | null;
   data_ordine: string | null;
   data_consegna_prevista: string | null;
+  data_necessaria: string | null;
   note: string | null;
+}
+
+function matStatoDetail(m: MaterialeData) {
+  const disp = m.quantita_disponibile ?? 0;
+  const ord = m.quantita_ordinata ?? 0;
+  const tot = m.quantita ?? 0;
+  if (tot > 0 && disp >= tot) return { label: "Completo", cls: "bg-green-100 text-green-700" };
+  if (ord > 0 && disp > 0) return { label: "Parziale", cls: "bg-amber-100 text-amber-700" };
+  if (ord > 0) return { label: "Ordinato", cls: "bg-amber-100 text-amber-700" };
+  return { label: "Da acquistare", cls: "bg-red-100 text-red-700" };
 }
 
 function MaterialiSection({ taskId }: { taskId: string }) {
   const [materiali, setMateriali] = useState<MaterialeData[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [newMat, setNewMat] = useState({
-    nome: "",
-    quantita: "",
-    unita: "pz",
-    prezzo_unitario: "",
-    provenienza: "acquisto",
-    giorni_consegna: "",
-    note: "",
+    nome: "", quantita: "", unita: "pz", prezzo_unitario: "", provenienza: "acquisto", giorni_consegna: "", note: "",
   });
 
   const loadMateriali = useCallback(async () => {
@@ -607,15 +613,12 @@ function MaterialiSection({ taskId }: { taskId: string }) {
     setMateriali(data as MaterialeData[]);
   }, [taskId]);
 
-  useEffect(() => {
-    loadMateriali();
-  }, [loadMateriali]);
+  useEffect(() => { loadMateriali(); }, [loadMateriali]);
 
   const handleAdd = async () => {
     if (!newMat.nome.trim()) return;
     await addMateriale({
-      task_id: taskId,
-      nome: newMat.nome,
+      task_id: taskId, nome: newMat.nome,
       quantita: newMat.quantita ? parseFloat(newMat.quantita) : undefined,
       unita: newMat.unita || undefined,
       prezzo_unitario: newMat.prezzo_unitario ? parseFloat(newMat.prezzo_unitario) : undefined,
@@ -628,12 +631,8 @@ function MaterialiSection({ taskId }: { taskId: string }) {
     await loadMateriali();
   };
 
-  const toggleField = async (id: string, field: "ordinato" | "in_cantiere", value: boolean) => {
-    const update: Record<string, unknown> = { [field]: value };
-    if (field === "ordinato" && value) {
-      update.data_ordine = new Date().toISOString().split("T")[0];
-    }
-    await updateMateriale(id, update);
+  const handleUpdateQty = async (id: string, field: string, value: string) => {
+    await updateMateriale(id, { [field]: value ? parseFloat(value) : 0 });
     await loadMateriali();
   };
 
@@ -646,148 +645,91 @@ function MaterialiSection({ taskId }: { taskId: string }) {
     <div className="border-t border-[#e5e5e7] pt-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-semibold text-[#1d1d1f] flex items-center gap-1.5">
-          <Package size={13} />
-          Materiali ({materiali.length})
+          <Package size={13} /> Materiali ({materiali.length})
         </h3>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1"
-        >
+        <button onClick={() => setShowForm(!showForm)} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
           <Plus size={12} /> Aggiungi
         </button>
       </div>
 
-      {/* Lista materiali */}
-      {materiali.length === 0 && !showForm && (
-        <p className="text-xs text-[#86868b]">Nessun materiale</p>
-      )}
+      {materiali.length === 0 && !showForm && <p className="text-xs text-[#86868b]">Nessun materiale</p>}
+
       <div className="space-y-2">
-        {materiali.map((m) => (
-          <div key={m.id} className="bg-[#f5f5f7] rounded-lg px-3 py-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-[#1d1d1f]">{m.nome}</p>
-                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                  {m.quantita != null && (
-                    <span className="text-[10px] text-[#86868b]">
-                      {m.quantita} {m.unita}
-                    </span>
-                  )}
-                  {m.prezzo_unitario != null && (
-                    <span className="text-[10px] text-[#86868b]">
-                      x {m.prezzo_unitario.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </span>
-                  )}
-                  {m.costo_totale != null && (
-                    <span className="text-[10px] font-medium text-[#1d1d1f]">
-                      = {m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </span>
-                  )}
-                  {m.provenienza && (
-                    <Badge className={`text-[10px] ${PROVENIENZA_COLORS[m.provenienza] ?? "bg-gray-100 text-gray-600"}`}>
-                      {m.provenienza.replace("_", " ")}
-                    </Badge>
-                  )}
+        {materiali.map((m) => {
+          const stato = matStatoDetail(m);
+          const disp = m.quantita_disponibile ?? 0;
+          const tot = m.quantita ?? 0;
+          return (
+            <div key={m.id} className="bg-[#f5f5f7] rounded-lg px-3 py-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-medium text-[#1d1d1f]">{m.nome}</p>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stato.cls}`}>{stato.label}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {tot > 0 && <span className="text-[10px] font-medium text-[#1d1d1f]">{disp}/{tot}{m.unita ? ` ${m.unita}` : ""}</span>}
+                    {m.prezzo_unitario != null && (
+                      <span className="text-[10px] text-[#86868b]">x {m.prezzo_unitario.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                    )}
+                    {m.costo_totale != null && (
+                      <span className="text-[10px] font-medium text-[#1d1d1f]">= {m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span>
+                    )}
+                    {m.provenienza && <Badge className={`text-[10px] ${PROVENIENZA_COLORS[m.provenienza] ?? "bg-gray-100 text-gray-600"}`}>{m.provenienza.replace("_", " ")}</Badge>}
+                  </div>
+                </div>
+                <button onClick={() => handleRemove(m.id)} className="text-[#86868b] hover:text-red-500 mt-0.5"><X size={12} /></button>
+              </div>
+              {/* Quantity fields */}
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Disponibile</label>
+                  <input type="number" defaultValue={m.quantita_disponibile ?? 0}
+                    onBlur={(e) => handleUpdateQty(m.id, "quantita_disponibile", e.target.value)}
+                    className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" />
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Ordinata</label>
+                  <input type="number" defaultValue={m.quantita_ordinata ?? 0}
+                    onBlur={(e) => handleUpdateQty(m.id, "quantita_ordinata", e.target.value)}
+                    className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" />
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Da acquistare</label>
+                  <div className="text-[11px] text-[#86868b] border border-transparent px-2 py-1">{m.quantita_da_acquistare ?? "-"}</div>
                 </div>
               </div>
-              <button onClick={() => handleRemove(m.id)} className="text-[#86868b] hover:text-red-500 mt-0.5">
-                <X size={12} />
-              </button>
+              {m.giorni_consegna != null && <span className="text-[10px] text-[#86868b] mt-1 block">{m.giorni_consegna}gg consegna</span>}
             </div>
-            {/* Toggles */}
-            <div className="flex items-center gap-4 mt-2">
-              <label className="flex items-center gap-1.5 text-[10px] text-[#86868b] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={m.ordinato}
-                  onChange={(e) => toggleField(m.id, "ordinato", e.target.checked)}
-                  className="rounded border-[#e5e5e7]"
-                />
-                Ordinato
-              </label>
-              <label className="flex items-center gap-1.5 text-[10px] text-[#86868b] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={m.in_cantiere}
-                  onChange={(e) => toggleField(m.id, "in_cantiere", e.target.checked)}
-                  className="rounded border-[#e5e5e7]"
-                />
-                In cantiere
-              </label>
-              {m.giorni_consegna != null && (
-                <span className="text-[10px] text-[#86868b]">{m.giorni_consegna}gg consegna</span>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Form nuovo materiale */}
       {showForm && (
         <div className="mt-3 bg-white border border-[#e5e5e7] rounded-lg p-3 space-y-2.5">
-          <input
-            autoFocus
-            value={newMat.nome}
-            onChange={(e) => setNewMat({ ...newMat, nome: e.target.value })}
-            placeholder="Nome materiale"
-            className="w-full text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring"
-          />
+          <input autoFocus value={newMat.nome} onChange={(e) => setNewMat({ ...newMat, nome: e.target.value })} placeholder="Nome materiale"
+            className="w-full text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
           <div className="grid grid-cols-3 gap-2">
-            <input
-              type="number"
-              value={newMat.quantita}
-              onChange={(e) => setNewMat({ ...newMat, quantita: e.target.value })}
-              placeholder="Qty"
-              className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring"
-            />
-            <select
-              value={newMat.unita}
-              onChange={(e) => setNewMat({ ...newMat, unita: e.target.value })}
-              className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white"
-            >
-              {UNITA_OPTIONS.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
+            <input type="number" value={newMat.quantita} onChange={(e) => setNewMat({ ...newMat, quantita: e.target.value })} placeholder="Qty"
+              className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+            <select value={newMat.unita} onChange={(e) => setNewMat({ ...newMat, unita: e.target.value })} className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white">
+              {UNITA_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
-            <input
-              type="number"
-              value={newMat.prezzo_unitario}
-              onChange={(e) => setNewMat({ ...newMat, prezzo_unitario: e.target.value })}
-              placeholder="Prezzo"
-              className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring"
-            />
+            <input type="number" value={newMat.prezzo_unitario} onChange={(e) => setNewMat({ ...newMat, prezzo_unitario: e.target.value })} placeholder="Prezzo"
+              className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <select
-              value={newMat.provenienza}
-              onChange={(e) => setNewMat({ ...newMat, provenienza: e.target.value })}
-              className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white"
-            >
-              {PROVENIENZA_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
+            <select value={newMat.provenienza} onChange={(e) => setNewMat({ ...newMat, provenienza: e.target.value })} className="text-xs border border-[#e5e5e7] rounded px-2 py-1.5 bg-white">
+              {PROVENIENZA_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
-            <input
-              type="number"
-              value={newMat.giorni_consegna}
-              onChange={(e) => setNewMat({ ...newMat, giorni_consegna: e.target.value })}
-              placeholder="Gg consegna"
-              className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring"
-            />
+            <input type="number" value={newMat.giorni_consegna} onChange={(e) => setNewMat({ ...newMat, giorni_consegna: e.target.value })} placeholder="Gg consegna"
+              className="text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
           </div>
-          <input
-            value={newMat.note}
-            onChange={(e) => setNewMat({ ...newMat, note: e.target.value })}
-            placeholder="Note..."
-            className="w-full text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring"
-          />
+          <input value={newMat.note} onChange={(e) => setNewMat({ ...newMat, note: e.target.value })} placeholder="Note..."
+            className="w-full text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleAdd} disabled={!newMat.nome.trim()} className="flex-1 text-xs">
-              Salva
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="text-xs">
-              Annulla
-            </Button>
+            <Button size="sm" onClick={handleAdd} disabled={!newMat.nome.trim()} className="flex-1 text-xs">Salva</Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="text-xs">Annulla</Button>
           </div>
         </div>
       )}

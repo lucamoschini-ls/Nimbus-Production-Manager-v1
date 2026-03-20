@@ -91,6 +91,25 @@ export async function removeMateriale(id: string) {
   revalidatePath("/materiali");
 }
 
+export async function updateMaterialeQuantities(
+  id: string,
+  data: { quantita_disponibile?: number; quantita_ordinata?: number; data_ordine?: string | null }
+) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("materiali").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+  revalidatePath("/materiali");
+}
+
+export async function updateMaterialeDataNecessaria(id: string, data_necessaria: string | null) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("materiali").update({ data_necessaria }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+  revalidatePath("/gantt");
+}
+
 // ========== SEARCH TASKS (per dropdown dipendenze) ==========
 
 export async function searchTasks(query: string) {

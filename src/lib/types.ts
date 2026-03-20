@@ -130,11 +130,13 @@ export interface Materiale {
   prezzo_unitario: number | null;
   costo_totale: number | null;
   provenienza: string | null;
-  ordinato: boolean;
-  in_cantiere: boolean;
+  quantita_disponibile: number | null;
+  quantita_ordinata: number | null;
+  quantita_da_acquistare: number | null;
   giorni_consegna: number | null;
   data_ordine: string | null;
   data_consegna_prevista: string | null;
+  data_necessaria: string | null;
   note: string | null;
   created_at: string;
 }
