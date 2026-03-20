@@ -57,14 +57,20 @@ interface MaterialeInline {
   quantita_disponibile: number | null; quantita_ordinata: number | null;
   data_necessaria: string | null; giorni_consegna: number | null;
 }
+interface OperazioneInline {
+  id: string; task_id: string; titolo: string; fornitore_id: string | null;
+  organizzato: boolean; stato: string;
+  fornitore: { nome: string; stato: string } | null;
+}
 interface DeleteConfirm { type: "lavorazione" | "task"; id: string; title: string; hasChildren: boolean; }
 
 interface Props {
   zone: Zona[]; lavorazioni: Lavorazione[]; tasks: TaskCompleta[];
   fornitori: FornitoreMin[]; tipologie: TipologiaDb[]; materiali: MaterialeInline[];
+  operazioni: OperazioneInline[];
 }
 
-export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali }: Props) {
+export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali, operazioni }: Props) {
   const tipColorMap: Record<string, string> = {};
   tipologie.forEach((t) => { tipColorMap[t.nome] = t.colore; });
 
@@ -73,6 +79,13 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   materiali.forEach((m) => {
     if (!materialiByTask[m.task_id]) materialiByTask[m.task_id] = [];
     materialiByTask[m.task_id].push(m);
+  });
+
+  // Group operazioni by task_id
+  const opsByTask: Record<string, OperazioneInline[]> = {};
+  operazioni.forEach((o) => {
+    if (!opsByTask[o.task_id]) opsByTask[o.task_id] = [];
+    opsByTask[o.task_id].push(o);
   });
 
   const [expandedZone, setExpandedZone] = useState<Set<string>>(new Set(zone.map((z) => z.id)));
@@ -306,6 +319,8 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                 {selectedLavTasks.map((task) => {
                   const attesaMotivo = getAttesaMotivo(task);
                   const taskMat = materialiByTask[task.id] || [];
+                  const taskOps = opsByTask[task.id] || [];
+                  const opsCompleted = taskOps.filter((o) => o.stato === "completata").length;
                   return (
                     <div key={task.id} className="group/card relative bg-white rounded-[12px] border border-[#e5e5e7] p-4 pr-10 hover:shadow-md transition-shadow">
                       <div className="cursor-pointer" onClick={() => setSelectedTask(task)}>
@@ -324,8 +339,24 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                               </Badge>
                             </div>
                             {attesaMotivo && <p className="text-xs text-amber-600 mt-1.5">{attesaMotivo}</p>}
+                            {/* Operazioni riepilogo */}
+                            {taskOps.length > 0 && (
+                              <div className="mt-2">
+                                <span className="text-[10px] text-[#86868b]">{opsCompleted}/{taskOps.length} operazioni</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {taskOps.map((op) => (
+                                    <span key={op.id} className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${op.organizzato ? "bg-green-50 text-green-700" : "bg-gray-100 text-[#86868b]"}`}>
+                                      {op.fornitore?.nome ?? op.titolo}
+                                      {op.organizzato
+                                        ? <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                                        : <span className="w-1.5 h-1.5 rounded-full bg-[#d2d2d7] inline-block" />}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          {task.fornitore_nome && <span className="text-xs text-[#86868b] flex-shrink-0">{task.fornitore_nome}</span>}
+                          {task.fornitore_nome && taskOps.length === 0 && <span className="text-xs text-[#86868b] flex-shrink-0">{task.fornitore_nome}</span>}
                         </div>
                       </div>
 

@@ -112,6 +112,39 @@ export async function updateMaterialeDataNecessaria(id: string, data_necessaria:
 
 // ========== SEARCH TASKS (per dropdown dipendenze) ==========
 
+// ========== OPERAZIONI ==========
+
+export async function getOperazioni(taskId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("operazioni")
+    .select("*, fornitore:fornitori!operazioni_fornitore_id_fkey(id, nome, stato)")
+    .eq("task_id", taskId)
+    .order("ordine");
+  return data ?? [];
+}
+
+export async function addOperazione(taskId: string, titolo: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("operazioni").insert({ task_id: taskId, titolo });
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+}
+
+export async function updateOperazione(id: string, data: Record<string, unknown>) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("operazioni").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+}
+
+export async function removeOperazione(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("operazioni").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/lavorazioni");
+}
+
 export async function searchTasks(query: string) {
   const supabase = await createClient();
   const { data } = await supabase
@@ -122,3 +155,4 @@ export async function searchTasks(query: string) {
     .limit(30);
   return data ?? [];
 }
+

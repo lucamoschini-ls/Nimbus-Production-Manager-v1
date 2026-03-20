@@ -41,7 +41,18 @@ interface Materiale {
 }
 
 interface Zona { id: string; nome: string; }
-interface Props { materiali: Materiale[]; zone: Zona[]; }
+
+export interface TrasportoOp {
+  id: string; titolo: string; organizzato: boolean; stato: string;
+  data_inizio: string | null; data_fine: string | null; note: string | null;
+  fornitore: { nome: string; stato: string } | null;
+  task: { titolo: string; lavorazione: { nome: string; zona: { nome: string; colore: string } } };
+}
+
+interface Props {
+  materiali: Materiale[]; zone: Zona[];
+  trasportoOps: TrasportoOp[];
+}
 
 function matStato(m: Materiale) {
   const disp = m.quantita_disponibile ?? 0;
@@ -84,7 +95,8 @@ function DateField({ id, field, val }: { id: string; field: string; val: string 
   );
 }
 
-export function MaterialiClient({ materiali, zone }: Props) {
+export function MaterialiClient({ materiali, zone, trasportoOps }: Props) {
+  const [activeTab, setActiveTab] = useState<"materiali" | "trasporti">("materiali");
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
   const [filterProvenienza, setFilterProvenienza] = useState("tutti");
@@ -109,8 +121,23 @@ export function MaterialiClient({ materiali, zone }: Props) {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-6">Materiali</h1>
+      <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-4">Materiali e Logistica</h1>
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-[#f5f5f7] rounded-lg p-1 w-fit">
+        <button onClick={() => setActiveTab("materiali")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "materiali" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>
+          Materiali ({totale})
+        </button>
+        <button onClick={() => setActiveTab("trasporti")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "trasporti" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>
+          Trasporti ({trasportoOps.length})
+        </button>
+      </div>
+
+      {activeTab === "trasporti" && (
+        <TrasportiSection ops={trasportoOps} />
+      )}
+
+      {activeTab === "materiali" && <>
       {/* Contatori */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
@@ -280,6 +307,78 @@ export function MaterialiClient({ materiali, zone }: Props) {
               </div>
             );
           })}
+        </div>
+      )}
+      </>}
+    </div>
+  );
+}
+
+// ========== TRASPORTI SECTION ==========
+
+const STATO_FORN_CLS: Record<string, string> = {
+  da_trovare: "bg-red-100 text-red-700", contattato: "bg-amber-100 text-amber-700",
+  confermato: "bg-blue-100 text-blue-700", sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
+  materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
+};
+
+function TrasportiSection({ ops }: { ops: TrasportoOp[] }) {
+  const daOrganizzare = ops.filter((o) => !o.organizzato).length;
+
+  return (
+    <div>
+      {daOrganizzare > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[12px] p-4 mb-4">
+          <p className="text-sm font-medium text-amber-800">{daOrganizzare} trasport{daOrganizzare === 1 ? "o" : "i"} da organizzare</p>
+        </div>
+      )}
+
+      {ops.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-[#86868b]">
+          <Package size={40} strokeWidth={1.2} />
+          <p className="text-sm mt-3 font-medium">Nessuna operazione di trasporto</p>
+          <p className="text-xs mt-1">Aggiungi operazioni con tipologia &ldquo;trasporto&rdquo; nelle task</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {ops.map((op) => (
+            <div key={op.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <h3 className="text-sm font-medium text-[#1d1d1f]">{op.titolo}</h3>
+                  <p className="text-[10px] text-[#86868b] mt-0.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: op.task?.lavorazione?.zona?.colore }} />
+                    {op.task?.lavorazione?.zona?.nome} &gt; {op.task?.lavorazione?.nome} &gt; {op.task?.titolo}
+                  </p>
+                </div>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={op.organizzato}
+                    onChange={(e) => {
+                      import("@/lib/supabase/client").then(({ createClient }) => {
+                        const sb = createClient();
+                        sb.from("operazioni").update({ organizzato: e.target.checked }).eq("id", op.id).then(() => window.location.reload());
+                      });
+                    }}
+                    className="rounded border-[#e5e5e7] w-4 h-4"
+                  />
+                  <span className={op.organizzato ? "text-green-700 font-medium" : "text-[#86868b]"}>
+                    {op.organizzato ? "Convocato" : "Da organizzare"}
+                  </span>
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {op.fornitore && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100 text-gray-600"}`}>
+                    {op.fornitore.nome} — {op.fornitore.stato.replace(/_/g, " ")}
+                  </span>
+                )}
+                {op.data_fine && <span className="text-[#86868b]">{new Date(op.data_fine).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}</span>}
+                {op.note && <span className="text-[#86868b] truncate">{op.note}</span>}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

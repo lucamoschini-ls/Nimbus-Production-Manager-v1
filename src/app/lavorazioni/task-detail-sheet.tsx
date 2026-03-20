@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Plus, Search, Package, Link } from "lucide-react";
+import { X, Plus, Search, Package, Link, ChevronDown, ChevronRight } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -29,6 +29,10 @@ import {
   updateMateriale,
   removeMateriale,
   searchTasks,
+  getOperazioni,
+  addOperazione,
+  updateOperazione,
+  removeOperazione,
 } from "./dep-mat-actions";
 import type { StatoFornitore } from "@/lib/types";
 
@@ -39,12 +43,6 @@ const STATI_TASK = [
   { value: "bloccata", label: "Bloccata" },
 ];
 
-const STATI_FORNITORE_MINIMO: { value: StatoFornitore; label: string }[] = [
-  { value: "confermato", label: "Confermato" },
-  { value: "sopralluogo_fatto", label: "Sopralluogo fatto" },
-  { value: "materiali_definiti", label: "Materiali definiti" },
-  { value: "pronto", label: "Pronto" },
-];
 
 const STATO_CALCOLATO_LABELS: Record<string, string> = {
   da_fare: "Da fare",
@@ -121,8 +119,6 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
   const [form, setForm] = useState({
     titolo: "",
     tipologia: "" as string,
-    fornitore_id: "" as string,
-    stato_fornitore_minimo: "pronto" as StatoFornitore,
     stato: "da_fare" as string,
     motivo_blocco: "",
     data_inizio: "",
@@ -140,8 +136,6 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
       setForm({
         titolo: task.titolo,
         tipologia: task.tipologia ?? "",
-        fornitore_id: task.fornitore_id ?? "",
-        stato_fornitore_minimo: task.stato_fornitore_minimo,
         stato: task.stato,
         motivo_blocco: task.motivo_blocco ?? "",
         data_inizio: task.data_inizio ?? "",
@@ -161,8 +155,6 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
       await onSave({
         titolo: form.titolo,
         tipologia: form.tipologia || null,
-        fornitore_id: form.fornitore_id || null,
-        stato_fornitore_minimo: form.stato_fornitore_minimo,
         stato: form.stato,
         motivo_blocco: form.stato === "bloccata" ? form.motivo_blocco || null : null,
         data_inizio: form.data_inizio || null,
@@ -264,43 +256,8 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
             </Select>
           </div>
 
-          {/* Fornitore */}
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Fornitore</label>
-            <Select value={form.fornitore_id} onValueChange={(v) => setForm({ ...form, fornitore_id: v })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Nessuno" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nessuno</SelectItem>
-                {fornitori.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Stato fornitore minimo */}
-          {form.fornitore_id && form.fornitore_id !== "none" && (
-            <div>
-              <label className="text-xs font-medium text-[#86868b] mb-1.5 block">
-                Stato fornitore minimo
-              </label>
-              <Select
-                value={form.stato_fornitore_minimo}
-                onValueChange={(v) => setForm({ ...form, stato_fornitore_minimo: v as StatoFornitore })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATI_FORNITORE_MINIMO.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* Operazioni */}
+          {task && <OperazioniSection taskId={task.id} fornitori={fornitori} tipologieDb={tipologieDb} />}
 
           {/* Stato */}
           <div>
@@ -773,6 +730,159 @@ function MaterialiSection({ taskId }: { taskId: string }) {
             <Button size="sm" onClick={handleAdd} disabled={!newMat.nome.trim()} className="flex-1 text-xs">Salva</Button>
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="text-xs">Annulla</Button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========== OPERAZIONI SECTION ==========
+
+const STATO_FORN_COLORS: Record<string, string> = {
+  da_trovare: "bg-red-100 text-red-700", contattato: "bg-amber-100 text-amber-700",
+  confermato: "bg-blue-100 text-blue-700", sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
+  materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
+};
+const STATI_FORN_MIN = [
+  { value: "confermato", label: "Confermato" }, { value: "sopralluogo_fatto", label: "Sopralluogo fatto" },
+  { value: "materiali_definiti", label: "Mat. definiti" }, { value: "pronto", label: "Pronto" },
+];
+const STATI_OP = [
+  { value: "da_fare", label: "Da fare" }, { value: "in_corso", label: "In corso" }, { value: "completata", label: "Completata" },
+];
+
+interface Operazione {
+  id: string; task_id: string; titolo: string; tipologia: string | null;
+  fornitore_id: string | null; stato_fornitore_minimo: string;
+  organizzato: boolean; stato: string; stato_calcolato: string;
+  durata_ore: number | null; note: string | null;
+  fornitore: { id: string; nome: string; stato: string } | null;
+}
+
+function OperazioniSection({ taskId, fornitori, tipologieDb }: {
+  taskId: string;
+  fornitori: { id: string; nome: string; stato: StatoFornitore }[];
+  tipologieDb: { nome: string; colore: string }[];
+}) {
+  const [ops, setOps] = useState<Operazione[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
+    const data = await getOperazioni(taskId);
+    setOps(data as unknown as Operazione[]);
+  }, [taskId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newTitle.trim()) return;
+    await addOperazione(taskId, newTitle.trim());
+    setNewTitle(""); setAdding(false);
+    await load();
+  };
+
+  const handleRemove = async (id: string) => {
+    await removeOperazione(id);
+    await load();
+  };
+
+  const saveField = async (id: string, field: string, value: unknown) => {
+    await updateOperazione(id, { [field]: value });
+    await load();
+  };
+
+  const toggleExpand = (id: string) => {
+    const next = new Set(expanded);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpanded(next);
+  };
+
+  return (
+    <div className="border-t border-[#e5e5e7] pt-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold text-[#1d1d1f]">Operazioni ({ops.length})</h3>
+        <button onClick={() => setAdding(!adding)} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
+          <Plus size={12} /> Aggiungi
+        </button>
+      </div>
+
+      {ops.length === 0 && !adding && <p className="text-xs text-[#86868b]">Nessuna operazione</p>}
+
+      <div className="space-y-1.5">
+        {ops.map((op) => (
+          <div key={op.id} className="bg-[#f5f5f7] rounded-lg px-3 py-2">
+            {/* Riga principale compatta */}
+            <div className="flex items-center gap-2">
+              <button onClick={() => toggleExpand(op.id)} className="text-[#86868b] hover:text-[#1d1d1f] flex-shrink-0">
+                {expanded.has(op.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              </button>
+              <input
+                defaultValue={op.titolo}
+                onBlur={(e) => { if (e.target.value !== op.titolo) saveField(op.id, "titolo", e.target.value); }}
+                className="flex-1 text-xs font-medium text-[#1d1d1f] bg-transparent border-0 outline-none focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1.5 min-w-0"
+              />
+              {op.fornitore && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium flex-shrink-0 ${STATO_FORN_COLORS[op.fornitore.stato] ?? "bg-gray-100 text-gray-600"}`}>
+                  {op.fornitore.nome}
+                </span>
+              )}
+              <select
+                defaultValue={op.stato}
+                onChange={(e) => saveField(op.id, "stato", e.target.value)}
+                className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white flex-shrink-0"
+              >
+                {STATI_OP.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <label className="flex items-center gap-1 text-[9px] text-[#86868b] cursor-pointer flex-shrink-0" title="Convocato">
+                <input type="checkbox" checked={op.organizzato} onChange={(e) => saveField(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-3 h-3" />
+                Conv.
+              </label>
+              <button onClick={() => handleRemove(op.id)} className="text-[#d2d2d7] hover:text-red-500 flex-shrink-0"><X size={11} /></button>
+            </div>
+
+            {/* Dettagli espandibili */}
+            {expanded.has(op.id) && (
+              <div className="mt-2 pt-2 border-t border-[#e5e5e7]/50 grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Tipologia</label>
+                  <select defaultValue={op.tipologia ?? ""} onChange={(e) => saveField(op.id, "tipologia", e.target.value || null)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
+                    <option value="">--</option>
+                    {tipologieDb.map((t) => <option key={t.nome} value={t.nome}>{t.nome.replace(/_/g, " ")}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Fornitore</label>
+                  <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveField(op.id, "fornitore_id", e.target.value || null)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
+                    <option value="">Nessuno</option>
+                    {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Stato forn. minimo</label>
+                  <select defaultValue={op.stato_fornitore_minimo} onChange={(e) => saveField(op.id, "stato_fornitore_minimo", e.target.value)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
+                    {STATI_FORN_MIN.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Durata (ore)</label>
+                  <input type="number" defaultValue={op.durata_ore ?? ""} onBlur={(e) => saveField(op.id, "durata_ore", e.target.value ? parseFloat(e.target.value) : null)} className="w-full text-[11px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white outline-none" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Note</label>
+                  <input defaultValue={op.note ?? ""} onBlur={(e) => saveField(op.id, "note", e.target.value || null)} placeholder="Note..." className="w-full text-[11px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white outline-none" />
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {adding && (
+        <div className="mt-2 flex gap-2">
+          <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} placeholder="Titolo operazione" className="flex-1 text-xs border border-[#e5e5e7] rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+          <Button size="sm" onClick={handleAdd} disabled={!newTitle.trim()} className="text-xs">Aggiungi</Button>
         </div>
       )}
     </div>

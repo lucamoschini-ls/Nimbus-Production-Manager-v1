@@ -18,7 +18,12 @@ interface Materiale {
   data_necessaria: string | null; giorni_consegna: number | null;
 }
 
-interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; }
+interface OpInfo {
+  id: string; task_id: string; titolo: string; tipologia: string | null; stato: string;
+  stato_calcolato: string; data_inizio: string | null; data_fine: string | null;
+  fornitore_id: string | null; fornitore: { nome: string; stato: string } | null;
+}
+interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; opsByTask: Record<string, OpInfo[]>; }
 
 const STATO_BAR_COLORS: Record<string, string> = {
   da_fare: "#d1d5db", in_corso: "#3b82f6", completata: "#22c55e", bloccata: "#ef4444",
@@ -26,7 +31,7 @@ const STATO_BAR_COLORS: Record<string, string> = {
   in_attesa_materiali: "#f59e0b", in_attesa_permesso: "#f59e0b",
 };
 
-export function GanttClient({ zone, lavorazioni, tasks, materiali }: Props) {
+export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByTask }: Props) {
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
   const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set());
 
@@ -57,6 +62,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali }: Props) {
     | { type: "zona"; zona: Zona }
     | { type: "lav"; lav: Lavorazione; zona: Zona; startDay: number; endDay: number }
     | { type: "task"; task: Task; startDay: number; endDay: number }
+    | { type: "op"; op: OpInfo; startDay: number; endDay: number }
     | { type: "mat"; mat: Materiale; startDay: number; endDay: number };
 
   const rows: Row[] = [];
@@ -78,7 +84,15 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali }: Props) {
           const tEnd = task.data_fine ? differenceInDays(parseISO(task.data_fine), startDate) : -1;
           rows.push({ type: "task", task, startDay: tStart, endDay: tEnd });
 
-          // FIX 4C: material rows under the task
+          // Operazione rows under the task
+          const taskOps = opsByTask[task.id] || [];
+          for (const op of taskOps) {
+            const opStart = op.data_inizio ? differenceInDays(parseISO(op.data_inizio), startDate) : tStart;
+            const opEnd = op.data_fine ? differenceInDays(parseISO(op.data_fine), startDate) : tEnd;
+            rows.push({ type: "op", op, startDay: opStart, endDay: opEnd });
+          }
+
+          // Material rows under the task
           const taskMat = matByTask[task.id] || [];
           for (const m of taskMat) {
             if (!m.data_necessaria) continue;
@@ -145,10 +159,20 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali }: Props) {
                 </div>
               );
             }
+            if (row.type === "op") {
+              return (
+                <div key={`o-${row.op.id}-${i}`} className="flex items-center px-3 pl-9 border-b border-[#e5e5e7]/50" style={{ height: MAT_ROW_HEIGHT }}>
+                  <span className="text-[9px] text-[#86868b] truncate">
+                    {row.op.tipologia ? row.op.tipologia.replace(/_/g, " ") : row.op.titolo}
+                    {row.op.fornitore ? ` — ${row.op.fornitore.nome}` : ""}
+                  </span>
+                </div>
+              );
+            }
             // mat row
             return (
-              <div key={`m-${row.mat.id}-${i}`} className="flex items-center px-3 pl-9 border-b border-[#e5e5e7]/50" style={{ height: MAT_ROW_HEIGHT }}>
-                <span className="text-[9px] text-[#86868b] truncate italic">Mat: {row.mat.nome}</span>
+              <div key={`m-${(row as { mat: Materiale }).mat.id}-${i}`} className="flex items-center px-3 pl-9 border-b border-[#e5e5e7]/50" style={{ height: MAT_ROW_HEIGHT }}>
+                <span className="text-[9px] text-[#86868b] truncate italic">Mat: {(row as { mat: Materiale }).mat.nome}</span>
               </div>
             );
           })}
@@ -182,7 +206,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali }: Props) {
               )}
 
               {rows.map((row, i) => {
-                const rowH = row.type === "mat" ? MAT_ROW_HEIGHT : ROW_HEIGHT;
+                const rowH = (row.type === "mat" || row.type === "op") ? MAT_ROW_HEIGHT : ROW_HEIGHT;
                 const isZona = row.type === "zona";
 
                 return (
@@ -203,13 +227,29 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali }: Props) {
                       }} />
                     )}
                     {/* Task bar */}
-                    {row.type === "task" && row.startDay >= 0 && row.endDay >= 0 && (
+                    {row.type === "task" && row.startDay >= 0 && row.endDay >= 0 && (() => {
+                      const ops = opsByTask[row.task.id] || [];
+                      const hasUnready = ops.some(o => o.fornitore && o.fornitore.stato !== "pronto");
+                      return (
+                        <div className="absolute rounded-sm" style={{
+                          left: row.startDay * dayWidth + 2,
+                          width: Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4),
+                          top: 9, height: ROW_HEIGHT - 18,
+                          backgroundColor: STATO_BAR_COLORS[row.task.stato_calcolato] ?? "#d1d5db",
+                          ...(hasUnready && ops.length > 0 ? { border: "1.5px dashed #ef4444" } : {}),
+                        }} title={`${row.task.titolo} (${row.task.stato_calcolato})${ops.length > 0 ? "\n" + ops.map(o => `${o.titolo}${o.fornitore ? " — " + o.fornitore.nome + " (" + o.fornitore.stato.replace(/_/g," ") + ")" : ""}`).join("\n") : ""}`} />
+                      );
+                    })()}
+                    {/* Operazione bar */}
+                    {row.type === "op" && row.startDay >= 0 && row.endDay >= 0 && (
                       <div className="absolute rounded-sm" style={{
                         left: row.startDay * dayWidth + 2,
                         width: Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4),
-                        top: 9, height: ROW_HEIGHT - 18,
-                        backgroundColor: STATO_BAR_COLORS[row.task.stato_calcolato] ?? "#d1d5db",
-                      }} title={`${row.task.titolo} (${row.task.stato_calcolato})`} />
+                        top: 7, height: MAT_ROW_HEIGHT - 10,
+                        backgroundColor: STATO_BAR_COLORS[row.op.stato_calcolato] ?? "#d1d5db",
+                        opacity: row.op.fornitore && row.op.fornitore.stato !== "pronto" ? 0.5 : 0.8,
+                        ...(row.op.fornitore && row.op.fornitore.stato !== "pronto" ? { backgroundImage: "repeating-linear-gradient(90deg,transparent,transparent 3px,rgba(255,255,255,0.4) 3px,rgba(255,255,255,0.4) 6px)" } : {}),
+                      }} title={`${row.op.titolo}${row.op.fornitore ? " — " + row.op.fornitore.nome : ""}`} />
                     )}
                     {/* FIX 4C: Material bar — dashed style */}
                     {row.type === "mat" && row.startDay >= 0 && row.endDay >= 0 && (
