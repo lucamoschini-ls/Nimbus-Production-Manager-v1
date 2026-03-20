@@ -380,40 +380,35 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                             const disp = m.quantita_disponibile ?? 0;
                             const tot = m.quantita ?? 0;
                             return (
-                              <div key={m.id} className="flex items-center gap-2 text-[11px] flex-wrap">
-                                <Package size={11} className="text-[#86868b] flex-shrink-0" />
-                                <span className="text-[#1d1d1f] truncate">
-                                  {m.nome}
-                                  {tot > 0 && (
-                                    <span className="text-[#86868b] ml-1">
-                                      {disp}/{tot}{m.unita ? ` ${m.unita}` : ""}
-                                    </span>
-                                  )}
-                                </span>
-                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stato.cls}`}>
-                                  {stato.label}
-                                </span>
-                                <input
-                                  type="number"
-                                  value={m.quantita_disponibile ?? 0}
-                                  onChange={(e) => updateMaterialeQuantities(m.id, { quantita_disponibile: parseFloat(e.target.value) || 0 })}
-                                  className="text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 w-[50px] bg-transparent text-center"
-                                  title="Disponibile"
-                                />
-                                <input
-                                  type="number"
-                                  value={m.quantita_ordinata ?? 0}
-                                  onChange={(e) => updateMaterialeQuantities(m.id, { quantita_ordinata: parseFloat(e.target.value) || 0 })}
-                                  className="text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 w-[50px] bg-transparent text-center"
-                                  title="Ordinata"
-                                />
-                                <input
-                                  type="date"
-                                  value={m.data_necessaria ?? ""}
-                                  onChange={(e) => updateMaterialeDataNecessaria(m.id, e.target.value || null)}
-                                  className="text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 w-[110px] bg-transparent"
-                                  title="Data necessaria"
-                                />
+                              <div key={m.id} className="text-[11px]">
+                                <div className="flex items-center gap-2">
+                                  <Package size={11} className="text-[#86868b] flex-shrink-0" />
+                                  <span className="text-[#1d1d1f] truncate">
+                                    {m.nome}
+                                    {tot > 0 && <span className="text-[#86868b] ml-1">{disp}/{tot}{m.unita ? ` ${m.unita}` : ""}</span>}
+                                  </span>
+                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stato.cls}`}>{stato.label}</span>
+                                </div>
+                                <div className="flex items-end gap-2 mt-1 ml-5">
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] text-[#86868b] leading-none mb-0.5">Disp.</span>
+                                    <input type="number" value={m.quantita_disponibile ?? 0}
+                                      onChange={(e) => updateMaterialeQuantities(m.id, { quantita_disponibile: parseFloat(e.target.value) || 0 })}
+                                      className="text-[10px] text-[#1d1d1f] border border-[#e5e5e7] rounded px-1 py-0.5 w-[46px] bg-transparent text-center" />
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] text-[#86868b] leading-none mb-0.5">Ord.</span>
+                                    <input type="number" value={m.quantita_ordinata ?? 0}
+                                      onChange={(e) => updateMaterialeQuantities(m.id, { quantita_ordinata: parseFloat(e.target.value) || 0 })}
+                                      className="text-[10px] text-[#1d1d1f] border border-[#e5e5e7] rounded px-1 py-0.5 w-[46px] bg-transparent text-center" />
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] text-[#86868b] leading-none mb-0.5">Entro il</span>
+                                    <input type="date" value={m.data_necessaria ?? ""}
+                                      onChange={(e) => updateMaterialeDataNecessaria(m.id, e.target.value || null)}
+                                      className="text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 w-[110px] bg-transparent" />
+                                  </div>
+                                </div>
                               </div>
                             );
                           })}
