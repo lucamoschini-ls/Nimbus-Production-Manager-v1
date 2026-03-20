@@ -19,11 +19,11 @@ interface Materiale {
 }
 
 interface OpInfo {
-  id: string; task_id: string; titolo: string; tipologia: string | null; stato: string;
+  id: string; materiale_id: string; titolo: string; tipologia: string | null; stato: string;
   stato_calcolato: string; data_inizio: string | null; data_fine: string | null;
   fornitore_id: string | null; fornitore: { nome: string; stato: string } | null;
 }
-interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; opsByTask: Record<string, OpInfo[]>; }
+interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; opsByMat: Record<string, OpInfo[]>; }
 
 const STATO_BAR_COLORS: Record<string, string> = {
   da_fare: "#d1d5db", in_corso: "#3b82f6", completata: "#22c55e", bloccata: "#ef4444",
@@ -31,7 +31,7 @@ const STATO_BAR_COLORS: Record<string, string> = {
   in_attesa_materiali: "#f59e0b", in_attesa_permesso: "#f59e0b",
 };
 
-export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByTask }: Props) {
+export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat }: Props) {
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
   const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set());
 
@@ -84,15 +84,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByTask }: 
           const tEnd = task.data_fine ? differenceInDays(parseISO(task.data_fine), startDate) : -1;
           rows.push({ type: "task", task, startDay: tStart, endDay: tEnd });
 
-          // Operazione rows under the task
-          const taskOps = opsByTask[task.id] || [];
-          for (const op of taskOps) {
-            const opStart = op.data_inizio ? differenceInDays(parseISO(op.data_inizio), startDate) : tStart;
-            const opEnd = op.data_fine ? differenceInDays(parseISO(op.data_fine), startDate) : tEnd;
-            rows.push({ type: "op", op, startDay: opStart, endDay: opEnd });
-          }
-
-          // Material rows under the task
+          // Material rows + operazioni sotto ogni materiale
           const taskMat = matByTask[task.id] || [];
           for (const m of taskMat) {
             if (!m.data_necessaria) continue;
@@ -100,6 +92,13 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByTask }: 
             const ggConsegna = m.giorni_consegna ?? 3;
             const matStart = differenceInDays(subDays(parseISO(m.data_necessaria), ggConsegna), startDate);
             rows.push({ type: "mat", mat: m, startDay: matStart, endDay: matEnd });
+            // Operazioni sotto questo materiale
+            const matOps = opsByMat[m.id] || [];
+            for (const op of matOps) {
+              const opStart = op.data_inizio ? differenceInDays(parseISO(op.data_inizio), startDate) : matStart;
+              const opEnd = op.data_fine ? differenceInDays(parseISO(op.data_fine), startDate) : matEnd;
+              rows.push({ type: "op", op, startDay: opStart, endDay: opEnd });
+            }
           }
         }
       }
@@ -228,16 +227,13 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByTask }: 
                     )}
                     {/* Task bar */}
                     {row.type === "task" && row.startDay >= 0 && row.endDay >= 0 && (() => {
-                      const ops = opsByTask[row.task.id] || [];
-                      const hasUnready = ops.some(o => o.fornitore && o.fornitore.stato !== "pronto");
                       return (
                         <div className="absolute rounded-sm" style={{
                           left: row.startDay * dayWidth + 2,
                           width: Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4),
                           top: 9, height: ROW_HEIGHT - 18,
                           backgroundColor: STATO_BAR_COLORS[row.task.stato_calcolato] ?? "#d1d5db",
-                          ...(hasUnready && ops.length > 0 ? { border: "1.5px dashed #ef4444" } : {}),
-                        }} title={`${row.task.titolo} (${row.task.stato_calcolato})${ops.length > 0 ? "\n" + ops.map(o => `${o.titolo}${o.fornitore ? " — " + o.fornitore.nome + " (" + o.fornitore.stato.replace(/_/g," ") + ")" : ""}`).join("\n") : ""}`} />
+                        }} title={`${row.task.titolo} (${row.task.stato_calcolato})`} />
                       );
                     })()}
                     {/* Operazione bar */}

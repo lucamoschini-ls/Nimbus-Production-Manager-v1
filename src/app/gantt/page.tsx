@@ -4,7 +4,7 @@ import { GanttClient } from "./gantt-client";
 export default async function GanttPage() {
   const supabase = await createClient();
 
-  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: materiali }, { data: taskFornitori }] = await Promise.all([
+  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: materiali }, { data: operazioni }] = await Promise.all([
     supabase.from("zone").select("*").order("ordine"),
     supabase.from("lavorazioni").select("*").order("ordine"),
     supabase
@@ -17,17 +17,17 @@ export default async function GanttPage() {
       .not("data_necessaria", "is", null),
     supabase
       .from("operazioni")
-      .select("id, task_id, titolo, tipologia, stato, stato_calcolato, data_inizio, data_fine, fornitore_id, fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato)")
+      .select("id, materiale_id, titolo, tipologia, stato, stato_calcolato, data_inizio, data_fine, fornitore_id, fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato)")
       .order("ordine"),
   ]);
 
-  // Group operazioni by task_id
-  type OpInfo = { id: string; task_id: string; titolo: string; tipologia: string | null; stato: string; stato_calcolato: string; data_inizio: string | null; data_fine: string | null; fornitore_id: string | null; fornitore: { nome: string; stato: string } | null };
-  const allOps = (taskFornitori ?? []) as unknown as OpInfo[];
-  const opsByTask: Record<string, OpInfo[]> = {};
+  // Group operazioni by materiale_id
+  type OpInfo = { id: string; materiale_id: string; titolo: string; tipologia: string | null; stato: string; stato_calcolato: string; data_inizio: string | null; data_fine: string | null; fornitore_id: string | null; fornitore: { nome: string; stato: string } | null };
+  const allOps = (operazioni ?? []) as unknown as OpInfo[];
+  const opsByMat: Record<string, OpInfo[]> = {};
   allOps.forEach((op) => {
-    if (!opsByTask[op.task_id]) opsByTask[op.task_id] = [];
-    opsByTask[op.task_id].push(op);
+    if (!opsByMat[op.materiale_id]) opsByMat[op.materiale_id] = [];
+    opsByMat[op.materiale_id].push(op);
   });
 
   return (
@@ -36,7 +36,7 @@ export default async function GanttPage() {
       lavorazioni={lavorazioni ?? []}
       tasks={tasks ?? []}
       materiali={materiali ?? []}
-      opsByTask={opsByTask}
+      opsByMat={opsByMat}
     />
   );
 }

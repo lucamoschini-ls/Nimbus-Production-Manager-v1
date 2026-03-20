@@ -19,17 +19,19 @@ export default async function MaterialiPage() {
       `)
       .order("created_at", { ascending: false }),
     supabase.from("zone").select("id, nome").order("ordine"),
-    // Operazioni di tipo trasporto
     supabase
       .from("operazioni")
       .select(`
         id, titolo, organizzato, stato, data_inizio, data_fine, note,
         fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato),
-        task:task!operazioni_task_id_fkey(
-          titolo,
-          lavorazione:lavorazioni!task_lavorazione_id_fkey(
-            nome,
-            zona:zone!lavorazioni_zona_id_fkey(nome, colore)
+        materiale:materiali!operazioni_materiale_id_fkey(
+          nome,
+          task:task!materiali_task_id_fkey(
+            titolo,
+            lavorazione:lavorazioni!task_lavorazione_id_fkey(
+              nome,
+              zona:zone!lavorazioni_zona_id_fkey(nome, colore)
+            )
           )
         )
       `)

@@ -112,23 +112,24 @@ export async function updateMaterialeDataNecessaria(id: string, data_necessaria:
 
 // ========== SEARCH TASKS (per dropdown dipendenze) ==========
 
-// ========== OPERAZIONI ==========
+// ========== OPERAZIONI (figlie dei materiali) ==========
 
-export async function getOperazioni(taskId: string) {
+export async function getOperazioniByMateriale(materialeId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("operazioni")
     .select("*, fornitore:fornitori!operazioni_fornitore_id_fkey(id, nome, stato)")
-    .eq("task_id", taskId)
+    .eq("materiale_id", materialeId)
     .order("ordine");
   return data ?? [];
 }
 
-export async function addOperazione(taskId: string, titolo: string) {
+export async function addOperazione(materialeId: string, titolo: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("operazioni").insert({ task_id: taskId, titolo });
+  const { error } = await supabase.from("operazioni").insert({ materiale_id: materialeId, titolo });
   if (error) throw new Error(error.message);
   revalidatePath("/lavorazioni");
+  revalidatePath("/materiali");
 }
 
 export async function updateOperazione(id: string, data: Record<string, unknown>) {
@@ -136,6 +137,7 @@ export async function updateOperazione(id: string, data: Record<string, unknown>
   const { error } = await supabase.from("operazioni").update(data).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/lavorazioni");
+  revalidatePath("/materiali");
 }
 
 export async function removeOperazione(id: string) {
@@ -143,6 +145,7 @@ export async function removeOperazione(id: string) {
   const { error } = await supabase.from("operazioni").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/lavorazioni");
+  revalidatePath("/materiali");
 }
 
 export async function searchTasks(query: string) {

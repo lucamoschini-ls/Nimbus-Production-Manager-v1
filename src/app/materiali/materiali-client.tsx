@@ -46,7 +46,10 @@ export interface TrasportoOp {
   id: string; titolo: string; organizzato: boolean; stato: string;
   data_inizio: string | null; data_fine: string | null; note: string | null;
   fornitore: { nome: string; stato: string } | null;
-  task: { titolo: string; lavorazione: { nome: string; zona: { nome: string; colore: string } } };
+  materiale: {
+    nome: string;
+    task: { titolo: string; lavorazione: { nome: string; zona: { nome: string; colore: string } } };
+  };
 }
 
 interface Props {
@@ -347,8 +350,8 @@ function TrasportiSection({ ops }: { ops: TrasportoOp[] }) {
                 <div>
                   <h3 className="text-sm font-medium text-[#1d1d1f]">{op.titolo}</h3>
                   <p className="text-[10px] text-[#86868b] mt-0.5">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: op.task?.lavorazione?.zona?.colore }} />
-                    {op.task?.lavorazione?.zona?.nome} &gt; {op.task?.lavorazione?.nome} &gt; {op.task?.titolo}
+                    <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: op.materiale?.task?.lavorazione?.zona?.colore }} />
+                    {op.materiale?.task?.lavorazione?.zona?.nome} &gt; {op.materiale?.task?.lavorazione?.nome} &gt; {op.materiale?.task?.titolo} &gt; {op.materiale?.nome}
                   </p>
                 </div>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer flex-shrink-0">
