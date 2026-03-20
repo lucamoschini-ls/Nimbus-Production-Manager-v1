@@ -34,6 +34,7 @@ const STATO_BAR_COLORS: Record<string, string> = {
 export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tipColorMap }: Props) {
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
   const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set(lavorazioni.map(l => l.id)));
+  const [popupTask, setPopupTask] = useState<{ task: Task; x: number; y: number } | null>(null);
 
   const ZONA_COLORS: Record<string, string> = {};
   zone.forEach((z) => (ZONA_COLORS[z.id] = z.colore));
@@ -234,7 +235,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                           top: 9, height: ROW_HEIGHT - 18,
                           backgroundColor: (row.task.tipologia && tipColorMap[row.task.tipologia]) ? tipColorMap[row.task.tipologia] : (STATO_BAR_COLORS[row.task.stato_calcolato] ?? "#d1d5db"),
                         }} title={`${row.task.titolo} (${row.task.stato_calcolato})`}
-                          onClick={() => window.location.href = `/lavorazioni?task=${row.task.id}`}
+                          onClick={(e) => setPopupTask({ task: row.task, x: e.clientX, y: e.clientY })}
                         />
                       );
                     })()}
@@ -267,6 +268,28 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
           </div>
         </div>
       </div>
+
+      {/* Task popup */}
+      {popupTask && (
+        <div className="fixed inset-0 z-50" onClick={() => setPopupTask(null)}>
+          <div
+            className="absolute bg-white rounded-[12px] border border-[#e5e5e7] shadow-lg p-4 w-[300px]"
+            style={{ left: Math.min(popupTask.x, window.innerWidth - 320), top: Math.min(popupTask.y + 10, window.innerHeight - 200) }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-[#1d1d1f] mb-1">{popupTask.task.titolo}</h3>
+            <p className="text-[10px] text-[#86868b] mb-2">{popupTask.task.zona_nome} &gt; {popupTask.task.lavorazione_nome}</p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {popupTask.task.tipologia && <span className="text-[10px] bg-[#f5f5f7] px-1.5 py-0.5 rounded text-[#86868b]">{popupTask.task.tipologia.replace(/_/g, " ")}</span>}
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: (STATO_BAR_COLORS[popupTask.task.stato_calcolato] ?? "#d1d5db") + "30", color: STATO_BAR_COLORS[popupTask.task.stato_calcolato] ?? "#86868b" }}>
+                {popupTask.task.stato_calcolato.replace(/_/g, " ")}
+              </span>
+            </div>
+            {popupTask.task.data_inizio && <p className="text-[10px] text-[#86868b]">{new Date(popupTask.task.data_inizio).toLocaleDateString("it-IT")} — {popupTask.task.data_fine ? new Date(popupTask.task.data_fine).toLocaleDateString("it-IT") : "?"}</p>}
+            <a href={`/lavorazioni?task=${popupTask.task.id}`} className="mt-3 block text-xs text-blue-600 hover:underline font-medium">Apri dettaglio</a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

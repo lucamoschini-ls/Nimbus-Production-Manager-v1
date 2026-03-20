@@ -23,6 +23,7 @@ const STATO_FORN_CLS: Record<string, string> = {
 
 export function TrasportiClient({ ops }: { ops: TrasportoOp[] }) {
   const daOrganizzare = ops.filter((o) => !o.organizzato).length;
+  const organizzati = ops.filter((o) => o.organizzato).length;
 
   const grouped: Record<string, TrasportoOp[]> = {};
   ops.forEach((op) => {
@@ -52,6 +53,10 @@ export function TrasportiClient({ ops }: { ops: TrasportoOp[] }) {
             <p className="text-xl font-semibold text-amber-700 mt-1">{daOrganizzare}</p>
           </div>
         )}
+        <div className="bg-green-50 border border-green-200 rounded-[12px] p-4">
+          <p className="text-xs text-green-700 font-medium">Organizzati</p>
+          <p className="text-xl font-semibold text-green-700 mt-1">{organizzati}</p>
+        </div>
         {numLuoghi > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-[12px] p-4">
             <p className="text-xs text-blue-700 font-medium">Luoghi di partenza</p>

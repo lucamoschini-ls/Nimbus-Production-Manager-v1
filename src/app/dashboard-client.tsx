@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { cycleTaskStato, cycleFornitoreStato } from "./lavorazioni/cycle-actions";
 
 const STATO_LABELS: Record<string, string> = {
   da_trovare: "Da trovare",
@@ -160,9 +160,13 @@ export function DashboardClient({
                   <p className="text-sm text-[#1d1d1f] truncate">{t.titolo}</p>
                   <p className="text-[10px] text-[#86868b]">{t.zona_nome}</p>
                 </div>
-                <Badge className="bg-amber-100 text-amber-700 text-[10px] flex-shrink-0">
+                <button
+                  onClick={() => { if (["da_fare","in_corso","completata"].includes(t.stato_calcolato)) cycleTaskStato(t.id, t.stato_calcolato); }}
+                  className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 flex-shrink-0 cursor-pointer hover:opacity-80"
+                  title="Click per cambiare stato"
+                >
                   {STATO_LABELS[t.stato_calcolato] ?? t.stato_calcolato}
-                </Badge>
+                </button>
                 {t.fornitore_nome && (
                   <span className="text-[10px] text-[#86868b] flex-shrink-0 hidden md:inline">
                     {t.fornitore_nome}
@@ -188,9 +192,13 @@ export function DashboardClient({
               <div key={f.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-3">
                 <p className="text-xs font-medium text-[#1d1d1f] truncate">{f.nome}</p>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <Badge className={`text-[10px] ${STATO_FORNITORE_COLORS[f.stato] ?? "bg-gray-100 text-gray-600"}`}>
+                  <button
+                    onClick={() => cycleFornitoreStato(f.id, f.stato)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer hover:opacity-80 ${STATO_FORNITORE_COLORS[f.stato] ?? "bg-gray-100 text-gray-600"}`}
+                    title="Click per avanzare stato"
+                  >
                     {STATO_LABELS[f.stato] ?? f.stato}
-                  </Badge>
+                  </button>
                 </div>
                 {f.task_bloccate_da_me > 0 && (
                   <p className="text-[10px] text-red-500 mt-1">{f.task_bloccate_da_me} task bloccate</p>

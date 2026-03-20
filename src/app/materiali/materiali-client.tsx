@@ -312,7 +312,7 @@ export function MaterialiClient({ materiali, zone, opsByMat }: Props) {
                                 createClient().from("operazioni").update({ organizzato: e.target.checked }).eq("id", op.id).then(() => window.location.reload());
                               });
                             }} className="rounded border-[#e5e5e7] w-3 h-3" />
-                            {op.organizzato ? "Org." : "No"}
+                            {op.organizzato ? "Organizzato" : "Non org."}
                           </label>
                         </div>
                       ))}

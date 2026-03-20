@@ -434,10 +434,12 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                                 {(m.operazioni || []).length > 0 && (
                                   <div className="ml-5 mt-1 space-y-0.5">
                                     {(m.operazioni || []).map((op) => (
-                                      <div key={op.id} className="flex items-center gap-1.5 text-[10px] text-[#86868b]">
+                                      <div key={op.id} className="flex items-center gap-1.5 text-[10px]">
+                                        <span className="text-[#d2d2d7]">└</span>
                                         <span className="text-[#86868b]">{op.tipologia ? op.tipologia.replace(/_/g, " ") : op.titolo}</span>
+                                        {op.fornitore && <span className="text-[#1d1d1f]">—</span>}
                                         {op.fornitore && <span className="text-[#1d1d1f] font-medium">{op.fornitore.nome}</span>}
-                                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${op.organizzato ? "bg-green-500" : "bg-[#d2d2d7]"}`} />
+                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${op.organizzato ? "bg-green-500" : "bg-[#d2d2d7]"}`} title={op.organizzato ? "Organizzato" : "Non organizzato"} />
                                       </div>
                                     ))}
                                   </div>
