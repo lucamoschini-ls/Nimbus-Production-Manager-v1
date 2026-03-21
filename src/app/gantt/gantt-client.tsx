@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { format, eachDayOfInterval, isWeekend, differenceInDays, parseISO, subDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -47,28 +47,6 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
   const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set());
   const [expandedZone, setExpandedZone] = useState<Set<string>>(new Set());
   const [popupTask, setPopupTask] = useState<{ task: Task; x: number; y: number } | null>(null);
-
-  const leftColRef = useRef<HTMLDivElement>(null);
-  const rightColRef = useRef<HTMLDivElement>(null);
-  const syncingRef = useRef(false);
-
-  const handleLeftScroll = useCallback(() => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    if (rightColRef.current && leftColRef.current) {
-      rightColRef.current.scrollTop = leftColRef.current.scrollTop;
-    }
-    syncingRef.current = false;
-  }, []);
-
-  const handleRightScroll = useCallback(() => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    if (leftColRef.current && rightColRef.current) {
-      leftColRef.current.scrollTop = rightColRef.current.scrollTop;
-    }
-    syncingRef.current = false;
-  }, []);
 
   const ZONA_COLORS: Record<string, string> = {};
   zone.forEach((z) => (ZONA_COLORS[z.id] = z.colore));
@@ -246,106 +224,94 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
         </div>
       )}
 
-      <div className="flex border border-[#e5e5e7] rounded-[12px] bg-white overflow-hidden h-[calc(100vh-180px)]">
-        {/* Left column: labels */}
-        <div ref={leftColRef} onScroll={handleLeftScroll} className="w-[200px] min-w-[200px] border-r border-[#e5e5e7] bg-white sticky left-0 z-10 overflow-y-auto" style={{ boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
-          <div className="h-[48px] border-b border-[#e5e5e7] px-3 flex items-end pb-1">
-            <span className="text-[10px] text-[#86868b] font-medium">Lavorazione</span>
+      {/* Single scrollable container */}
+      <div className="border border-[#e5e5e7] rounded-[12px] bg-white overflow-auto h-[calc(100vh-180px)]">
+        <div style={{ width: totalWidth + 200, minWidth: totalWidth + 200 }}>
+          {/* Header row: sticky top */}
+          <div className="flex sticky top-0 z-20 bg-white border-b border-[#e5e5e7]" style={{ height: 48 }}>
+            {/* Top-left corner: sticky both directions */}
+            <div className="w-[200px] min-w-[200px] flex items-end pb-1 px-3 bg-white border-r border-[#e5e5e7] sticky left-0 z-30" style={{ boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
+              <span className="text-[10px] text-[#86868b] font-medium">Lavorazione</span>
+            </div>
+            {days.map((day, di) => {
+              const isWe = isWeekend(day);
+              const isFirst = di === 0 || day.getDate() === 1;
+              return (
+                <div key={di} className={`flex flex-col items-center justify-end pb-1 border-r border-[#e5e5e7]/50 ${isWe ? "bg-[#f5f5f7]/50" : ""}`} style={{ width: dayWidth, minWidth: dayWidth }}>
+                  {isFirst && <span className="text-[8px] text-[#86868b] font-medium">{format(day, "MMM", { locale: it })}</span>}
+                  <span className="text-[9px] text-[#86868b]">{day.getDate()}</span>
+                  {dayWidth >= 30 && <span className="text-[8px] text-[#86868b]">{format(day, "EEEEEE", { locale: it })}</span>}
+                </div>
+              );
+            })}
           </div>
-          {rows.map((row, i) => {
-            if (row.type === "zona") {
-              return (
-                <button key={`z-${row.zona.id}`} onClick={() => toggleZone(row.zona.id)} className="w-full flex items-center gap-1.5 px-3 border-b border-[#e5e5e7] cursor-pointer" style={{ height: ROW_HEIGHT, backgroundColor: row.zona.colore + "15" }}>
-                  {expandedZone.has(row.zona.id) ? <ChevronDown size={10} className="text-[#86868b]" /> : <ChevronRight size={10} className="text-[#86868b]" />}
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.zona.colore }} />
-                  <span className="text-[10px] font-semibold text-[#1d1d1f] truncate">{row.zona.nome}</span>
-                </button>
-              );
-            }
-            if (row.type === "zona-bar") {
-              return (
-                <div key={`zb-${row.zona.id}`} className="flex items-center px-3 pl-7 border-b border-[#e5e5e7]" style={{ height: ROW_HEIGHT }}>
-                  <span className="text-[10px] text-[#86868b] truncate italic">Tutte le lavorazioni</span>
-                </div>
-              );
-            }
-            if (row.type === "lav") {
-              const hasNoDates = row.startDay < 0 && row.endDay < 0;
-              return (
-                <button key={`l-${row.lav.id}`} onClick={() => toggleLav(row.lav.id)} className="w-full flex items-center gap-1.5 px-3 text-left border-b border-[#e5e5e7] hover:bg-[#f5f5f7]/50" style={{ height: ROW_HEIGHT }}>
-                  {expandedLav.has(row.lav.id) ? <ChevronDown size={10} className="text-[#86868b]" /> : <ChevronRight size={10} className="text-[#86868b]" />}
-                  <span className="text-[10px] text-[#1d1d1f] truncate">{row.lav.nome}{hasNoDates && <span className="text-gray-400 text-[8px] ml-1">(no date)</span>}</span>
-                </button>
-              );
-            }
-            if (row.type === "task") {
-              return (
-                <div key={`t-${row.task.id}-${i}`} className="flex items-center gap-1 px-3 pl-7 border-b border-[#e5e5e7]" style={{ height: ROW_HEIGHT }}>
-                  <span className="text-[10px] text-[#86868b] truncate">{row.task.titolo}</span>
-                  {conflictSet.has(row.task.id) && <span title={conflictDescriptions[row.task.id] ?? "Conflitto attrezzi"} className="flex-shrink-0"><AlertTriangle size={10} className="text-orange-500" /></span>}
-                </div>
-              );
-            }
-            if (row.type === "op") {
-              return (
-                <div key={`o-${row.op.id}-${i}`} className="flex items-center px-3 pl-9 border-b border-[#e5e5e7]/50" style={{ height: MAT_ROW_HEIGHT }}>
-                  <span className="text-[9px] text-[#86868b] truncate">
-                    {row.op.tipologia ? row.op.tipologia.replace(/_/g, " ") : row.op.titolo}
-                    {row.op.fornitore ? ` — ${row.op.fornitore.nome}` : ""}
-                  </span>
-                </div>
-              );
-            }
-            // mat row
-            return (
-              <div key={`m-${(row as { mat: Materiale }).mat.id}-${i}`} className="flex items-center px-3 pl-9 border-b border-[#e5e5e7]/50" style={{ height: MAT_ROW_HEIGHT }}>
-                <span className="text-[9px] text-[#86868b] truncate italic">Mat: {(row as { mat: Materiale }).mat.nome}</span>
-              </div>
-            );
-          })}
-        </div>
 
-        {/* Right: timeline */}
-        <div ref={rightColRef} onScroll={handleRightScroll} className="flex-1 overflow-x-auto overflow-y-auto">
-          <div style={{ width: totalWidth, minWidth: totalWidth }}>
-            {/* Day headers */}
-            <div className="flex h-[48px] border-b border-[#e5e5e7] sticky top-0 bg-white z-10">
-              {days.map((day, i) => {
-                const isWe = isWeekend(day);
-                const isFirst = i === 0 || day.getDate() === 1;
-                return (
-                  <div key={i} className={`flex flex-col items-center justify-end pb-1 border-r border-[#e5e5e7]/50 ${isWe ? "bg-[#f5f5f7]/50" : ""}`} style={{ width: dayWidth, minWidth: dayWidth }}>
-                    {isFirst && <span className="text-[8px] text-[#86868b] font-medium">{format(day, "MMM", { locale: it })}</span>}
-                    <span className="text-[9px] text-[#86868b]">{day.getDate()}</span>
-                    {dayWidth >= 30 && <span className="text-[8px] text-[#86868b]">{format(day, "EEEEEE", { locale: it })}</span>}
+          {/* Data rows wrapper with vertical lines */}
+          <div className="relative">
+            {/* Vertical lines: today + apertura */}
+            {todayOffset >= 0 && todayOffset < days.length && (
+              <div className="absolute top-0 bottom-0 z-[5]" style={{ left: 200 + todayOffset * dayWidth + dayWidth / 2 - 1, width: 2, backgroundColor: "#ef4444" }} />
+            )}
+            {aperturaOffset >= 0 && aperturaOffset < days.length && (
+              <div className="absolute top-0 bottom-0 z-[5]" style={{ left: 200 + aperturaOffset * dayWidth + dayWidth / 2 - 1, width: 2, backgroundColor: "#22c55e" }} />
+            )}
+
+            {/* Data rows */}
+            {rows.map((row, i) => {
+              const rowH = (row.type === "mat" || row.type === "op") ? MAT_ROW_HEIGHT : ROW_HEIGHT;
+              const isZona = row.type === "zona";
+
+              // Left cell content
+              let leftCell: React.ReactNode;
+              if (row.type === "zona") {
+                leftCell = (
+                  <button onClick={() => toggleZone(row.zona.id)} className="w-full h-full flex items-center gap-1.5 px-3 cursor-pointer" style={{ backgroundColor: row.zona.colore + "15" }}>
+                    {expandedZone.has(row.zona.id) ? <ChevronDown size={10} className="text-[#86868b]" /> : <ChevronRight size={10} className="text-[#86868b]" />}
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.zona.colore }} />
+                    <span className="text-[10px] font-semibold text-[#1d1d1f] truncate">{row.zona.nome}</span>
+                  </button>
+                );
+              } else if (row.type === "zona-bar") {
+                leftCell = <div className="flex items-center px-3 pl-7 h-full"><span className="text-[10px] text-[#86868b] truncate italic">Tutte le lavorazioni</span></div>;
+              } else if (row.type === "lav") {
+                const hasNoDates = row.startDay < 0 && row.endDay < 0;
+                leftCell = (
+                  <button onClick={() => toggleLav(row.lav.id)} className="w-full h-full flex items-center gap-1.5 px-3 text-left hover:bg-[#f5f5f7]/50">
+                    {expandedLav.has(row.lav.id) ? <ChevronDown size={10} className="text-[#86868b]" /> : <ChevronRight size={10} className="text-[#86868b]" />}
+                    <span className="text-[10px] text-[#1d1d1f] truncate">{row.lav.nome}{hasNoDates && <span className="text-gray-400 text-[8px] ml-1">(no date)</span>}</span>
+                  </button>
+                );
+              } else if (row.type === "task") {
+                leftCell = (
+                  <div className="flex items-center gap-1 px-3 pl-7 h-full">
+                    <span className="text-[10px] text-[#86868b] truncate">{row.task.titolo}</span>
+                    {conflictSet.has(row.task.id) && <span title={conflictDescriptions[row.task.id] ?? "Conflitto attrezzi"} className="flex-shrink-0"><AlertTriangle size={10} className="text-orange-500" /></span>}
                   </div>
                 );
-              })}
-            </div>
+              } else if (row.type === "op") {
+                leftCell = (
+                  <div className="flex items-center px-3 pl-9 h-full">
+                    <span className="text-[9px] text-[#86868b] truncate">{row.op.tipologia ? row.op.tipologia.replace(/_/g, " ") : row.op.titolo}{row.op.fornitore ? ` — ${row.op.fornitore.nome}` : ""}</span>
+                  </div>
+                );
+              } else {
+                leftCell = (
+                  <div className="flex items-center px-3 pl-9 h-full">
+                    <span className="text-[9px] text-[#86868b] truncate italic">Mat: {(row as { mat: Materiale }).mat.nome}</span>
+                  </div>
+                );
+              }
 
-            {/* Rows with bars */}
-            <div className="relative">
-              {todayOffset >= 0 && todayOffset < days.length && (
-                <div className="absolute top-0 bottom-0 z-20" style={{ left: todayOffset * dayWidth + dayWidth / 2 - 1, width: 2, backgroundColor: "#ef4444" }}>
-                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] font-semibold text-red-500 whitespace-nowrap bg-white px-1 rounded">Oggi</span>
-                </div>
-              )}
-              {aperturaOffset >= 0 && aperturaOffset < days.length && (
-                <div className="absolute top-0 bottom-0 z-20" style={{ left: aperturaOffset * dayWidth + dayWidth / 2 - 1, width: 2, backgroundColor: "#22c55e" }}>
-                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] font-semibold text-green-500 whitespace-nowrap bg-white px-1 rounded">1 Maggio</span>
-                </div>
-              )}
-
-              {rows.map((row, i) => {
-                const rowH = (row.type === "mat" || row.type === "op") ? MAT_ROW_HEIGHT : ROW_HEIGHT;
-                const isZona = row.type === "zona";
-
-                return (
-                  <div key={i} className="relative border-b border-[#e5e5e7]/50" style={{ height: rowH }}>
+              return (
+                <div key={i} className="flex border-b border-[#e5e5e7]/50" style={{ height: rowH }}>
+                  {/* Left cell: sticky */}
+                  <div className="w-[200px] min-w-[200px] border-r border-[#e5e5e7] bg-white sticky left-0 z-10 flex-shrink-0" style={{ boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
+                    {leftCell}
+                  </div>
+                  {/* Right cell: bars */}
+                  <div className="relative flex-1" style={{ minWidth: totalWidth }}>
                     {/* Weekend stripes */}
-                    {days.map((day, di) =>
-                      isWeekend(day) ? <div key={di} className="absolute top-0 bottom-0 bg-[#f5f5f7]/40" style={{ left: di * dayWidth, width: dayWidth }} /> : null
-                    )}
+                    {days.map((day, di) => isWeekend(day) ? <div key={di} className="absolute top-0 bottom-0 bg-[#f5f5f7]/40" style={{ left: di * dayWidth, width: dayWidth }} /> : null)}
                     {isZona && <div className="absolute inset-0" style={{ backgroundColor: (row as { zona: Zona }).zona.colore + "10" }} />}
 
                     {/* Zona aggregated bar */}
@@ -367,6 +333,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                         backgroundColor: row.zona.colore, opacity: 0.7,
                       }} />
                     )}
+
                     {/* Task bar */}
                     {row.type === "task" && row.startDay >= 0 && row.endDay >= 0 && (() => {
                       const barWidth = Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4);
@@ -386,6 +353,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                         </div>
                       );
                     })()}
+
                     {/* Operazione bar */}
                     {row.type === "op" && row.startDay >= 0 && row.endDay >= 0 && (
                       <div className="absolute rounded-sm" style={{
@@ -397,7 +365,8 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                         ...(row.op.fornitore && row.op.fornitore.stato !== "pronto" ? { backgroundImage: "repeating-linear-gradient(90deg,transparent,transparent 3px,rgba(255,255,255,0.4) 3px,rgba(255,255,255,0.4) 6px)" } : {}),
                       }} title={`${row.op.titolo}${row.op.fornitore ? " — " + row.op.fornitore.nome : ""}`} />
                     )}
-                    {/* FIX 4C: Material bar — dashed style */}
+
+                    {/* Material bar — dashed style */}
                     {row.type === "mat" && row.startDay >= 0 && row.endDay >= 0 && (
                       <div className="absolute rounded-sm" style={{
                         left: row.startDay * dayWidth + 2,
@@ -409,9 +378,9 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                       }} title={`Mat: ${row.mat.nome} (${(row.mat.quantita_disponibile ?? 0) >= (row.mat.quantita ?? 0) && (row.mat.quantita ?? 0) > 0 ? "completo" : (row.mat.quantita_ordinata ?? 0) > 0 ? "ordinato" : "da acquistare"})`} />
                     )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

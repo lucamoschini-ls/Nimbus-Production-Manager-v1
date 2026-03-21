@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Package, Filter, Trash2 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -479,10 +479,30 @@ const TIP_MAT_COLORS: Record<string, string> = {
   attrezzo: "bg-purple-100 text-purple-700",
 };
 
-function CatalogoTab({ catalogo }: { catalogo: CatAgg[] }) {
+function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
+  const [catalogo, setCatalogo] = useState(catalogoInitial);
   const [filterTip, setFilterTip] = useState("tutti");
   const [adding, setAdding] = useState(false);
   const [newNome, setNewNome] = useState("");
+
+  // Sync with server data on re-render
+  useEffect(() => { setCatalogo(catalogoInitial); }, [catalogoInitial]);
+
+  const updateCatLocal = (id: string, field: string, value: string) => {
+    setCatalogo(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      createClient().from("catalogo_materiali").update({ [field]: value }).eq("id", id).then(({ error }) => {
+        if (error) console.error("Save error:", error);
+      });
+    });
+  };
+
+  const deleteCatLocal = (id: string) => {
+    setCatalogo(prev => prev.filter(c => c.id !== id));
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      createClient().from("catalogo_materiali").delete().eq("id", id);
+    });
+  };
 
   const filtered = filterTip === "tutti" ? catalogo : catalogo.filter(c => c.tipologia_materiale === filterTip);
 
@@ -537,19 +557,15 @@ function CatalogoTab({ catalogo }: { catalogo: CatAgg[] }) {
                   if (c.task_count > 0) {
                     if (!confirm(`Questo materiale è usato in ${c.task_count} task. Le istanze rimangono ma perdono il collegamento. Continuare?`)) return;
                   }
-                  import("@/lib/supabase/client").then(({ createClient }) => {
-                    createClient().from("catalogo_materiali").delete().eq("id", c.id).then(() => {
-                      window.location.reload();
-                    });
-                  });
+                  deleteCatLocal(c.id);
                 }}
               >
                 <Trash2 size={14} />
               </button>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) { const newVal = e.target.value; import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ nome: newVal }).eq("id", c.id).then(({ error }) => { if (error) console.error(error); }); }); } }}
+                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) updateCatLocal(c.id, "nome", e.target.value); }}
                   className="text-sm font-medium text-[#1d1d1f] bg-transparent border-0 outline-none flex-1 min-w-[120px] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-2" />
-                <select defaultValue={c.tipologia_materiale} onChange={(e) => { const newVal = e.target.value; import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ tipologia_materiale: newVal }).eq("id", c.id).then(({ error }) => { if (error) console.error(error); }); }); }}
+                <select value={c.tipologia_materiale} onChange={(e) => updateCatLocal(c.id, "tipologia_materiale", e.target.value)}
                   className="text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
                   <option value="strutturale">strutturale</option><option value="consumo">consumo</option><option value="attrezzo">attrezzo</option>
                 </select>
