@@ -11,7 +11,7 @@ import {
   addDays,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { updateTask } from "../lavorazioni/actions";
+import { createClient } from "@/lib/supabase/client";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -163,19 +163,24 @@ export function GanttClient({
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dragDelta, setDragDelta] = useState(0);
 
+  /* ---- FIX 4: local task overrides for optimistic drag updates ---- */
+  const [localTaskOverrides, setLocalTaskOverrides] = useState<
+    Record<string, { data_inizio: string; data_fine: string }>
+  >({});
+
   /* ---- refs for scroll sync ---- */
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const syncing = useRef(false);
 
-  /* ---- timeline params ---- */
+  /* ---- timeline params (FIX 3: use parseISO for consistent date math) ---- */
   const dayWidth = mode === "cantiere" ? 40 : 18;
   const startDate = useMemo(
-    () => (mode === "cantiere" ? new Date("2026-04-01") : new Date("2026-03-01")),
+    () => parseISO(mode === "cantiere" ? "2026-04-01" : "2026-03-01"),
     [mode],
   );
-  const endDate = useMemo(() => new Date("2026-06-15"), []);
+  const endDate = useMemo(() => parseISO("2026-06-15"), []);
   const days = useMemo(
     () => eachDayOfInterval({ start: startDate, end: endDate }),
     [startDate, endDate],
@@ -183,7 +188,7 @@ export function GanttClient({
   const totalWidth = days.length * dayWidth;
 
   const today = new Date();
-  const apertura = new Date("2026-05-01");
+  const apertura = parseISO("2026-05-01");
   const todayOffset = differenceInDays(today, startDate);
   const aperturaOffset = differenceInDays(apertura, startDate);
 
@@ -278,7 +283,15 @@ export function GanttClient({
     setExpandedLav(next);
   };
 
-  /* ---- date helpers ---- */
+  /* ---- date helpers (FIX 4: use localTaskOverrides) ---- */
+  function getEffectiveDates(task: Task): { data_inizio: string | null; data_fine: string | null } {
+    const override = localTaskOverrides[task.id];
+    if (override) {
+      return { data_inizio: override.data_inizio, data_fine: override.data_fine };
+    }
+    return { data_inizio: task.data_inizio, data_fine: task.data_fine };
+  }
+
   function dayOffset(dateStr: string): number {
     return differenceInDays(parseISO(dateStr), startDate);
   }
@@ -299,11 +312,11 @@ export function GanttClient({
         continue;
 
       const allStarts = allZoneTasks
-        .filter((t) => t.data_inizio)
-        .map((t) => dayOffset(t.data_inizio!));
+        .filter((t) => getEffectiveDates(t).data_inizio)
+        .map((t) => dayOffset(getEffectiveDates(t).data_inizio!));
       const allEnds = allZoneTasks
-        .filter((t) => t.data_fine)
-        .map((t) => dayOffset(t.data_fine!));
+        .filter((t) => getEffectiveDates(t).data_fine)
+        .map((t) => dayOffset(getEffectiveDates(t).data_fine!));
       const zStart = allStarts.length > 0 ? Math.min(...allStarts) : -1;
       const zEnd = allEnds.length > 0 ? Math.max(...allEnds) : -1;
 
@@ -316,11 +329,11 @@ export function GanttClient({
             continue;
 
           const lavStarts = lavTasks
-            .filter((t) => t.data_inizio)
-            .map((t) => dayOffset(t.data_inizio!));
+            .filter((t) => getEffectiveDates(t).data_inizio)
+            .map((t) => dayOffset(getEffectiveDates(t).data_inizio!));
           const lavEnds = lavTasks
-            .filter((t) => t.data_fine)
-            .map((t) => dayOffset(t.data_fine!));
+            .filter((t) => getEffectiveDates(t).data_fine)
+            .map((t) => dayOffset(getEffectiveDates(t).data_fine!));
           const lStart = lavStarts.length > 0 ? Math.min(...lavStarts) : -1;
           const lEnd = lavEnds.length > 0 ? Math.max(...lavEnds) : -1;
 
@@ -328,8 +341,9 @@ export function GanttClient({
 
           if (expandedLav.has(lav.id)) {
             for (const task of lavTasks) {
-              const tStart = task.data_inizio ? dayOffset(task.data_inizio) : -1;
-              const tEnd = task.data_fine ? dayOffset(task.data_fine) : -1;
+              const eff = getEffectiveDates(task);
+              const tStart = eff.data_inizio ? dayOffset(eff.data_inizio) : -1;
+              const tEnd = eff.data_fine ? dayOffset(eff.data_fine) : -1;
               result.push({ type: "task", task, startDay: tStart, endDay: tEnd });
             }
           }
@@ -338,6 +352,7 @@ export function GanttClient({
     }
 
     return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     zone,
     lavorazioni,
@@ -348,6 +363,7 @@ export function GanttClient({
     filterFornitore,
     filterTipologia,
     startDate,
+    localTaskOverrides,
   ]);
 
   /* ---- scroll sync ---- */
@@ -372,7 +388,7 @@ export function GanttClient({
     syncing.current = false;
   }, []);
 
-  /* ---- drag handlers ---- */
+  /* ---- drag handlers (FIX 4: optimistic local update + client-side Supabase) ---- */
   useEffect(() => {
     if (!dragState) return;
 
@@ -380,7 +396,7 @@ export function GanttClient({
       setDragDelta(e.clientX - dragState.startX);
     };
 
-    const handleMouseUp = async (e: MouseEvent) => {
+    const handleMouseUp = (e: MouseEvent) => {
       const delta = e.clientX - dragState.startX;
       const daysDelta = Math.round(delta / dayWidth);
 
@@ -406,14 +422,18 @@ export function GanttClient({
           if (newEnd < newStart) newEnd = newStart;
         }
 
-        try {
-          await updateTask(dragState.taskId, {
-            data_inizio: newStart,
-            data_fine: newEnd,
-          });
-        } catch {
-          // Silently handle errors — the UI will revert on next server refresh
-        }
+        // Optimistic local update
+        setLocalTaskOverrides((prev) => ({
+          ...prev,
+          [dragState.taskId]: { data_inizio: newStart, data_fine: newEnd },
+        }));
+
+        // Client-side Supabase update (no revalidatePath, no page reload)
+        const sb = createClient();
+        sb.from("task")
+          .update({ data_inizio: newStart, data_fine: newEnd })
+          .eq("id", dragState.taskId)
+          .then();
       }
 
       setDragState(null);
@@ -435,15 +455,16 @@ export function GanttClient({
     task: Task,
     dragType: "move" | "resize-left" | "resize-right",
   ) {
-    if (!task.data_inizio || !task.data_fine) return;
+    const eff = getEffectiveDates(task);
+    if (!eff.data_inizio || !eff.data_fine) return;
     e.stopPropagation();
     e.preventDefault();
     setDragState({
       taskId: task.id,
       dragType,
       startX: e.clientX,
-      origStart: task.data_inizio,
-      origEnd: task.data_fine,
+      origStart: eff.data_inizio,
+      origEnd: eff.data_fine,
     });
   }
 
@@ -452,7 +473,8 @@ export function GanttClient({
     let sDay = row.startDay;
     let eDay = row.endDay;
 
-    if (dragState && dragState.taskId === row.task.id && row.task.data_inizio && row.task.data_fine) {
+    const eff = getEffectiveDates(row.task);
+    if (dragState && dragState.taskId === row.task.id && eff.data_inizio && eff.data_fine) {
       const daysDelta = Math.round(dragDelta / dayWidth);
       if (dragState.dragType === "move") {
         sDay += daysDelta;
@@ -469,103 +491,79 @@ export function GanttClient({
     return { sDay, eDay };
   }
 
+  /* ---- FIX 2: bar text abbreviation helper ---- */
+  function getBarLabel(text: string, barWidth: number): string {
+    if (barWidth < 30) return "";
+    const displayText = text.replace(/_/g, " ");
+    if (displayText.length * 7 < barWidth) return displayText;
+    return displayText.slice(0, 4) + ".";
+  }
+
   /* ---- render ---- */
   const totalContentHeight = rows.length * ROW_HEIGHT;
 
   return (
     <div>
-      {/* Controls row */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+      {/* FIX 6: Row 1 — Title, toggles, expand/collapse */}
+      <div className="flex items-center gap-3 flex-wrap mb-2">
         <h1 className="text-2xl font-semibold text-[#1d1d1f]">Gantt</h1>
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Mode toggle */}
+
+        {/* Mode toggle */}
+        <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
+          <button
+            onClick={() => setMode("cantiere")}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
+          >
+            Cantiere
+          </button>
+          <button
+            onClick={() => setMode("progetto")}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
+          >
+            Progetto
+          </button>
+        </div>
+
+        {/* Color mode toggle */}
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Colora per</span>
           <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
-            <button
-              onClick={() => setMode("cantiere")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-            >
-              Cantiere
-            </button>
-            <button
-              onClick={() => setMode("progetto")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-            >
-              Progetto
-            </button>
-          </div>
-
-          {/* Color mode toggle */}
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Colora per</span>
-            <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
-              {(["zona", "tipologia", "fornitore"] as const).map((cm) => (
-                <button
-                  key={cm}
-                  onClick={() => setColorMode(cm)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${colorMode === cm ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-                >
-                  {cm === "zona" ? "Zona" : cm === "tipologia" ? "Tipologia" : "Fornitore"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Filter: Zona */}
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
-            <select
-              value={filterZona}
-              onChange={(e) => setFilterZona(e.target.value)}
-              className="text-xs border border-[#e5e5e7] rounded-md px-2 py-1 bg-white text-[#1d1d1f] min-w-[100px]"
-            >
-              <option value="">Tutte</option>
-              {uniqueZone.map((z) => (
-                <option key={z} value={z}>
-                  {z}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter: Fornitore */}
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Fornitore</span>
-            <select
-              value={filterFornitore}
-              onChange={(e) => setFilterFornitore(e.target.value)}
-              className="text-xs border border-[#e5e5e7] rounded-md px-2 py-1 bg-white text-[#1d1d1f] min-w-[100px]"
-            >
-              <option value="">Tutti</option>
-              {uniqueFornitori.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter: Tipologia */}
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Tipologia</span>
-            <select
-              value={filterTipologia}
-              onChange={(e) => setFilterTipologia(e.target.value)}
-              className="text-xs border border-[#e5e5e7] rounded-md px-2 py-1 bg-white text-[#1d1d1f] min-w-[100px]"
-            >
-              <option value="">Tutte</option>
-              {uniqueTipologie.map((t) => (
-                <option key={t} value={t}>
-                  {t.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+            {(["zona", "tipologia", "fornitore"] as const).map((cm) => (
+              <button
+                key={cm}
+                onClick={() => setColorMode(cm)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${colorMode === cm ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
+              >
+                {cm === "zona" ? "Zona" : cm === "tipologia" ? "Tipologia" : "Fornitore"}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* FIX 5: Expand all / Collapse all buttons */}
+        <button
+          onClick={() => {
+            setExpandedZone(new Set(zone.map((z) => z.id)));
+            setExpandedLav(new Set(lavorazioni.map((l) => l.id)));
+          }}
+          className="px-3 py-1 rounded-md text-xs font-medium text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"
+        >
+          Espandi tutto
+        </button>
+        <button
+          onClick={() => {
+            setExpandedZone(new Set());
+            setExpandedLav(new Set());
+          }}
+          className="px-3 py-1 rounded-md text-xs font-medium text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"
+        >
+          Comprimi tutto
+        </button>
       </div>
 
-      {/* Legend */}
+      {/* FIX 6: Row 2 — Legend */}
       {legendEntries.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
           {legendEntries.map((entry) => (
             <div key={entry.label} className="flex items-center gap-1.5">
               <span
@@ -578,19 +576,72 @@ export function GanttClient({
         </div>
       )}
 
-      {/* Two-panel Gantt */}
+      {/* FIX 6: Row 3 — Filter dropdowns aligned left */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        {/* Filter: Zona */}
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
+          <select
+            value={filterZona}
+            onChange={(e) => setFilterZona(e.target.value)}
+            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+          >
+            <option value="">Tutte</option>
+            {uniqueZone.map((z) => (
+              <option key={z} value={z}>
+                {z}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filter: Fornitore */}
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Fornitore</span>
+          <select
+            value={filterFornitore}
+            onChange={(e) => setFilterFornitore(e.target.value)}
+            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+          >
+            <option value="">Tutti</option>
+            {uniqueFornitori.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filter: Tipologia */}
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Tipologia</span>
+          <select
+            value={filterTipologia}
+            onChange={(e) => setFilterTipologia(e.target.value)}
+            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+          >
+            <option value="">Tutte</option>
+            {uniqueTipologie.map((t) => (
+              <option key={t} value={t}>
+                {t.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* FIX 1: Two-panel Gantt — flex container with overflow hidden */}
       <div
         className="flex overflow-hidden border border-[#e5e5e7] rounded-[12px] bg-white"
         style={{ height: "calc(100vh - 200px)" }}
       >
-        {/* LEFT PANEL — labels */}
+        {/* FIX 1: LEFT PANEL — visible, no overflow-hidden, proper flex-shrink-0 */}
         <div
-          className="flex-shrink-0 flex flex-col"
-          style={{ width: LEFT_WIDTH, minWidth: LEFT_WIDTH }}
+          className="w-[280px] min-w-[280px] flex-shrink-0 bg-white border-r border-[#e5e5e7] flex flex-col z-10"
         >
           {/* Left header */}
           <div
-            className="flex items-end pb-1 px-3 border-b border-r border-[#e5e5e7] bg-white flex-shrink-0"
+            className="flex items-end pb-1 px-3 border-b border-[#e5e5e7] bg-white flex-shrink-0"
             style={{ height: HEADER_HEIGHT }}
           >
             <span className="text-[11px] text-[#86868b] font-medium">Lavorazione</span>
@@ -599,7 +650,7 @@ export function GanttClient({
           <div
             ref={leftRef}
             onScroll={handleLeftScroll}
-            className="overflow-y-auto overflow-x-hidden border-r border-[#e5e5e7] flex-1"
+            className="overflow-y-auto overflow-x-hidden flex-1"
             style={{ scrollbarWidth: "none" }}
           >
             <div className="relative" style={{ height: totalContentHeight }}>
@@ -615,7 +666,6 @@ export function GanttClient({
                         top,
                         height: ROW_HEIGHT,
                         width: LEFT_WIDTH,
-                        backgroundColor: row.zona.colore + "15",
                       }}
                     >
                       <button
@@ -627,6 +677,7 @@ export function GanttClient({
                         ) : (
                           <ChevronRight size={12} className="text-[#86868b] flex-shrink-0" />
                         )}
+                        {/* FIX 7: Small colored dot instead of full colored background */}
                         <div
                           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: row.zona.colore }}
@@ -690,7 +741,7 @@ export function GanttClient({
           </div>
         </div>
 
-        {/* RIGHT PANEL — timeline */}
+        {/* FIX 1: RIGHT PANEL — flex-1 with both overflows */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Right header — scrolls horizontally only */}
           <div
@@ -805,7 +856,7 @@ export function GanttClient({
               {rows.map((row, i) => {
                 const top = i * ROW_HEIGHT;
 
-                /* ---- Zona row ---- */
+                /* ---- Zona row (FIX 7: plain white bg, aggregated bar as positioned element) ---- */
                 if (row.type === "zona") {
                   return (
                     <div
@@ -815,7 +866,6 @@ export function GanttClient({
                         top,
                         height: ROW_HEIGHT,
                         width: totalWidth,
-                        backgroundColor: row.zona.colore + "10",
                       }}
                     >
                       {/* Aggregated bar when collapsed */}
@@ -823,15 +873,16 @@ export function GanttClient({
                         row.startDay >= 0 &&
                         row.endDay >= 0 && (
                           <div
-                            className="absolute rounded-md"
+                            className="absolute"
                             style={{
                               left: row.startDay * dayWidth + 2,
                               width: Math.max(
                                 (row.endDay - row.startDay + 1) * dayWidth - 4,
                                 4,
                               ),
-                              top: 6,
-                              height: ROW_HEIGHT - 12,
+                              top: (ROW_HEIGHT - 32) / 2,
+                              height: 32,
+                              borderRadius: 6,
                               backgroundColor: row.zona.colore,
                               opacity: 0.5,
                             }}
@@ -884,7 +935,7 @@ export function GanttClient({
                 const barLeft = sDay * dayWidth + 2;
                 const barWidth = Math.max((eDay - sDay + 1) * dayWidth - 4, 4);
                 const barLabel = row.task.tipologia
-                  ? row.task.tipologia.replace(/_/g, " ")
+                  ? getBarLabel(row.task.tipologia, barWidth)
                   : "";
                 const isDragging =
                   dragState !== null && dragState.taskId === row.task.id;
@@ -941,8 +992,8 @@ export function GanttClient({
                         style={{ width: 4, cursor: "col-resize" }}
                         onMouseDown={(e) => startDrag(e, row.task, "resize-left")}
                       />
-                      {/* Bar text */}
-                      {barWidth > 60 && barLabel && (
+                      {/* FIX 2: Bar text with abbreviation logic */}
+                      {barLabel && (
                         <span className="text-[12px] text-white font-medium px-2 truncate leading-none pointer-events-none">
                           {barLabel}
                         </span>
