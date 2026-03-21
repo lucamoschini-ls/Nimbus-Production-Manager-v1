@@ -489,11 +489,13 @@ export function GanttClient({
 
   /* ---- bar text abbreviation helper ---- */
   function getBarLabel(tipologia: string | null, barWidth: number): string {
-    if (barWidth < 50 || !tipologia) return "";
+    if (barWidth < 40 || !tipologia) return "";
     const full = tipologia.replace(/_/g, " ");
-    if (full.length * 7.5 < barWidth) return full;
-    // Smart abbreviation: 6 chars + "."
-    if (barWidth >= 60) return full.slice(0, 6) + ".";
+    if (full.length * 7 < barWidth) return full;
+    // Abbreviate: as many chars as fit, minimum 5 + "."
+    const maxChars = Math.floor(barWidth / 7) - 1;
+    if (maxChars >= 5) return full.slice(0, maxChars) + ".";
+    if (maxChars >= 3) return full.slice(0, maxChars) + ".";
     return "";
   }
 
@@ -708,7 +710,7 @@ export function GanttClient({
             onMouseDown={(e) => startDrag(e, row.task, "resize-left")}
           />
           {barLabel && (
-            <span className="text-[12px] text-white font-medium px-2 truncate leading-none pointer-events-none">
+            <span className="text-[11px] text-white font-medium px-1 truncate leading-none pointer-events-none whitespace-nowrap">
               {barLabel}
             </span>
           )}
