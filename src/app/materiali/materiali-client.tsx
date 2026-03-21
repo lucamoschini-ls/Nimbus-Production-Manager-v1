@@ -486,8 +486,52 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
   const [adding, setAdding] = useState(false);
   const [newNome, setNewNome] = useState("");
 
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteStep, setDeleteStep] = useState<"confirm" | "replace">("confirm");
+  const [replaceId, setReplaceId] = useState<string>("");
+
   // Sync with server data on re-render
   useEffect(() => { setCatalogo(catalogoInitial); }, [catalogoInitial]);
+
+  const handleTrashClick = async (c: CatAgg) => {
+    if (c.task_count === 0) {
+      const ok = window.confirm("Eliminare " + c.nome + " dal catalogo?");
+      if (!ok) return;
+      const sb = createClient();
+      const { error: e1 } = await sb.from("materiali").update({ catalogo_id: null }).eq("catalogo_id", c.id);
+      if (e1) { console.error("scollega:", e1); return; }
+      const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", c.id);
+      if (e2) { console.error("delete:", e2); return; }
+      setCatalogo(prev => prev.filter(x => x.id !== c.id));
+    } else {
+      setDeleteId(c.id);
+      setDeleteStep("confirm");
+      setReplaceId("");
+    }
+  };
+
+  const handleDeleteAll = async (id: string) => {
+    const sb = createClient();
+    const { error: e1 } = await sb.from("materiali").delete().eq("catalogo_id", id);
+    if (e1) { console.error("delete materiali:", e1); return; }
+    const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", id);
+    if (e2) { console.error("delete catalogo:", e2); return; }
+    setCatalogo(prev => prev.filter(c => c.id !== id));
+    setDeleteId(null);
+  };
+
+  const handleReplace = async (oldId: string) => {
+    if (!replaceId) return;
+    const sostituto = catalogo.find(c => c.id === replaceId);
+    if (!sostituto) return;
+    const sb = createClient();
+    const { error: e1 } = await sb.from("materiali").update({ catalogo_id: replaceId, nome: sostituto.nome }).eq("catalogo_id", oldId);
+    if (e1) { console.error("replace:", e1); return; }
+    const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", oldId);
+    if (e2) { console.error("delete old:", e2); return; }
+    setCatalogo(prev => prev.filter(c => c.id !== oldId));
+    setDeleteId(null);
+  };
 
   const updateCatLocal = (id: string, field: string, value: string) => {
     setCatalogo(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
@@ -571,36 +615,7 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
               {conflict && <p className="mt-2 text-xs text-orange-600 font-medium">{conflict}</p>}
               </div>{/* close flex-1 */}
               <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  const ok = window.confirm("Eliminare " + c.nome + " dal catalogo?");
-                  if (!ok) return;
-
-                  const sb = createClient();
-
-                  const { error: err1 } = await sb
-                    .from("materiali")
-                    .update({ catalogo_id: null })
-                    .eq("catalogo_id", c.id);
-
-                  if (err1) {
-                    alert("Errore scollega materiali: " + JSON.stringify(err1));
-                    return;
-                  }
-
-                  const { error: err2 } = await sb
-                    .from("catalogo_materiali")
-                    .delete()
-                    .eq("id", c.id);
-
-                  if (err2) {
-                    alert("Errore elimina catalogo: " + JSON.stringify(err2));
-                    return;
-                  }
-
-                  alert("Eliminato con successo!");
-                  setCatalogo(prev => prev.filter(x => x.id !== c.id));
-                }}
+                onClick={(e) => { e.stopPropagation(); handleTrashClick(c); }}
                 className="p-1.5 text-[#d2d2d7] hover:text-red-500 transition-colors flex-shrink-0 mt-0.5"
                 title="Elimina dal catalogo"
               >
@@ -608,6 +623,40 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
               </button>
               </div>{/* close flex justify-between */}
 
+              {deleteId === c.id && (
+                <div className="mt-3 p-4 rounded-lg" style={{ backgroundColor: "#FFF5F5", border: "1px solid #FFD2D2" }}>
+                  <p className="text-sm text-[#1d1d1f] mb-3">
+                    <span className="font-semibold">{c.nome}</span> usato in {c.task_count} task.
+                  </p>
+                  {deleteStep === "confirm" && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button onClick={() => { setDeleteStep("replace"); setReplaceId(""); }}
+                        className="text-xs px-3 py-1.5 rounded-md border border-[#e5e5e7] bg-white hover:bg-[#f5f5f7] font-medium">Sostituisci</button>
+                      <button onClick={() => handleDeleteAll(c.id)}
+                        className="text-xs px-3 py-1.5 rounded-md bg-[#FF3B30] text-white hover:opacity-90 font-medium">Elimina tutto</button>
+                      <button onClick={() => setDeleteId(null)}
+                        className="text-xs px-3 py-1.5 text-[#86868b] hover:text-[#1d1d1f]">Annulla</button>
+                    </div>
+                  )}
+                  {deleteStep === "replace" && (
+                    <div className="space-y-2">
+                      <select value={replaceId} onChange={(e) => setReplaceId(e.target.value)}
+                        className="w-full text-sm border border-[#e5e5e7] rounded-md px-3 py-2 bg-white">
+                        <option value="">Scegli sostituto...</option>
+                        {catalogo.filter(x => x.id !== c.id).map(x => (
+                          <option key={x.id} value={x.id}>{x.nome} ({x.tipologia_materiale})</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleReplace(c.id)} disabled={!replaceId}
+                          className="text-xs px-3 py-1.5 rounded-md bg-[#1d1d1f] text-white font-medium disabled:opacity-40">Conferma sostituzione</button>
+                        <button onClick={() => setDeleteStep("confirm")}
+                          className="text-xs px-3 py-1.5 text-[#86868b] hover:text-[#1d1d1f]">Indietro</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
