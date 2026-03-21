@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Plus, Search, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -35,6 +35,7 @@ import {
   updateOperazione,
   removeOperazione,
 } from "./dep-mat-actions";
+import { duplicateTask } from "./actions";
 import type { StatoFornitore } from "@/lib/types";
 
 const STATI_TASK = [
@@ -145,6 +146,23 @@ interface Props {
 // ========== MAIN COMPONENT ==========
 
 export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, luoghi, open, onClose, onSave }: Props) {
+  const [showDuplicaSelect, setShowDuplicaSelect] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+
+  const handleDuplicate = async (targetLavorazioneId: string) => {
+    if (!task || duplicating) return;
+    setDuplicating(true);
+    try {
+      await duplicateTask(task.id, targetLavorazioneId);
+      setShowDuplicaSelect(false);
+      onClose();
+    } catch {
+      // ignore
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
   const [form, setForm] = useState({
     titolo: "",
     tipologia: "" as string,
@@ -247,9 +265,51 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
             onChange={(e) => setForm({ ...form, titolo: e.target.value })}
             className="text-lg font-semibold border-0 px-0 h-auto shadow-none focus-visible:ring-0 text-[#1d1d1f]"
           />
-          <p className="text-xs text-[#86868b] mt-1">
-            {task?.zona_nome} &gt; {task?.lavorazione_nome}
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-[#86868b]">
+              {task?.zona_nome} &gt; {task?.lavorazione_nome}
+            </p>
+            {task && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowDuplicaSelect(!showDuplicaSelect)}
+                  disabled={duplicating}
+                  className="flex items-center gap-1 text-[11px] text-[#86868b] hover:text-[#1d1d1f] transition-colors disabled:opacity-50"
+                >
+                  <Copy size={12} />
+                  {duplicating ? "Duplicazione..." : "Duplica in..."}
+                </button>
+                {showDuplicaSelect && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-[#e5e5e7] rounded-lg shadow-lg w-[240px] max-h-64 overflow-y-auto">
+                    <select
+                      autoFocus
+                      size={8}
+                      className="w-full text-xs border-0 outline-none"
+                      onChange={(e) => {
+                        if (e.target.value) handleDuplicate(e.target.value);
+                      }}
+                      onBlur={() => setTimeout(() => setShowDuplicaSelect(false), 150)}
+                    >
+                      <option value="">Seleziona lavorazione...</option>
+                      {zone.map((z) => {
+                        const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
+                        if (zoneLav.length === 0) return null;
+                        return (
+                          <optgroup key={z.id} label={z.nome}>
+                            {zoneLav.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.nome}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {task && (
             <div className="mt-3">
               <Badge

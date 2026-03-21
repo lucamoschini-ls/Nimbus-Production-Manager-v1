@@ -85,15 +85,21 @@ const STATO_TASK_COLORS: Record<string, string> = {
 
 const FORN_CYCLE: StatoFornitore[] = ["da_trovare", "contattato", "confermato", "sopralluogo_fatto", "materiali_definiti", "pronto"];
 
+interface TipologiaFornitore {
+  nome: string;
+}
+
 interface Props {
   fornitori: Fornitore[];
   permessi: Permesso[];
   tasksByFornitore: Record<string, TaskForFornitore[]>;
+  tipologieFornitore: TipologiaFornitore[];
 }
 
-export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props) {
+export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipologieFornitore }: Props) {
   const [activeTab, setActiveTab] = useState<"fornitori" | "permessi">("fornitori");
   const [filterStato, setFilterStato] = useState<string>("tutti");
+  const [filterTipologia, setFilterTipologia] = useState<string>("tutti");
   const [selectedFornitore, setSelectedFornitore] = useState<Fornitore | null>(null);
   const [expandedFornitore, setExpandedFornitore] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<"tutte" | "bloccate" | "in_corso" | "completate">("tutte");
@@ -104,9 +110,12 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
   const STATO_ORDER: Record<string, number> = { da_trovare: 0, contattato: 1, confermato: 2, sopralluogo_fatto: 3, materiali_definiti: 4, pronto: 5 };
 
   const filteredFornitori = (() => {
-    const base = filterStato === "tutti"
+    let base = filterStato === "tutti"
       ? fornitori
       : fornitori.filter((f) => f.stato === filterStato);
+    if (filterTipologia !== "tutti") {
+      base = base.filter((f) => f.tipo === filterTipologia);
+    }
     return [...base].sort((a, b) => {
       const oa = STATO_ORDER[a.stato] ?? 9;
       const ob = STATO_ORDER[b.stato] ?? 9;
@@ -124,6 +133,23 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
         <div className="flex items-center gap-3">
           {activeTab === "fornitori" && (
             <>
+              <div>
+                <span className="text-[9px] text-[#86868b] block mb-0.5">Tipologia</span>
+                <Select value={filterTipologia} onValueChange={setFilterTipologia}>
+                  <SelectTrigger className="w-[160px]">
+                    <Filter size={16} className="mr-2 text-[#86868b]" />
+                    <SelectValue placeholder="Filtra per tipologia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutte</SelectItem>
+                    {tipologieFornitore.map((t) => (
+                      <SelectItem key={t.nome} value={t.nome}>
+                        {t.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <span className="text-[9px] text-[#86868b] block mb-0.5">Stato</span>
                 <Select value={filterStato} onValueChange={setFilterStato}>
@@ -216,7 +242,20 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
                     </button>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-[#86868b]">
-                    {fornitore.tipo && <span>{fornitore.tipo}</span>}
+                    <select
+                      value={fornitore.tipo ?? ""}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        updateFornitore(fornitore.id, { tipo: e.target.value || null });
+                      }}
+                      className="text-xs text-[#86868b] bg-transparent border-0 outline-none cursor-pointer hover:text-[#1d1d1f] -ml-1 pr-4 py-0"
+                    >
+                      <option value="">Nessun tipo</option>
+                      {tipologieFornitore.map((t) => (
+                        <option key={t.nome} value={t.nome}>{t.nome}</option>
+                      ))}
+                    </select>
                     <button onClick={(e) => { e.stopPropagation(); setExpandedFornitore(isExpanded ? null : fornitore.id); }} className="hover:text-[#1d1d1f] underline-offset-2 hover:underline">
                       {fornitore.task_totali} task
                     </button>

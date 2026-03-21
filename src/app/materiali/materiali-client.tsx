@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Package, Filter, Trash2 } from "lucide-react";
+import { Package, Filter, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -19,6 +19,7 @@ const PROVENIENZA = [
 interface Materiale {
   id: string;
   nome: string;
+  catalogo_id: string | null;
   quantita: number | null;
   unita: string | null;
   prezzo_unitario: number | null;
@@ -122,12 +123,193 @@ function saveOp(id: string, field: string, value: unknown) {
   updateOperazioneFromMateriali(id, { [field]: value });
 }
 
+// ========== EXPANDED MATERIAL FIELDS (shared by both views) ==========
+
+function ExpandedMaterialFields({
+  m, opsByMat, fornitori, luoghi,
+}: {
+  m: Materiale;
+  opsByMat: Record<string, OpFull[]>;
+  fornitori: { id: string; nome: string }[];
+  luoghi: { id: string; nome: string }[];
+}) {
+  const daAcq = m.quantita_da_acquistare ?? 0;
+
+  return (
+    <div className="pt-3 space-y-3">
+      {/* Quantita e stato */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Necessaria</label>
+          <Num id={m.id} field="quantita" val={m.quantita} />
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Unita</label>
+          <select
+            defaultValue={m.unita ?? "pz"}
+            onChange={(e) => save(m.id, "unita", e.target.value, "string")}
+            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white w-[65px]"
+          >
+            {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Disponibile</label>
+          <Num id={m.id} field="quantita_disponibile" val={m.quantita_disponibile} />
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Ordinata</label>
+          <Num id={m.id} field="quantita_ordinata" val={m.quantita_ordinata} />
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Da acquistare</label>
+          <div className={`w-[70px] text-xs border border-transparent rounded px-2 py-1 text-center font-medium ${daAcq > 0 ? "text-red-600" : "text-green-600"}`}>
+            {daAcq}
+          </div>
+        </div>
+      </div>
+
+      {/* Date e costi */}
+      <div className="flex flex-wrap items-end gap-3 border-t border-[#e5e5e7] pt-3">
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Provenienza</label>
+          <select
+            defaultValue={m.provenienza ?? "acquisto"}
+            onChange={(e) => save(m.id, "provenienza", e.target.value, "string")}
+            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+          >
+            {PROVENIENZA.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Prezzo unit.</label>
+          <div className="flex items-center gap-1">
+            <Num id={m.id} field="prezzo_unitario" val={m.prezzo_unitario} w="w-[70px]" />
+            <span className="text-[10px] text-[#86868b]">EUR</span>
+          </div>
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Gg consegna</label>
+          <Num id={m.id} field="giorni_consegna" val={m.giorni_consegna} w="w-[60px]" />
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Costo totale</label>
+          <div className="text-xs font-medium text-[#1d1d1f] px-2 py-1">
+            {m.costo_totale != null ? m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" }) : "-"}
+          </div>
+        </div>
+      </div>
+
+      {/* Date */}
+      <div className="flex flex-wrap items-end gap-3 border-t border-[#e5e5e7] pt-3">
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Necessaria entro</label>
+          <DateField id={m.id} field="data_necessaria" val={m.data_necessaria} />
+        </div>
+        <div>
+          <label className="text-[9px] text-[#86868b] block mb-0.5">Data ordine</label>
+          <DateField id={m.id} field="data_ordine" val={m.data_ordine} />
+        </div>
+      </div>
+
+      {/* Note */}
+      <div>
+        <input
+          defaultValue={m.note ?? ""}
+          onBlur={(e) => save(m.id, "note", e.target.value, "string")}
+          placeholder="Note..."
+          className="w-full text-xs text-[#86868b] border-0 border-b border-[#e5e5e7] bg-transparent px-0 py-1 outline-none focus:border-[#1d1d1f] placeholder:text-[#d2d2d7]"
+        />
+      </div>
+
+      {/* Operazioni */}
+      <div className="pt-2 border-t border-[#e5e5e7]">
+        <p className="text-[9px] text-[#86868b] font-medium mb-1.5">Operazioni ({(opsByMat[m.id] || []).length})</p>
+        <div className="space-y-2">
+          {(opsByMat[m.id] || []).map((op) => (
+            <div key={op.id} className="bg-[#f5f5f7] rounded-lg px-2.5 py-2">
+              <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+                <input defaultValue={op.titolo} onBlur={(e) => saveOp(op.id, "titolo", e.target.value)}
+                  className="flex-1 min-w-[80px] bg-transparent border-0 outline-none text-[#1d1d1f] font-medium focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1 text-[11px]" />
+                <select defaultValue={op.tipologia ?? ""} onChange={(e) => saveOp(op.id, "tipologia", e.target.value || null)}
+                  className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+                  <option value="">--</option>
+                  <option value="trasporto">trasporto</option><option value="acquisto">acquisto</option>
+                  <option value="acquisto_e_trasporto">acquisto e trasporto</option><option value="noleggio">noleggio</option>
+                  <option value="montaggio">montaggio</option>
+                </select>
+                <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveOp(op.id, "fornitore_id", e.target.value || null)}
+                  className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white max-w-[100px]">
+                  <option value="">Fornitore...</option>
+                  {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+                {op.fornitore && <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-medium ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100"}`}>{op.fornitore.stato.replace(/_/g, " ")}</span>}
+                <select defaultValue={op.stato} onChange={(e) => saveOp(op.id, "stato", e.target.value)}
+                  className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+                  <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
+                </select>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer flex-shrink-0">
+                  <input type="checkbox" checked={op.organizzato} onChange={(e) => saveOp(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-4 h-4" />
+                  <span className="text-[#86868b]">Organizzato</span>
+                </label>
+                <select defaultValue={op.luogo_id ?? ""} onChange={(e) => saveOp(op.id, "luogo_id", e.target.value || null)}
+                  className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+                  <option value="">Luogo...</option>
+                  {luoghi.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                </select>
+                <button onClick={() => saveOp(op.id, "_delete", true)} className="text-[#d2d2d7] hover:text-red-500 flex-shrink-0"><span className="text-xs">x</span></button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => addOperazioneFromMateriali(m.id)}
+          className="mt-1.5 text-[10px] text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-0.5"
+        >
+          + Operazione
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ========== TIPOLOGIA COLORS ==========
+
+const TIP_MAT_COLORS: Record<string, string> = {
+  strutturale: "bg-orange-100 text-orange-700",
+  consumo: "bg-blue-100 text-blue-700",
+  attrezzo: "bg-purple-100 text-purple-700",
+};
+
+// ========== MAIN COMPONENT ==========
+
 export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, catalogo }: Props) {
   const [activeTab, setActiveTab] = useState<"materiali" | "catalogo">("materiali");
+  const [viewMode, setViewMode] = useState<"materiale" | "area">("materiale");
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
   const [filterProvenienza, setFilterProvenienza] = useState("tutti");
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [expandedMats, setExpandedMats] = useState<Set<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  const toggleMat = (id: string) => {
+    setExpandedMats((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSection = (key: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const filtered = materiali.filter((m) => {
     // Quick filter overrides regular filters
@@ -158,6 +340,29 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
   const ordinati = materiali.filter((m) => ["ordinato", "parziale", "magazzino"].includes(matStato(m).key)).length;
   const completi = materiali.filter((m) => ["completo", "in_loco"].includes(matStato(m).key)).length;
   const costoTotale = materiali.reduce((sum, m) => sum + (m.costo_totale ?? 0), 0);
+
+  // Build catalogo lookup for "Per materiale" view
+  const catalogoMap = new Map(catalogo.map(c => [c.id, c]));
+
+  // Group by catalogo_id for "Per materiale" view
+  const matByCatalog: Record<string, Materiale[]> = {};
+  const noCatalog: Materiale[] = [];
+  filtered.forEach(m => {
+    if (m.catalogo_id) {
+      if (!matByCatalog[m.catalogo_id]) matByCatalog[m.catalogo_id] = [];
+      matByCatalog[m.catalogo_id].push(m);
+    } else {
+      noCatalog.push(m);
+    }
+  });
+
+  // Group by zona for "Per area" view
+  const matByZona: Record<string, Materiale[]> = {};
+  filtered.forEach(m => {
+    const zona = m.task?.lavorazione?.zona?.nome ?? "Senza zona";
+    if (!matByZona[zona]) matByZona[zona] = [];
+    matByZona[zona].push(m);
+  });
 
   return (
     <div>
@@ -234,7 +439,7 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
       </div>
 
       {/* Filtri */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-4">
         <div>
           <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
           <Select value={filterZona} onValueChange={setFilterZona}>
@@ -276,6 +481,22 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
         </div>
       </div>
 
+      {/* View mode toggle */}
+      <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1 w-fit mb-6">
+        <button
+          onClick={() => setViewMode("materiale")}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === "materiale" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
+        >
+          Per materiale
+        </button>
+        <button
+          onClick={() => setViewMode("area")}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === "area" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
+        >
+          Per area
+        </button>
+      </div>
+
       {/* Lista */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-[#86868b]">
@@ -283,185 +504,198 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
           <p className="text-sm mt-3 font-medium">Nessun materiale trovato</p>
           <p className="text-xs mt-1">Aggiungi materiali dalle singole task nella sezione Lavorazioni</p>
         </div>
-      ) : (
+      ) : viewMode === "materiale" ? (
+        /* ==================== VIEW: Per materiale ==================== */
         <div className="space-y-3">
-          {filtered.map((m) => {
-            const stato = matStato(m);
-            const daAcq = m.quantita_da_acquistare ?? 0;
+          {/* Grouped by catalogo */}
+          {Object.entries(matByCatalog).map(([catId, items]) => {
+            const catInfo = catalogoMap.get(catId);
+            const catNome = catInfo?.nome ?? items[0].nome;
+            const catTipologia = catInfo?.tipologia_materiale ?? null;
+            const totalQty = items.reduce((s, m) => s + (m.quantita ?? 0), 0);
+            const totalDisp = items.reduce((s, m) => s + (m.quantita_disponibile ?? 0), 0);
+            const isSectionCollapsed = collapsedSections.has(catId);
+
             return (
-              <div key={m.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-                {/* ROW 1: Nome + task + chips */}
-                <div className="flex items-start justify-between gap-3 mb-3">
+              <div key={catId} className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+                {/* Card header */}
+                <button
+                  onClick={() => toggleSection(catId)}
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-[#fafafa] transition-colors"
+                >
+                  {isSectionCollapsed
+                    ? <ChevronRight size={14} className="text-[#86868b] flex-shrink-0" />
+                    : <ChevronDown size={14} className="text-[#86868b] flex-shrink-0" />
+                  }
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-[#1d1d1f]">{m.nome}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-semibold text-[#1d1d1f]">{catNome}</h3>
+                      {catTipologia && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TIP_MAT_COLORS[catTipologia] ?? "bg-gray-100 text-gray-600"}`}>
+                          {catTipologia}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-[#86868b]">
+                        {items.length} {items.length === 1 ? "istanza" : "istanze"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-0.5 text-[11px] text-[#86868b]">
+                      <span>Totale: <span className="text-[#1d1d1f] font-medium">{totalQty}</span></span>
+                      <span>Disponibile: <span className="text-[#1d1d1f] font-medium">{totalDisp}</span></span>
+                      {totalQty - totalDisp > 0 && (
+                        <span className="text-red-600 font-medium">Da acquistare: {totalQty - totalDisp}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Instances */}
+                {!isSectionCollapsed && (
+                  <div className="border-t border-[#e5e5e7]">
+                    {items.map((m) => {
+                      const stato = matStato(m);
+                      const isExpanded = expandedMats.has(m.id);
+                      return (
+                        <div key={m.id} className="border-b border-[#e5e5e7] last:border-b-0">
+                          <button
+                            onClick={() => toggleMat(m.id)}
+                            className="w-full px-4 py-2.5 flex items-center gap-2 text-left hover:bg-[#fafafa] transition-colors"
+                          >
+                            {isExpanded
+                              ? <ChevronDown size={12} className="text-[#86868b] flex-shrink-0" />
+                              : <ChevronRight size={12} className="text-[#86868b] flex-shrink-0" />
+                            }
+                            <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: m.task?.lavorazione?.zona?.colore }} />
+                            <span className="text-xs text-[#1d1d1f] flex-1 min-w-0 truncate">
+                              {m.task?.lavorazione?.zona?.nome} &gt; {m.task?.lavorazione?.nome} &gt; {m.task?.titolo}
+                            </span>
+                            <span className="text-[11px] text-[#86868b] flex-shrink-0 mr-2">
+                              {m.quantita ?? 0} {m.unita ?? "pz"}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>
+                              {stato.label}
+                            </span>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-4 pb-4 pl-9">
+                              <ExpandedMaterialFields m={m} opsByMat={opsByMat} fornitori={fornitori} luoghi={luoghi} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Materials without catalogo */}
+          {noCatalog.map((m) => {
+            const stato = matStato(m);
+            const isExpanded = expandedMats.has(m.id);
+            return (
+              <div key={m.id} className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+                <button
+                  onClick={() => toggleMat(m.id)}
+                  className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-[#fafafa] transition-colors"
+                >
+                  {isExpanded
+                    ? <ChevronDown size={14} className="text-[#86868b] flex-shrink-0" />
+                    : <ChevronRight size={14} className="text-[#86868b] flex-shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-semibold text-[#1d1d1f]">{m.nome}</h3>
+                      <span className="text-[11px] text-[#86868b]">
+                        {m.quantita ?? 0} {m.unita ?? "pz"}
+                      </span>
+                    </div>
                     <p className="text-[11px] text-[#86868b] mt-0.5">
                       <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: m.task?.lavorazione?.zona?.colore }} />
                       {m.task?.lavorazione?.zona?.nome} &gt; {m.task?.lavorazione?.nome} &gt; {m.task?.titolo}
                     </p>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {/* Provenienza chip */}
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                        m.provenienza === "acquisto" ? "bg-blue-100 text-blue-700" :
-                        m.provenienza === "magazzino" ? "bg-amber-100 text-amber-700" :
-                        m.provenienza === "noleggio" ? "bg-purple-100 text-purple-700" :
-                        m.provenienza === "in_loco" ? "bg-green-100 text-green-700" :
-                        "bg-gray-100 text-gray-600"
-                      }`}>
-                        {PROVENIENZA.find(p => p.value === m.provenienza)?.label ?? m.provenienza ?? "N/D"}
-                      </span>
-                      {/* Transport chip */}
-                      {(() => {
-                        const ops = opsByMat[m.id] || [];
-                        const transportOp = ops.find(op => op.tipologia === "trasporto" || op.tipologia === "acquisto_e_trasporto");
-                        if (transportOp) {
-                          return (
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-100 text-orange-700">
-                              Da trasportare{transportOp.luogo ? ` — ${transportOp.luogo.nome}` : ""}
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>
+                    {stato.label}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-[#e5e5e7]">
+                    <ExpandedMaterialFields m={m} opsByMat={opsByMat} fornitori={fornitori} luoghi={luoghi} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ==================== VIEW: Per area ==================== */
+        <div className="space-y-3">
+          {Object.entries(matByZona).map(([zonaNome, items]) => {
+            const zonaColore = items[0]?.task?.lavorazione?.zona?.colore;
+            const isSectionCollapsed = collapsedSections.has(`zona-${zonaNome}`);
+
+            return (
+              <div key={zonaNome} className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+                {/* Zona header */}
+                <button
+                  onClick={() => toggleSection(`zona-${zonaNome}`)}
+                  className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-[#fafafa] transition-colors"
+                >
+                  {isSectionCollapsed
+                    ? <ChevronRight size={14} className="text-[#86868b] flex-shrink-0" />
+                    : <ChevronDown size={14} className="text-[#86868b] flex-shrink-0" />
+                  }
+                  {zonaColore && (
+                    <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: zonaColore }} />
+                  )}
+                  <h3 className="text-sm font-semibold text-[#1d1d1f]">{zonaNome}</h3>
+                  <span className="text-[11px] text-[#86868b]">
+                    {items.length} {items.length === 1 ? "materiale" : "materiali"}
+                  </span>
+                </button>
+
+                {/* Materials in zona */}
+                {!isSectionCollapsed && (
+                  <div className="border-t border-[#e5e5e7]">
+                    {items.map((m) => {
+                      const stato = matStato(m);
+                      const isExpanded = expandedMats.has(m.id);
+                      return (
+                        <div key={m.id} className="border-b border-[#e5e5e7] last:border-b-0">
+                          <button
+                            onClick={() => toggleMat(m.id)}
+                            className="w-full px-4 py-2.5 flex items-center gap-2 text-left hover:bg-[#fafafa] transition-colors"
+                          >
+                            {isExpanded
+                              ? <ChevronDown size={12} className="text-[#86868b] flex-shrink-0" />
+                              : <ChevronRight size={12} className="text-[#86868b] flex-shrink-0" />
+                            }
+                            <span className="text-xs font-medium text-[#1d1d1f] flex-1 min-w-0 truncate">
+                              {m.nome}
                             </span>
-                          );
-                        }
-                        if (m.provenienza === "in_loco" && !ops.some(op => op.tipologia === "trasporto" || op.tipologia === "acquisto_e_trasporto")) {
-                          return (
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
-                              In loco
+                            <span className="text-[11px] text-[#86868b] flex-shrink-0 mr-2">
+                              {m.quantita ?? 0} {m.unita ?? "pz"}
                             </span>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>{stato.label}</span>
-                </div>
-
-                {/* ROW 2: Quantita e stato */}
-                <div className="flex flex-wrap items-end gap-3 mb-3">
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Necessaria</label>
-                    <Num id={m.id} field="quantita" val={m.quantita} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Unita</label>
-                    <select
-                      defaultValue={m.unita ?? "pz"}
-                      onChange={(e) => save(m.id, "unita", e.target.value, "string")}
-                      className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white w-[65px]"
-                    >
-                      {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Disponibile</label>
-                    <Num id={m.id} field="quantita_disponibile" val={m.quantita_disponibile} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Ordinata</label>
-                    <Num id={m.id} field="quantita_ordinata" val={m.quantita_ordinata} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Da acquistare</label>
-                    <div className={`w-[70px] text-xs border border-transparent rounded px-2 py-1 text-center font-medium ${daAcq > 0 ? "text-red-600" : "text-green-600"}`}>
-                      {daAcq}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ROW 3: Date e costi */}
-                <div className="flex flex-wrap items-end gap-3 border-t border-[#e5e5e7] pt-3">
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Necessaria entro</label>
-                    <DateField id={m.id} field="data_necessaria" val={m.data_necessaria} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Gg consegna</label>
-                    <Num id={m.id} field="giorni_consegna" val={m.giorni_consegna} w="w-[60px]" />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Data ordine</label>
-                    <DateField id={m.id} field="data_ordine" val={m.data_ordine} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Provenienza</label>
-                    <select
-                      defaultValue={m.provenienza ?? "acquisto"}
-                      onChange={(e) => save(m.id, "provenienza", e.target.value, "string")}
-                      className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
-                    >
-                      {PROVENIENZA.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Prezzo unit.</label>
-                    <div className="flex items-center gap-1">
-                      <Num id={m.id} field="prezzo_unitario" val={m.prezzo_unitario} w="w-[70px]" />
-                      <span className="text-[10px] text-[#86868b]">EUR</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[9px] text-[#86868b] block mb-0.5">Costo totale</label>
-                    <div className="text-xs font-medium text-[#1d1d1f] px-2 py-1">
-                      {m.costo_totale != null ? m.costo_totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" }) : "-"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ROW 4: Note */}
-                <div className="mt-3">
-                  <input
-                    defaultValue={m.note ?? ""}
-                    onBlur={(e) => save(m.id, "note", e.target.value, "string")}
-                    placeholder="Note..."
-                    className="w-full text-xs text-[#86868b] border-0 border-b border-[#e5e5e7] bg-transparent px-0 py-1 outline-none focus:border-[#1d1d1f] placeholder:text-[#d2d2d7]"
-                  />
-                </div>
-
-                {/* ROW 5: Operazioni editabili */}
-                <div className="mt-3 pt-2 border-t border-[#e5e5e7]">
-                  <p className="text-[9px] text-[#86868b] font-medium mb-1.5">Operazioni ({(opsByMat[m.id] || []).length})</p>
-                  <div className="space-y-2">
-                    {(opsByMat[m.id] || []).map((op) => (
-                      <div key={op.id} className="bg-[#f5f5f7] rounded-lg px-2.5 py-2">
-                        <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
-                          <input defaultValue={op.titolo} onBlur={(e) => saveOp(op.id, "titolo", e.target.value)}
-                            className="flex-1 min-w-[80px] bg-transparent border-0 outline-none text-[#1d1d1f] font-medium focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1 text-[11px]" />
-                          <select defaultValue={op.tipologia ?? ""} onChange={(e) => saveOp(op.id, "tipologia", e.target.value || null)}
-                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
-                            <option value="">--</option>
-                            <option value="trasporto">trasporto</option><option value="acquisto">acquisto</option>
-                            <option value="acquisto_e_trasporto">acquisto e trasporto</option><option value="noleggio">noleggio</option>
-                            <option value="montaggio">montaggio</option>
-                          </select>
-                          <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveOp(op.id, "fornitore_id", e.target.value || null)}
-                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white max-w-[100px]">
-                            <option value="">Fornitore...</option>
-                            {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                          </select>
-                          {op.fornitore && <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-medium ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100"}`}>{op.fornitore.stato.replace(/_/g, " ")}</span>}
-                          <select defaultValue={op.stato} onChange={(e) => saveOp(op.id, "stato", e.target.value)}
-                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
-                            <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
-                          </select>
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer flex-shrink-0">
-                            <input type="checkbox" checked={op.organizzato} onChange={(e) => saveOp(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-4 h-4" />
-                            <span className="text-[#86868b]">Organizzato</span>
-                          </label>
-                          <select defaultValue={op.luogo_id ?? ""} onChange={(e) => saveOp(op.id, "luogo_id", e.target.value || null)}
-                            className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
-                            <option value="">Luogo...</option>
-                            {luoghi.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
-                          </select>
-                          <button onClick={() => saveOp(op.id, "_delete", true)} className="text-[#d2d2d7] hover:text-red-500 flex-shrink-0"><span className="text-xs">x</span></button>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>
+                              {stato.label}
+                            </span>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-4 pb-4 pl-9">
+                              {/* Show task path in area view since we're grouped by zona */}
+                              <p className="text-[11px] text-[#86868b] mb-2 pt-2">
+                                {m.task?.lavorazione?.nome} &gt; {m.task?.titolo}
+                              </p>
+                              <ExpandedMaterialFields m={m} opsByMat={opsByMat} fornitori={fornitori} luoghi={luoghi} />
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                  <button
-                    onClick={() => addOperazioneFromMateriali(m.id)}
-                    className="mt-1.5 text-[10px] text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-0.5"
-                  >
-                    + Operazione
-                  </button>
-                </div>
+                )}
               </div>
             );
           })}
@@ -473,12 +707,6 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
 }
 
 // ========== CATALOGO TAB ==========
-
-const TIP_MAT_COLORS: Record<string, string> = {
-  strutturale: "bg-orange-100 text-orange-700",
-  consumo: "bg-blue-100 text-blue-700",
-  attrezzo: "bg-purple-100 text-purple-700",
-};
 
 function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
   const [catalogo, setCatalogo] = useState(catalogoInitial);
@@ -665,4 +893,3 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
     </div>
   );
 }
-

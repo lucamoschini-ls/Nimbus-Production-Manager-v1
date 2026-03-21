@@ -75,6 +75,40 @@ export async function deleteLuogo(id: string) {
   revalidatePath("/impostazioni");
 }
 
+// ========== TIPOLOGIE FORNITORE ==========
+
+export async function updateTipologiaFornitore(id: string, data: Record<string, unknown>) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("tipologie_fornitore").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/impostazioni");
+  revalidatePath("/fornitori");
+}
+
+export async function createTipologiaFornitore(data: { nome: string; ordine: number }) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("tipologie_fornitore").insert(data);
+  if (error) throw new Error(error.message);
+  revalidatePath("/impostazioni");
+  revalidatePath("/fornitori");
+}
+
+export async function deleteTipologiaFornitore(id: string, nome: string) {
+  const supabase = await createClient();
+  // Check if any fornitore uses this tipologia
+  const { count } = await supabase
+    .from("fornitori")
+    .select("*", { count: "exact", head: true })
+    .eq("tipo", nome);
+  if (count && count > 0) {
+    throw new Error(`Impossibile eliminare: ${count} fornitori usano questa tipologia`);
+  }
+  const { error } = await supabase.from("tipologie_fornitore").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/impostazioni");
+  revalidatePath("/fornitori");
+}
+
 export async function deleteTipologia(id: string, nome: string) {
   const supabase = await createClient();
   // Check if any task uses this tipologia

@@ -4,10 +4,11 @@ import { ImpostazioniClient } from "./impostazioni-client";
 export default async function ImpostazioniPage() {
   const supabase = await createClient();
 
-  const [{ data: zone }, { data: tipologie }, { data: luoghi }] = await Promise.all([
+  const [{ data: zone }, { data: tipologie }, { data: luoghi }, { data: tipologieFornitore }] = await Promise.all([
     supabase.from("zone").select("*").order("ordine"),
     supabase.from("tipologie").select("*").order("ordine"),
     supabase.from("luoghi").select("*").order("ordine"),
+    supabase.from("tipologie_fornitore").select("*").order("ordine"),
   ]);
 
   // Count lavorazioni per zona
@@ -32,6 +33,18 @@ export default async function ImpostazioniPage() {
     }
   });
 
+  // Count fornitori per tipologia fornitore
+  const { data: fornTipCounts } = await supabase
+    .from("fornitori")
+    .select("tipo");
+
+  const tipFornCount: Record<string, number> = {};
+  fornTipCounts?.forEach((f) => {
+    if (f.tipo) {
+      tipFornCount[f.tipo] = (tipFornCount[f.tipo] || 0) + 1;
+    }
+  });
+
   return (
     <ImpostazioniClient
       zone={zone ?? []}
@@ -39,6 +52,8 @@ export default async function ImpostazioniPage() {
       zonaLavCount={zonaLavCount}
       tipTaskCount={tipTaskCount}
       luoghi={luoghi ?? []}
+      tipologieFornitore={tipologieFornitore ?? []}
+      tipFornCount={tipFornCount}
     />
   );
 }

@@ -4,11 +4,12 @@ import { FornitoriClient } from "./fornitori-client";
 export default async function FornitoriPage() {
   const supabase = await createClient();
 
-  const [{ data: fornitori }, { data: permessi }, { data: taskPerFornitore }, { data: opsPerFornitore }] = await Promise.all([
+  const [{ data: fornitori }, { data: permessi }, { data: taskPerFornitore }, { data: opsPerFornitore }, { data: tipologieFornitore }] = await Promise.all([
     supabase.from("v_fornitori_riepilogo").select("*").order("nome"),
     supabase.from("permessi").select("*").order("nome"),
     supabase.from("v_task_completa").select("id, titolo, zona_nome, lavorazione_nome, lavorazione_id, stato_calcolato, fornitore_id").not("fornitore_id", "is", null),
     supabase.from("operazioni").select("fornitore_id, materiale:materiali!operazioni_materiale_id_fkey(task:task!materiali_task_id_fkey(id, titolo, stato_calcolato, lavorazione:lavorazioni!task_lavorazione_id_fkey(nome, zona:zone!lavorazioni_zona_id_fkey(nome))))").not("fornitore_id", "is", null),
+    supabase.from("tipologie_fornitore").select("nome").order("ordine"),
   ]);
 
   type TaskEntry = { id: string; titolo: string; zona_nome: string; lavorazione_nome: string; lavorazione_id: string; stato_calcolato: string; via?: string };
@@ -44,6 +45,7 @@ export default async function FornitoriPage() {
       fornitori={fornitori ?? []}
       permessi={permessi ?? []}
       tasksByFornitore={tasksByFornitore}
+      tipologieFornitore={tipologieFornitore ?? []}
     />
   );
 }

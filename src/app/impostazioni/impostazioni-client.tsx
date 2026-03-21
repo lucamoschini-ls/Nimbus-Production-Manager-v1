@@ -11,6 +11,9 @@ import {
   updateTipologia,
   createTipologia,
   deleteTipologia,
+  updateTipologiaFornitore,
+  createTipologiaFornitore,
+  deleteTipologiaFornitore,
 } from "./actions";
 
 interface Zona {
@@ -29,12 +32,20 @@ interface Tipologia {
 
 interface Luogo { id: string; nome: string; indirizzo: string | null; note: string | null; ordine: number; }
 
+interface TipologiaFornitore {
+  id: string;
+  nome: string;
+  ordine: number;
+}
+
 interface Props {
   zone: Zona[];
   tipologie: Tipologia[];
   zonaLavCount: Record<string, number>;
   tipTaskCount: Record<string, number>;
   luoghi: Luogo[];
+  tipologieFornitore: TipologiaFornitore[];
+  tipFornCount: Record<string, number>;
 }
 
 const STATI_FORNITORE = [
@@ -82,8 +93,10 @@ export function ImpostazioniClient({
   zonaLavCount,
   tipTaskCount,
   luoghi,
+  tipologieFornitore,
+  tipFornCount,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"zone" | "tipologie" | "luoghi" | "stati">("zone");
+  const [activeTab, setActiveTab] = useState<"zone" | "tipologie" | "tipologie_fornitore" | "luoghi" | "stati">("zone");
 
   return (
     <div>
@@ -95,6 +108,7 @@ export function ImpostazioniClient({
           [
             { key: "zone", label: "Zone" },
             { key: "tipologie", label: "Tipologie" },
+            { key: "tipologie_fornitore", label: "Tipi fornitore" },
             { key: "luoghi", label: "Luoghi" },
             { key: "stati", label: "Stati fornitore" },
           ] as const
@@ -118,6 +132,9 @@ export function ImpostazioniClient({
       )}
       {activeTab === "tipologie" && (
         <TipologieSection tipologie={tipologie} tipTaskCount={tipTaskCount} />
+      )}
+      {activeTab === "tipologie_fornitore" && (
+        <TipologieFornitoreSection tipologie={tipologieFornitore} tipFornCount={tipFornCount} />
       )}
       {activeTab === "luoghi" && <LuoghiSection luoghi={luoghi} />}
       {activeTab === "stati" && <StatiFornitoreSection />}
@@ -530,6 +547,193 @@ function TipologieSection({
             value={newTip.colore}
             onChange={(e) => setNewTip((p) => ({ ...p, colore: e.target.value }))}
             className="w-7 h-7 rounded cursor-pointer border border-[#e5e5e7] p-0.5"
+          />
+          <span></span>
+          <Button size="sm" onClick={handleAdd} className="text-xs">
+            Salva
+          </Button>
+          <button
+            onClick={() => setAdding(false)}
+            className="text-xs text-[#86868b] hover:text-[#1d1d1f]"
+          >
+            Annulla
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========== TIPOLOGIE FORNITORE SECTION ==========
+
+function TipologieFornitoreSection({
+  tipologie,
+  tipFornCount,
+}: {
+  tipologie: TipologiaFornitore[];
+  tipFornCount: Record<string, number>;
+}) {
+  const [editing, setEditing] = useState<Record<string, Partial<TipologiaFornitore>>>({});
+  const [adding, setAdding] = useState(false);
+  const [newTip, setNewTip] = useState({ nome: "" });
+  const [error, setError] = useState<string | null>(null);
+
+  const startEdit = (t: TipologiaFornitore) => {
+    setEditing((prev) => ({ ...prev, [t.id]: { nome: t.nome } }));
+  };
+
+  const saveEdit = async (t: TipologiaFornitore) => {
+    const edits = editing[t.id];
+    if (!edits) return;
+    try {
+      await updateTipologiaFornitore(t.id, edits);
+      setEditing((prev) => {
+        const next = { ...prev };
+        delete next[t.id];
+        return next;
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const handleMove = async (t: TipologiaFornitore, direction: "up" | "down") => {
+    const idx = tipologie.findIndex((x) => x.id === t.id);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= tipologie.length) return;
+    const other = tipologie[swapIdx];
+    await Promise.all([
+      updateTipologiaFornitore(t.id, { ordine: other.ordine }),
+      updateTipologiaFornitore(other.id, { ordine: t.ordine }),
+    ]);
+  };
+
+  const handleDelete = async (t: TipologiaFornitore) => {
+    const fornCount = tipFornCount[t.nome] || 0;
+    if (fornCount > 0) {
+      setError(`Impossibile eliminare "${t.nome}": ${fornCount} fornitori la usano`);
+      return;
+    }
+    if (!confirm(`Eliminare la tipologia fornitore "${t.nome}"?`)) return;
+    try {
+      await deleteTipologiaFornitore(t.id, t.nome);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!newTip.nome.trim()) return;
+    try {
+      await createTipologiaFornitore({
+        nome: newTip.nome.trim(),
+        ordine: tipologie.length,
+      });
+      setNewTip({ nome: "" });
+      setAdding(false);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-[12px] border border-[#e5e5e7]">
+      <div className="px-5 py-4 border-b border-[#e5e5e7] flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-[#1d1d1f]">
+          Tipologie fornitore ({tipologie.length})
+        </h2>
+        <Button size="sm" className="gap-1.5" onClick={() => setAdding(true)}>
+          <Plus size={14} /> Aggiungi
+        </Button>
+      </div>
+
+      {error && (
+        <div className="mx-5 mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 underline">
+            Chiudi
+          </button>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="grid grid-cols-[1fr_60px_80px_40px] gap-3 px-5 py-2 text-[10px] font-medium text-[#86868b] border-b border-[#e5e5e7]">
+        <span>Nome</span>
+        <span>Ordine</span>
+        <span>Fornitori</span>
+        <span></span>
+      </div>
+
+      {tipologie.map((t) => {
+        const isEditing = !!editing[t.id];
+        const edits = editing[t.id] || {};
+        const fornCount = tipFornCount[t.nome] || 0;
+
+        return (
+          <div
+            key={t.id}
+            className="grid grid-cols-[1fr_60px_80px_40px] gap-3 px-5 py-2.5 items-center border-b border-[#e5e5e7] last:border-0"
+          >
+            {isEditing ? (
+              <input
+                value={edits.nome ?? t.nome}
+                onChange={(e) =>
+                  setEditing((prev) => ({
+                    ...prev,
+                    [t.id]: { ...prev[t.id], nome: e.target.value },
+                  }))
+                }
+                onBlur={() => saveEdit(t)}
+                onKeyDown={(e) => e.key === "Enter" && saveEdit(t)}
+                className="text-sm border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={() => startEdit(t)}
+                className="text-sm text-[#1d1d1f] font-medium text-left hover:text-blue-600"
+              >
+                {t.nome}
+              </button>
+            )}
+
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => handleMove(t, "up")}
+                className="p-0.5 text-[#86868b] hover:text-[#1d1d1f]"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                onClick={() => handleMove(t, "down")}
+                className="p-0.5 text-[#86868b] hover:text-[#1d1d1f]"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+
+            <span className="text-xs text-[#86868b]">{fornCount}</span>
+
+            <button
+              onClick={() => handleDelete(t)}
+              className="p-1 text-[#86868b] hover:text-red-500"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      })}
+
+      {/* Add row */}
+      {adding && (
+        <div className="grid grid-cols-[1fr_60px_80px_40px] gap-3 px-5 py-3 items-center bg-[#f5f5f7]/50">
+          <input
+            autoFocus
+            value={newTip.nome}
+            onChange={(e) => setNewTip({ nome: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            placeholder="Nome tipologia"
+            className="text-sm border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring"
           />
           <span></span>
           <Button size="sm" onClick={handleAdd} className="text-xs">

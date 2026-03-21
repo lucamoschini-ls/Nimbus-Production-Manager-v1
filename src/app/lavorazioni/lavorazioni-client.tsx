@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 // Button removed — quick add doesn't need form
@@ -137,6 +137,13 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   }, [initialTaskId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
   const [editingLavName, setEditingLavName] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingLavName && editInputRef.current) {
+      setTimeout(() => editInputRef.current?.focus(), 50);
+    }
+  }, [editingLavName]);
 
   const saveLavName = async (lavId: string, newName: string) => {
     if (newName.trim()) {
@@ -278,12 +285,13 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                           <div className={`flex-1 flex items-center justify-between px-4 py-2 text-xs ${isSelected ? "font-medium" : ""}`}>
                             {editingLavName === lav.id ? (
                               <input
-                                autoFocus
+                                ref={editInputRef}
                                 defaultValue={lav.nome}
-                                onBlur={(e) => saveLavName(lav.id, e.target.value)}
+                                onBlur={(e) => { const val = e.target.value; setTimeout(() => saveLavName(lav.id, val), 150); }}
                                 onKeyDown={(e) => { if (e.key === "Enter") saveLavName(lav.id, (e.target as HTMLInputElement).value); if (e.key === "Escape") setEditingLavName(null); }}
                                 className="flex-1 min-w-0 text-xs border border-[#e5e5e7] rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-ring"
                                 onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
                               />
                             ) : (
                               <button onClick={() => selectLav(lav.id)} onDoubleClick={(e) => { e.stopPropagation(); setEditingLavName(lav.id); }} className="flex-1 truncate text-left" title="Doppio click per rinominare">
@@ -345,11 +353,12 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                 </div>
                 {editingLavName === selectedLavData.id ? (
                   <input
-                    autoFocus
+                    ref={editInputRef}
                     defaultValue={selectedLavData.nome}
-                    onBlur={(e) => saveLavName(selectedLavData.id, e.target.value)}
+                    onBlur={(e) => { const val = e.target.value; setTimeout(() => saveLavName(selectedLavData.id, val), 150); }}
                     onKeyDown={(e) => { if (e.key === "Enter") saveLavName(selectedLavData.id, (e.target as HTMLInputElement).value); if (e.key === "Escape") setEditingLavName(null); }}
                     className="text-xl font-semibold text-[#1d1d1f] border border-[#e5e5e7] rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-ring w-full"
+                    onMouseDown={(e) => e.stopPropagation()}
                   />
                 ) : (
                   <h1 className="text-xl font-semibold text-[#1d1d1f] cursor-pointer hover:text-blue-600" onDoubleClick={() => setEditingLavName(selectedLavData.id)} title="Doppio click per rinominare">
