@@ -51,9 +51,9 @@ interface OpFull {
 }
 
 const STATO_FORN_CLS: Record<string, string> = {
-  da_trovare: "bg-red-100 text-red-700", contattato: "bg-amber-100 text-amber-700",
-  confermato: "bg-blue-100 text-blue-700", sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
-  materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
+  da_trovare: "bg-[#FF3B30]/10 text-[#FF3B30]", contattato: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  confermato: "bg-[#0071E3]/10 text-[#0071E3]", sopralluogo_fatto: "bg-[#5856D6]/10 text-[#5856D6]",
+  materiali_definiti: "bg-[#AF52DE]/10 text-[#AF52DE]", pronto: "bg-[#34C759]/10 text-[#34C759]",
 };
 
 interface CatAgg {
@@ -185,36 +185,45 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
 
       {/* Filtri */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <Select value={filterZona} onValueChange={setFilterZona}>
-          <SelectTrigger className="w-[160px]">
-            <Filter size={14} className="mr-1.5 text-[#86868b]" />
-            <SelectValue placeholder="Zona" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutte le zone</SelectItem>
-            {zone.map((z) => (<SelectItem key={z.id} value={z.id}>{z.nome}</SelectItem>))}
-          </SelectContent>
-        </Select>
-        <Select value={filterStato} onValueChange={setFilterStato}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Stato" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutti</SelectItem>
-            <SelectItem value="da_acquistare">Da acquistare</SelectItem>
-            <SelectItem value="ordinato">Ordinati / Parziali</SelectItem>
-            <SelectItem value="completo">Completi</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterProvenienza} onValueChange={setFilterProvenienza}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Provenienza" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutte</SelectItem>
-            {PROVENIENZA.map((p) => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}
-          </SelectContent>
-        </Select>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
+          <Select value={filterZona} onValueChange={setFilterZona}>
+            <SelectTrigger className="w-[160px]">
+              <Filter size={14} className="mr-1.5 text-[#86868b]" />
+              <SelectValue placeholder="Zona" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutte le zone</SelectItem>
+              {zone.map((z) => (<SelectItem key={z.id} value={z.id}>{z.nome}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Stato</span>
+          <Select value={filterStato} onValueChange={setFilterStato}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Stato" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti</SelectItem>
+              <SelectItem value="da_acquistare">Da acquistare</SelectItem>
+              <SelectItem value="ordinato">Ordinati / Parziali</SelectItem>
+              <SelectItem value="completo">Completi</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Provenienza</span>
+          <Select value={filterProvenienza} onValueChange={setFilterProvenienza}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Provenienza" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutte</SelectItem>
+              {PROVENIENZA.map((p) => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Lista */}
@@ -231,7 +240,7 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
             const daAcq = m.quantita_da_acquistare ?? 0;
             return (
               <div key={m.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-                {/* ROW 1: Nome + task */}
+                {/* ROW 1: Nome + task + chips */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-semibold text-[#1d1d1f]">{m.nome}</h3>
@@ -239,6 +248,38 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
                       <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: m.task?.lavorazione?.zona?.colore }} />
                       {m.task?.lavorazione?.zona?.nome} &gt; {m.task?.lavorazione?.nome} &gt; {m.task?.titolo}
                     </p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {/* Provenienza chip */}
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        m.provenienza === "acquisto" ? "bg-blue-100 text-blue-700" :
+                        m.provenienza === "magazzino" ? "bg-amber-100 text-amber-700" :
+                        m.provenienza === "noleggio" ? "bg-purple-100 text-purple-700" :
+                        m.provenienza === "in_loco" ? "bg-green-100 text-green-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {PROVENIENZA.find(p => p.value === m.provenienza)?.label ?? m.provenienza ?? "N/D"}
+                      </span>
+                      {/* Transport chip */}
+                      {(() => {
+                        const ops = opsByMat[m.id] || [];
+                        const transportOp = ops.find(op => op.tipologia === "trasporto" || op.tipologia === "acquisto_e_trasporto");
+                        if (transportOp) {
+                          return (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-100 text-orange-700">
+                              Da trasportare{transportOp.luogo ? ` — ${transportOp.luogo.nome}` : ""}
+                            </span>
+                          );
+                        }
+                        if (m.provenienza === "in_loco" && !ops.some(op => op.tipologia === "trasporto" || op.tipologia === "acquisto_e_trasporto")) {
+                          return (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
+                              In loco
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>{stato.label}</span>
                 </div>

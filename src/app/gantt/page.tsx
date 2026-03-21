@@ -9,7 +9,7 @@ export default async function GanttPage() {
     supabase.from("lavorazioni").select("*").order("ordine"),
     supabase
       .from("v_task_completa")
-      .select("id, titolo, lavorazione_id, zona_nome, zona_colore, zona_ordine, lavorazione_nome, data_inizio, data_fine, stato_calcolato, tipologia")
+      .select("id, titolo, lavorazione_id, zona_nome, zona_colore, zona_ordine, lavorazione_nome, data_inizio, data_fine, stato_calcolato, tipologia, fornitore_nome")
       .order("ordine"),
     supabase
       .from("materiali")

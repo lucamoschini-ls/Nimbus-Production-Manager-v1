@@ -11,6 +11,7 @@ interface Task {
   id: string; titolo: string; lavorazione_id: string; zona_nome: string; zona_colore: string;
   zona_ordine: number; lavorazione_nome: string; data_inizio: string | null;
   data_fine: string | null; stato_calcolato: string; tipologia: string | null;
+  fornitore_nome: string | null;
 }
 interface Materiale {
   id: string; task_id: string; nome: string;
@@ -31,14 +32,63 @@ const STATO_BAR_COLORS: Record<string, string> = {
   in_attesa_materiali: "#f59e0b", in_attesa_permesso: "#f59e0b",
 };
 
+const FORNITORE_PALETTE = [
+  "#6366f1", "#ec4899", "#14b8a6", "#f97316", "#8b5cf6",
+  "#06b6d4", "#e11d48", "#84cc16", "#eab308", "#0ea5e9",
+  "#d946ef", "#10b981", "#f43f5e", "#a855f7", "#22d3ee",
+];
+
+type ColorMode = "tipologia" | "zona" | "fornitore";
+
 export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tipColorMap, conflictTaskIds = [] }: Props) {
   const conflictSet = new Set(conflictTaskIds);
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
+  const [colorMode, setColorMode] = useState<ColorMode>("tipologia");
   const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set(lavorazioni.map(l => l.id)));
   const [popupTask, setPopupTask] = useState<{ task: Task; x: number; y: number } | null>(null);
 
   const ZONA_COLORS: Record<string, string> = {};
   zone.forEach((z) => (ZONA_COLORS[z.id] = z.colore));
+
+  // Build fornitore color map
+  const fornitoreColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    const uniqueFornitori = Array.from(new Set(tasks.filter(t => t.fornitore_nome).map(t => t.fornitore_nome!)));
+    uniqueFornitori.sort().forEach((nome, i) => { map[nome] = FORNITORE_PALETTE[i % FORNITORE_PALETTE.length]; });
+    return map;
+  }, [tasks]);
+
+  // Build zona name->color map for tasks
+  const zonaNameColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    zone.forEach((z) => { map[z.nome] = z.colore; });
+    return map;
+  }, [zone]);
+
+  // Get bar color based on current colorMode
+  function getTaskBarColor(task: Task): string {
+    if (colorMode === "zona") {
+      return zonaNameColorMap[task.zona_nome] ?? "#d1d5db";
+    }
+    if (colorMode === "fornitore") {
+      return task.fornitore_nome ? (fornitoreColorMap[task.fornitore_nome] ?? "#d1d5db") : "#d1d5db";
+    }
+    // tipologia (default)
+    return (task.tipologia && tipColorMap[task.tipologia]) ? tipColorMap[task.tipologia] : (STATO_BAR_COLORS[task.stato_calcolato] ?? "#d1d5db");
+  }
+
+  // Legend entries for current color mode
+  const legendEntries = useMemo(() => {
+    if (colorMode === "zona") {
+      const usedZone = new Set(tasks.map(t => t.zona_nome));
+      return zone.filter(z => usedZone.has(z.nome)).map(z => ({ label: z.nome, color: z.colore }));
+    }
+    if (colorMode === "fornitore") {
+      return Object.entries(fornitoreColorMap).sort((a, b) => a[0].localeCompare(b[0])).map(([nome, color]) => ({ label: nome, color }));
+    }
+    // tipologia
+    return Object.entries(tipColorMap).map(([nome, color]) => ({ label: nome.replace(/_/g, " "), color }));
+  }, [colorMode, zone, tasks, fornitoreColorMap, tipColorMap]);
 
   // Group materiali by task_id
   const matByTask: Record<string, Materiale[]> = {};
@@ -122,13 +172,37 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-[#1d1d1f]">Gantt</h1>
-        <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
-          <button onClick={() => setMode("cantiere")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Cantiere</button>
-          <button onClick={() => setMode("progetto")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Progetto</button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
+            <button onClick={() => setMode("cantiere")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Cantiere</button>
+            <button onClick={() => setMode("progetto")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Progetto</button>
+          </div>
+          <div>
+            <span className="text-[9px] text-[#86868b] block mb-0.5">Colora per</span>
+            <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
+              {(["zona", "tipologia", "fornitore"] as const).map((cm) => (
+                <button key={cm} onClick={() => setColorMode(cm)} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${colorMode === cm ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>
+                  {cm === "zona" ? "Zona" : cm === "tipologia" ? "Tipologia" : "Fornitore"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Legend */}
+      {legendEntries.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4">
+          {legendEntries.map((entry) => (
+            <div key={entry.label} className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+              <span className="text-[10px] text-[#86868b]">{entry.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex border border-[#e5e5e7] rounded-[12px] bg-white overflow-hidden">
         {/* Left column: labels */}
@@ -146,10 +220,11 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
               );
             }
             if (row.type === "lav") {
+              const hasNoDates = row.startDay < 0 && row.endDay < 0;
               return (
                 <button key={`l-${row.lav.id}`} onClick={() => toggleLav(row.lav.id)} className="w-full flex items-center gap-1.5 px-3 text-left border-b border-[#e5e5e7] hover:bg-[#f5f5f7]/50" style={{ height: ROW_HEIGHT }}>
                   {expandedLav.has(row.lav.id) ? <ChevronDown size={10} className="text-[#86868b]" /> : <ChevronRight size={10} className="text-[#86868b]" />}
-                  <span className="text-[10px] text-[#1d1d1f] truncate">{row.lav.nome}</span>
+                  <span className="text-[10px] text-[#1d1d1f] truncate">{row.lav.nome}{hasNoDates && <span className="text-gray-400 text-[8px] ml-1">(no date)</span>}</span>
                 </button>
               );
             }
@@ -200,10 +275,14 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
             {/* Rows with bars */}
             <div className="relative">
               {todayOffset >= 0 && todayOffset < days.length && (
-                <div className="absolute top-0 bottom-0 w-px bg-red-500 z-20" style={{ left: todayOffset * dayWidth + dayWidth / 2 }} />
+                <div className="absolute top-0 bottom-0 z-20" style={{ left: todayOffset * dayWidth + dayWidth / 2 - 1, width: 2, backgroundColor: "#ef4444" }}>
+                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] font-semibold text-red-500 whitespace-nowrap bg-white px-1 rounded">Oggi</span>
+                </div>
               )}
               {aperturaOffset >= 0 && aperturaOffset < days.length && (
-                <div className="absolute top-0 bottom-0 w-px bg-green-500 z-20" style={{ left: aperturaOffset * dayWidth + dayWidth / 2 }} />
+                <div className="absolute top-0 bottom-0 z-20" style={{ left: aperturaOffset * dayWidth + dayWidth / 2 - 1, width: 2, backgroundColor: "#22c55e" }}>
+                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] font-semibold text-green-500 whitespace-nowrap bg-white px-1 rounded">1 Maggio</span>
+                </div>
               )}
 
               {rows.map((row, i) => {
@@ -229,16 +308,21 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                     )}
                     {/* Task bar */}
                     {row.type === "task" && row.startDay >= 0 && row.endDay >= 0 && (() => {
+                      const barWidth = Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4);
                       return (
-                        <div className="absolute rounded-sm cursor-pointer hover:brightness-110" style={{
+                        <div className="absolute rounded-sm cursor-pointer hover:brightness-110 overflow-hidden flex items-center" style={{
                           left: row.startDay * dayWidth + 2,
-                          width: Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4),
+                          width: barWidth,
                           top: 9, height: ROW_HEIGHT - 18,
-                          backgroundColor: (row.task.tipologia && tipColorMap[row.task.tipologia]) ? tipColorMap[row.task.tipologia] : (STATO_BAR_COLORS[row.task.stato_calcolato] ?? "#d1d5db"),
+                          backgroundColor: getTaskBarColor(row.task),
                           ...(conflictSet.has(row.task.id) ? { border: "2px dashed #f97316" } : {}),
                         }} title={`${row.task.titolo} (${row.task.stato_calcolato})`}
                           onClick={(e) => setPopupTask({ task: row.task, x: e.clientX, y: e.clientY })}
-                        />
+                        >
+                          {barWidth > 60 && (
+                            <span className="text-[8px] text-white font-medium px-1 truncate leading-none">{row.task.titolo}</span>
+                          )}
+                        </div>
                       );
                     })()}
                     {/* Operazione bar */}

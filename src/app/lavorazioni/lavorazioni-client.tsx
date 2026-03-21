@@ -11,7 +11,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaskDetailSheet } from "./task-detail-sheet";
 import { updateTask, createTask, createLavorazione, deleteLavorazione, deleteTask, updateLavorazione } from "./actions";
-import { updateMaterialeQuantities, updateMaterialeDataNecessaria } from "./dep-mat-actions";
 import { cycleTaskStato } from "./cycle-actions";
 import type { Zona, StatoFornitore } from "@/lib/types";
 
@@ -19,10 +18,10 @@ import type { Zona, StatoFornitore } from "@/lib/types";
 let _savedLavId: string | null = null;
 
 const STATO_COLORS: Record<string, string> = {
-  da_fare: "bg-gray-100 text-gray-600", in_corso: "bg-blue-100 text-blue-700",
-  completata: "bg-green-100 text-green-700", bloccata: "bg-red-100 text-red-700",
-  in_attesa_fornitore: "bg-amber-100 text-amber-700", in_attesa_dipendenza: "bg-amber-100 text-amber-700",
-  in_attesa_materiali: "bg-amber-100 text-amber-700", in_attesa_permesso: "bg-amber-100 text-amber-700",
+  da_fare: "bg-[#86868B]/10 text-[#86868B]", in_corso: "bg-[#0071E3]/10 text-[#0071E3]",
+  completata: "bg-[#34C759]/10 text-[#34C759]", bloccata: "bg-[#FF3B30]/10 text-[#FF3B30]",
+  in_attesa_fornitore: "bg-[#FF9F0A]/10 text-[#FF9F0A]", in_attesa_dipendenza: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  in_attesa_materiali: "bg-[#FF9F0A]/10 text-[#FF9F0A]", in_attesa_permesso: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
 };
 const STATO_LABELS: Record<string, string> = {
   da_fare: "Da fare", in_corso: "In corso", completata: "Completata", bloccata: "Bloccata",
@@ -114,6 +113,15 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   }, [selectedLav]);
 
   const [selectedTask, setSelectedTask] = useState<TaskCompleta | null>(null);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+
+  const toggleTaskExpand = (taskId: string) => {
+    setExpandedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
+  };
 
   // PUNTO 9: auto-select task from URL param
   useEffect(() => {
@@ -149,16 +157,6 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   const selectedLavData = lavorazioni.find((l) => l.id === selectedLav);
   const selectedLavTasks = tasks.filter((t) => t.lavorazione_id === selectedLav);
   const selectedZona = selectedLavData ? zone.find((z) => z.id === selectedLavData.zona_id) : null;
-
-  function getAttesaMotivo(t: TaskCompleta): string | null {
-    if (t.stato_calcolato === "in_attesa_fornitore" && t.fornitore_nome)
-      return `Attesa: ${t.fornitore_nome} (${t.fornitore_stato} → ${t.stato_fornitore_minimo})`;
-    if (t.stato_calcolato === "in_attesa_dipendenza")
-      return `Attesa: ${t.dipendenze_incomplete} dipendenz${t.dipendenze_incomplete === 1 ? "a" : "e"} non completat${t.dipendenze_incomplete === 1 ? "a" : "e"}`;
-    if (t.stato_calcolato === "in_attesa_materiali") return `Attesa: ${t.materiali_mancanti} materiali non in cantiere`;
-    if (t.stato_calcolato === "in_attesa_permesso") return "Attesa: permesso non ottenuto";
-    return null;
-  }
 
   const handleDeleteLav = (lav: Lavorazione) => {
     const lavTasks = tasks.filter((t) => t.lavorazione_id === lav.id);
@@ -208,6 +206,26 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
     if (prov === "noleggio") return { label: "Da noleggiare", cls: "bg-red-100 text-red-700" };
     return { label: "Da acquistare", cls: "bg-red-100 text-red-700" };
   }
+
+  // Render the add-task form or button
+  const renderAddTask = (position: "top" | "bottom") => {
+    const cls = position === "top" ? "mb-3" : "mt-3";
+    if (addingTaskTo === selectedLav) {
+      return (
+        <form className={`${cls} flex gap-2`} onSubmit={handleAddTask}>
+          <input autoFocus value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="Titolo task"
+            className="flex-1 text-sm border border-[#e5e5e7] rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
+            onBlur={() => { if (!newTaskTitle.trim()) setAddingTaskTo(null); }} />
+          <Button type="submit" size="sm">Aggiungi</Button>
+        </form>
+      );
+    }
+    return (
+      <button onClick={() => setAddingTaskTo(selectedLav)} className={`${cls} flex items-center gap-1.5 text-sm text-[#86868b] hover:text-[#1d1d1f] transition-colors`}>
+        <Plus size={16} /> Aggiungi task
+      </button>
+    );
+  };
 
   return (
     <div>
@@ -349,7 +367,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                 {selectedLavTasks.length > 0 && (
                   <div className="flex items-center gap-3 mt-2">
                     <div className="flex-1 max-w-xs h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${Math.round((selectedLavTasks.filter((t) => t.stato_calcolato === "completata").length / selectedLavTasks.length) * 100)}%` }} />
+                      <div className="h-full rounded-full bg-[#34C759] transition-all" style={{ width: `${Math.round((selectedLavTasks.filter((t) => t.stato_calcolato === "completata").length / selectedLavTasks.length) * 100)}%` }} />
                     </div>
                     <span className="text-xs text-[#86868b]">
                       {selectedLavTasks.filter((t) => t.stato_calcolato === "completata").length}/{selectedLavTasks.length} completate
@@ -358,48 +376,90 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                 )}
               </div>
 
-              <div className="space-y-2">
+              {/* + Aggiungi task — TOP */}
+              {renderAddTask("top")}
+
+              <div className="space-y-1.5">
                 {selectedLavTasks.map((task) => {
-                  const attesaMotivo = getAttesaMotivo(task);
                   const taskMat = materialiByTask[task.id] || [];
+                  const isTaskExpanded = expandedTasks.has(task.id);
+
+                  // Summary calculations for collapsed view
+                  const matMissing = taskMat.filter((m) => {
+                    const s = matStato(m);
+                    return s.label === "Da acquistare" || s.label === "Da noleggiare";
+                  }).length;
+                  const taskAllOps = taskMat.flatMap((m) => m.operazioni || []);
+                  const opsToOrganize = taskAllOps.filter((op) => !op.organizzato).length;
+
                   return (
-                    <div key={task.id} className="group/card relative bg-white rounded-[12px] border border-[#e5e5e7] p-4 pr-10 hover:shadow-md transition-shadow">
-                      <div className="cursor-pointer" onClick={() => setSelectedTask(task)}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-medium text-[#1d1d1f]">{task.titolo}</h3>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                              {task.tipologia && (
-                                <Badge
-                                  style={tipColorMap[task.tipologia] ? { backgroundColor: tipColorMap[task.tipologia] + "20", color: tipColorMap[task.tipologia] } : undefined}
-                                  className={!tipColorMap[task.tipologia] ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600") : ""}
-                                >{task.tipologia.replace(/_/g, " ")}</Badge>
-                              )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); if (["da_fare","in_corso","completata"].includes(task.stato)) { _savedLavId = selectedLav; cycleTaskStato(task.id, task.stato); } }}
-                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors cursor-pointer hover:opacity-80 ${STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}
-                                title="Click per cambiare stato"
-                              >
-                                {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
-                              </button>
-                            </div>
-                            {attesaMotivo && <p className="text-xs text-amber-600 mt-1.5">{attesaMotivo}</p>}
-                            {taskMat.length > 0 && (
-                              <p className="text-[10px] text-[#86868b] mt-1.5">
-                                {taskMat.length} material{taskMat.length === 1 ? "e" : "i"}
-                              </p>
-                            )}
-                          </div>
-                          {task.fornitore_nome && <span className="text-xs text-[#86868b] flex-shrink-0">{task.fornitore_nome}{(task as unknown as Record<string, unknown>).fornitore_supporto_nome ? ` + ${(task as unknown as Record<string, unknown>).fornitore_supporto_nome}` : ""}</span>}
-                        </div>
+                    <div key={task.id} className="group/card relative bg-white rounded-[12px] border border-[#e5e5e7] hover:shadow-md transition-shadow">
+                      {/* LEVEL 1 — Collapsed row */}
+                      <div className="flex items-center gap-2 p-3 pr-10">
+                        {/* Expand arrow */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleTaskExpand(task.id); }}
+                          className="p-0.5 rounded hover:bg-[#f5f5f7] text-[#86868b] flex-shrink-0 transition-colors"
+                        >
+                          {isTaskExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+
+                        {/* Title (click opens detail sheet) */}
+                        <button
+                          onClick={() => setSelectedTask(task)}
+                          className="flex-1 min-w-0 text-left"
+                        >
+                          <h3 className="text-[13px] font-semibold text-[#1d1d1f] truncate leading-tight">{task.titolo}</h3>
+                        </button>
+
+                        {/* Fornitore name on the right */}
+                        {task.fornitore_nome && (
+                          <span className="text-[11px] text-[#86868b] flex-shrink-0 max-w-[120px] truncate">
+                            {task.fornitore_nome}{(task as unknown as Record<string, unknown>).fornitore_supporto_nome ? ` + ${(task as unknown as Record<string, unknown>).fornitore_supporto_nome}` : ""}
+                          </span>
+                        )}
                       </div>
 
-                      {/* Inline materiali */}
-                      {taskMat.length > 0 && (
-                        <div className="mt-3 pt-2.5 border-t border-[#e5e5e7]/60 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                      {/* Chips + summary line */}
+                      <div className="px-3 pb-3 -mt-1 ml-[30px]">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {task.tipologia && (
+                            <Badge
+                              style={tipColorMap[task.tipologia] ? { backgroundColor: tipColorMap[task.tipologia] + "20", color: tipColorMap[task.tipologia] } : undefined}
+                              className={`text-[10px] px-2 py-0 h-5 ${!tipColorMap[task.tipologia] ? (TIPOLOGIA_COLORS[task.tipologia] ?? "bg-gray-100 text-gray-600") : ""}`}
+                            >{task.tipologia.replace(/_/g, " ")}</Badge>
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (["da_fare","in_corso","completata"].includes(task.stato)) { _savedLavId = selectedLav; cycleTaskStato(task.id, task.stato); } }}
+                            className={`px-2 py-0 h-5 rounded-full text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80 inline-flex items-center ${STATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}
+                            title="Click per cambiare stato"
+                          >
+                            {STATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
+                          </button>
+                        </div>
+
+                        {/* Summary line */}
+                        {(taskMat.length > 0 || opsToOrganize > 0) && (
+                          <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                            {taskMat.length > 0 && (
+                              <span className={`text-[11px] ${matMissing > 0 ? "text-[#FF3B30] font-medium" : "text-[#86868b]"}`}>
+                                {taskMat.length} material{taskMat.length === 1 ? "e" : "i"}{matMissing > 0 ? ` (${matMissing} mancant${matMissing === 1 ? "e" : "i"})` : ""}
+                              </span>
+                            )}
+                            {opsToOrganize > 0 && (
+                              <span className="text-[11px] text-[#FF9F0A] font-medium">
+                                {opsToOrganize} op. da organizzare
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* LEVEL 2 — Expanded materials list (read-only, no editable fields) */}
+                      {isTaskExpanded && taskMat.length > 0 && (
+                        <div className="mx-3 mb-3 ml-[30px] pt-2 border-t border-[#e5e5e7]/60 space-y-1.5">
                           {taskMat.map((m) => {
                             const stato = matStato(m);
-                            const disp = m.quantita_disponibile ?? 0;
                             const tot = m.quantita ?? 0;
                             return (
                               <div key={m.id} className="text-[11px]">
@@ -407,43 +467,23 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                                   <Package size={11} className="text-[#86868b] flex-shrink-0" />
                                   <span className="text-[#1d1d1f] truncate">
                                     {m.nome}
-                                    {tot > 0 && <span className="text-[#86868b] ml-1">{disp}/{tot}{m.unita ? ` ${m.unita}` : ""}</span>}
+                                    {tot > 0 && <span className="text-[#86868b] ml-1">{tot}{m.unita ? ` ${m.unita}` : ""}</span>}
                                   </span>
-                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stato.cls}`}>{stato.label}</span>
+                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${stato.cls}`}>{stato.label}</span>
                                 </div>
                                 {attrezziConflicts[m.id] && (
                                   <p className="text-[10px] text-orange-600 mt-0.5 ml-5 font-medium">Conflitto: {attrezziConflicts[m.id]}</p>
                                 )}
-                                <div className="flex items-end gap-2 mt-1 ml-5">
-                                  <div className="flex flex-col">
-                                    <span className="text-[9px] text-[#86868b] leading-none mb-0.5">Disp.</span>
-                                    <input type="number" value={m.quantita_disponibile ?? 0}
-                                      onChange={(e) => updateMaterialeQuantities(m.id, { quantita_disponibile: parseFloat(e.target.value) || 0 })}
-                                      className="text-[10px] text-[#1d1d1f] border border-[#e5e5e7] rounded px-1 py-0.5 w-[46px] bg-transparent text-center" />
-                                  </div>
-                                  <div className="flex flex-col">
-                                    <span className="text-[9px] text-[#86868b] leading-none mb-0.5">Ord.</span>
-                                    <input type="number" value={m.quantita_ordinata ?? 0}
-                                      onChange={(e) => updateMaterialeQuantities(m.id, { quantita_ordinata: parseFloat(e.target.value) || 0 })}
-                                      className="text-[10px] text-[#1d1d1f] border border-[#e5e5e7] rounded px-1 py-0.5 w-[46px] bg-transparent text-center" />
-                                  </div>
-                                  <div className="flex flex-col">
-                                    <span className="text-[9px] text-[#86868b] leading-none mb-0.5">Entro il</span>
-                                    <input type="date" value={m.data_necessaria ?? ""}
-                                      onChange={(e) => updateMaterialeDataNecessaria(m.id, e.target.value || null)}
-                                      className="text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 w-[110px] bg-transparent" />
-                                  </div>
-                                </div>
                                 {/* Operazioni sotto il materiale */}
                                 {(m.operazioni || []).length > 0 && (
-                                  <div className="ml-5 mt-1 space-y-0.5">
+                                  <div className="ml-5 mt-0.5 space-y-0.5">
                                     {(m.operazioni || []).map((op) => (
                                       <div key={op.id} className="flex items-center gap-1.5 text-[10px]">
                                         <span className="text-[#d2d2d7]">└</span>
                                         <span className="text-[#86868b]">{op.tipologia ? op.tipologia.replace(/_/g, " ") : op.titolo}</span>
-                                        {op.fornitore && <span className="text-[#1d1d1f]">—</span>}
+                                        {op.fornitore && <span className="text-[#1d1d1f]"> — </span>}
                                         {op.fornitore && <span className="text-[#1d1d1f] font-medium">{op.fornitore.nome}</span>}
-                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${op.organizzato ? "bg-green-500" : "bg-[#d2d2d7]"}`} title={op.organizzato ? "Organizzato" : "Non organizzato"} />
+                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${op.organizzato ? "bg-[#34C759]" : "bg-[#d2d2d7]"}`} title={op.organizzato ? "Organizzato" : "Non organizzato"} />
                                       </div>
                                     ))}
                                   </div>
@@ -453,10 +493,16 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                           })}
                         </div>
                       )}
+                      {isTaskExpanded && taskMat.length === 0 && (
+                        <div className="mx-3 mb-3 ml-[30px] pt-2 border-t border-[#e5e5e7]/60">
+                          <p className="text-[11px] text-[#86868b]">Nessun materiale</p>
+                        </div>
+                      )}
 
+                      {/* Delete button — visible on hover */}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteTask(task); }}
-                        className="absolute top-3.5 right-3 p-1 rounded text-[#d2d2d7] opacity-0 group-hover/card:opacity-100 hover:!text-red-500 hover:bg-red-50 transition-all"
+                        className="absolute top-3 right-3 p-1 rounded text-[#d2d2d7] opacity-0 group-hover/card:opacity-100 hover:!text-red-500 hover:bg-red-50 transition-all"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -465,18 +511,8 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                 })}
               </div>
 
-              {addingTaskTo === selectedLav ? (
-                <form className="mt-3 flex gap-2" onSubmit={handleAddTask}>
-                  <input autoFocus value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="Titolo task"
-                    className="flex-1 text-sm border border-[#e5e5e7] rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
-                    onBlur={() => { if (!newTaskTitle.trim()) setAddingTaskTo(null); }} />
-                  <Button type="submit" size="sm">Aggiungi</Button>
-                </form>
-              ) : (
-                <button onClick={() => setAddingTaskTo(selectedLav)} className="mt-3 flex items-center gap-1.5 text-sm text-[#86868b] hover:text-[#1d1d1f] transition-colors">
-                  <Plus size={16} /> Aggiungi task
-                </button>
-              )}
+              {/* + Aggiungi task — BOTTOM */}
+              {renderAddTask("bottom")}
             </>
           ) : (
             <div className="flex items-center justify-center h-64 text-[#86868b] text-sm">Seleziona una lavorazione dalla sidebar</div>

@@ -17,12 +17,12 @@ import { updateFornitore, createFornitore, updatePermesso, createPermesso } from
 import type { StatoFornitore, StatoPermesso } from "@/lib/types";
 
 const STATO_FORNITORE_COLORS: Record<StatoFornitore, string> = {
-  da_trovare: "bg-red-100 text-red-700",
-  contattato: "bg-amber-100 text-amber-700",
-  confermato: "bg-blue-100 text-blue-700",
-  sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
-  materiali_definiti: "bg-violet-100 text-violet-700",
-  pronto: "bg-green-100 text-green-700",
+  da_trovare: "bg-[#FF3B30]/10 text-[#FF3B30]",
+  contattato: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  confermato: "bg-[#0071E3]/10 text-[#0071E3]",
+  sopralluogo_fatto: "bg-[#5856D6]/10 text-[#5856D6]",
+  materiali_definiti: "bg-[#AF52DE]/10 text-[#AF52DE]",
+  pronto: "bg-[#34C759]/10 text-[#34C759]",
 };
 
 const STATO_FORNITORE_LABELS: Record<StatoFornitore, string> = {
@@ -77,10 +77,10 @@ interface TaskForFornitore {
 }
 
 const STATO_TASK_COLORS: Record<string, string> = {
-  da_fare: "bg-gray-100 text-gray-600", in_corso: "bg-blue-100 text-blue-700",
-  completata: "bg-green-100 text-green-700", bloccata: "bg-red-100 text-red-700",
-  in_attesa_fornitore: "bg-amber-100 text-amber-700", in_attesa_dipendenza: "bg-amber-100 text-amber-700",
-  in_attesa_materiali: "bg-amber-100 text-amber-700", in_attesa_permesso: "bg-amber-100 text-amber-700",
+  da_fare: "bg-[#86868B]/10 text-[#86868B]", in_corso: "bg-[#0071E3]/10 text-[#0071E3]",
+  completata: "bg-[#34C759]/10 text-[#34C759]", bloccata: "bg-[#FF3B30]/10 text-[#FF3B30]",
+  in_attesa_fornitore: "bg-[#FF9F0A]/10 text-[#FF9F0A]", in_attesa_dipendenza: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  in_attesa_materiali: "bg-[#FF9F0A]/10 text-[#FF9F0A]", in_attesa_permesso: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
 };
 
 const FORN_CYCLE: StatoFornitore[] = ["da_trovare", "contattato", "confermato", "sopralluogo_fatto", "materiali_definiti", "pronto"];
@@ -101,10 +101,19 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
   const [isNewFornitore, setIsNewFornitore] = useState(false);
   const [isNewPermesso, setIsNewPermesso] = useState(false);
 
-  const filteredFornitori =
-    filterStato === "tutti"
+  const STATO_ORDER: Record<string, number> = { da_trovare: 0, contattato: 1, confermato: 2, sopralluogo_fatto: 3, materiali_definiti: 4, pronto: 5 };
+
+  const filteredFornitori = (() => {
+    const base = filterStato === "tutti"
       ? fornitori
       : fornitori.filter((f) => f.stato === filterStato);
+    return [...base].sort((a, b) => {
+      const oa = STATO_ORDER[a.stato] ?? 9;
+      const ob = STATO_ORDER[b.stato] ?? 9;
+      if (oa !== ob) return oa - ob;
+      return (b.task_bloccate_da_me ?? 0) - (a.task_bloccate_da_me ?? 0);
+    });
+  })();
 
   return (
     <div>
@@ -115,20 +124,23 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
         <div className="flex items-center gap-3">
           {activeTab === "fornitori" && (
             <>
-              <Select value={filterStato} onValueChange={setFilterStato}>
-                <SelectTrigger className="w-[180px]">
-                  <Filter size={16} className="mr-2 text-[#86868b]" />
-                  <SelectValue placeholder="Filtra per stato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tutti">Tutti</SelectItem>
-                  {Object.entries(STATO_FORNITORE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div>
+                <span className="text-[9px] text-[#86868b] block mb-0.5">Stato</span>
+                <Select value={filterStato} onValueChange={setFilterStato}>
+                  <SelectTrigger className="w-[180px]">
+                    <Filter size={16} className="mr-2 text-[#86868b]" />
+                    <SelectValue placeholder="Filtra per stato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutti</SelectItem>
+                    {Object.entries(STATO_FORNITORE_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 onClick={() => setIsNewFornitore(true)}
                 size="sm"

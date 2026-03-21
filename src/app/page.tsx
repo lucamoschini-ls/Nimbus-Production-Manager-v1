@@ -6,23 +6,25 @@ export default async function Dashboard() {
 
   const [
     { data: zoneRiepilogo },
-    { data: taskUrgenti },
     { data: fornitoriRiepilogo },
     { data: allTasks },
+    { data: allMateriali },
+    { data: trasportiOps },
   ] = await Promise.all([
     supabase.from("v_zona_riepilogo").select("*").order("ordine"),
     supabase
-      .from("v_task_completa")
-      .select("id, titolo, zona_nome, zona_colore, fornitore_nome, stato_calcolato, data_fine")
-      .or("stato_calcolato.like.in_attesa%,stato_calcolato.eq.bloccata")
-      .order("data_fine", { ascending: true, nullsFirst: false })
-      .limit(10),
-    supabase
       .from("v_fornitori_riepilogo")
       .select("id, nome, stato, task_totali, task_bloccate_da_me")
-      .neq("stato", "pronto")
       .order("task_bloccate_da_me", { ascending: false }),
     supabase.from("task").select("stato, stato_calcolato", { count: "exact" }),
+    // Count materiali that need purchasing (no quantita_disponibile >= quantita, not in_loco, not ordered)
+    supabase.from("materiali").select("id, quantita, quantita_disponibile, quantita_ordinata, provenienza"),
+    // Count trasporti operations not organized
+    supabase
+      .from("operazioni")
+      .select("id, organizzato")
+      .or("tipologia.eq.trasporto,tipologia.eq.acquisto_e_trasporto")
+      .eq("organizzato", false),
   ]);
 
   const totalTasks = allTasks?.length ?? 0;
@@ -30,17 +32,34 @@ export default async function Dashboard() {
   const blockedTasks = allTasks?.filter((t) =>
     t.stato_calcolato.startsWith("in_attesa") || t.stato_calcolato === "bloccata"
   ).length ?? 0;
-  const fornitoriDaTrovare = fornitoriRiepilogo?.filter((f) => f.stato === "da_trovare").length ?? 0;
+  const fornitoriDaTrovare = (fornitoriRiepilogo ?? []).filter((f) => f.stato === "da_trovare").length;
+  const fornitoriNonPronti = (fornitoriRiepilogo ?? []).filter((f) => f.stato !== "pronto");
+
+  // Count materiali da acquistare
+  const materialiDaAcquistare = (allMateriali ?? []).filter((m) => {
+    const prov = m.provenienza;
+    if (prov === "in_loco") return false;
+    const disp = m.quantita_disponibile ?? 0;
+    const ord = m.quantita_ordinata ?? 0;
+    const tot = m.quantita ?? 0;
+    if (tot > 0 && disp >= tot) return false;
+    if (ord > 0) return false;
+    if (prov === "magazzino") return false;
+    return true;
+  }).length;
+
+  const trasportiDaOrganizzare = trasportiOps?.length ?? 0;
 
   return (
     <DashboardClient
       zoneRiepilogo={zoneRiepilogo ?? []}
-      taskUrgenti={taskUrgenti ?? []}
-      fornitoriNonPronti={fornitoriRiepilogo ?? []}
+      fornitoriNonPronti={fornitoriNonPronti}
       totalTasks={totalTasks}
       completedTasks={completedTasks}
       blockedTasks={blockedTasks}
       fornitoriDaTrovare={fornitoriDaTrovare}
+      materialiDaAcquistare={materialiDaAcquistare}
+      trasportiDaOrganizzare={trasportiDaOrganizzare}
     />
   );
 }

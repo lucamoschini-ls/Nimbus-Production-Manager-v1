@@ -16,9 +16,9 @@ export interface TrasportoOp {
 }
 
 const STATO_FORN_CLS: Record<string, string> = {
-  da_trovare: "bg-red-100 text-red-700", contattato: "bg-amber-100 text-amber-700",
-  confermato: "bg-blue-100 text-blue-700", sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
-  materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
+  da_trovare: "bg-[#FF3B30]/10 text-[#FF3B30]", contattato: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  confermato: "bg-[#0071E3]/10 text-[#0071E3]", sopralluogo_fatto: "bg-[#5856D6]/10 text-[#5856D6]",
+  materiali_definiti: "bg-[#AF52DE]/10 text-[#AF52DE]", pronto: "bg-[#34C759]/10 text-[#34C759]",
 };
 
 function sv(id: string, field: string, raw: string, type: "number" | "string" | "date") {
@@ -74,22 +74,34 @@ export function TrasportiClient({ ops, fornitori, luoghi, zone }: Props) {
 
       {/* Filtri */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <Select value={filterLuogo} onValueChange={setFilterLuogo}>
-          <SelectTrigger className="w-[150px]"><Filter size={14} className="mr-1.5 text-[#86868b]" /><SelectValue placeholder="Luogo" /></SelectTrigger>
-          <SelectContent><SelectItem value="tutti">Tutti i luoghi</SelectItem><SelectItem value="none">Da definire</SelectItem>{luoghi.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={filterStato} onValueChange={setFilterStato}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Stato" /></SelectTrigger>
-          <SelectContent><SelectItem value="tutti">Tutti</SelectItem><SelectItem value="da_organizzare">Da organizzare</SelectItem><SelectItem value="organizzati">Organizzati</SelectItem></SelectContent>
-        </Select>
-        <Select value={filterFornitore} onValueChange={setFilterFornitore}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Fornitore" /></SelectTrigger>
-          <SelectContent><SelectItem value="tutti">Tutti</SelectItem>{fornitori.map((f) => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={filterZona} onValueChange={setFilterZona}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Zona" /></SelectTrigger>
-          <SelectContent><SelectItem value="tutti">Tutte le zone</SelectItem>{zone.map((z) => <SelectItem key={z.id} value={z.id}>{z.nome}</SelectItem>)}</SelectContent>
-        </Select>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Luogo</span>
+          <Select value={filterLuogo} onValueChange={setFilterLuogo}>
+            <SelectTrigger className="w-[150px]"><Filter size={14} className="mr-1.5 text-[#86868b]" /><SelectValue placeholder="Luogo" /></SelectTrigger>
+            <SelectContent><SelectItem value="tutti">Tutti i luoghi</SelectItem><SelectItem value="none">Da definire</SelectItem>{luoghi.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Stato</span>
+          <Select value={filterStato} onValueChange={setFilterStato}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectContent><SelectItem value="tutti">Tutti</SelectItem><SelectItem value="da_organizzare">Da organizzare</SelectItem><SelectItem value="organizzati">Organizzati</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Fornitore</span>
+          <Select value={filterFornitore} onValueChange={setFilterFornitore}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Fornitore" /></SelectTrigger>
+            <SelectContent><SelectItem value="tutti">Tutti</SelectItem>{fornitori.map((f) => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
+          <Select value={filterZona} onValueChange={setFilterZona}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Zona" /></SelectTrigger>
+            <SelectContent><SelectItem value="tutti">Tutte le zone</SelectItem>{zone.map((z) => <SelectItem key={z.id} value={z.id}>{z.nome}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
 
       {filtered.length === 0 ? (

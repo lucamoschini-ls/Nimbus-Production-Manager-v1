@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Plus, Search, Package, Link, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -57,15 +57,38 @@ const STATO_CALCOLATO_LABELS: Record<string, string> = {
 };
 
 const STATO_CALCOLATO_COLORS: Record<string, string> = {
-  da_fare: "bg-gray-100 text-gray-600",
-  in_corso: "bg-blue-100 text-blue-700",
-  completata: "bg-green-100 text-green-700",
-  bloccata: "bg-red-100 text-red-700",
-  in_attesa_fornitore: "bg-amber-100 text-amber-700",
-  in_attesa_dipendenza: "bg-amber-100 text-amber-700",
-  in_attesa_materiali: "bg-amber-100 text-amber-700",
-  in_attesa_permesso: "bg-amber-100 text-amber-700",
+  da_fare: "bg-[#86868B]/10 text-[#86868B]",
+  in_corso: "bg-[#0071E3]/10 text-[#0071E3]",
+  completata: "bg-[#34C759]/10 text-[#34C759]",
+  bloccata: "bg-[#FF3B30]/10 text-[#FF3B30]",
+  in_attesa_fornitore: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  in_attesa_dipendenza: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  in_attesa_materiali: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  in_attesa_permesso: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
 };
+
+// ========== COLLAPSIBLE SECTION ==========
+
+function CollapsibleSection({ title, count, defaultOpen = false, action, children }: {
+  title: string; count?: number; defaultOpen?: boolean; action?: React.ReactNode; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-t border-[#e5e5e7]">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between py-3 text-left">
+        <div className="flex items-center gap-2">
+          {open ? <ChevronDown size={14} className="text-[#86868b]" /> : <ChevronRight size={14} className="text-[#86868b]" />}
+          <span className="text-xs font-semibold text-[#1d1d1f]">{title}</span>
+          {count !== undefined && <span className="text-xs text-[#86868b]">({count})</span>}
+        </div>
+        {action && <div onClick={(e) => e.stopPropagation()}>{action}</div>}
+      </button>
+      {open && <div className="pb-4">{children}</div>}
+    </div>
+  );
+}
+
+// ========== TYPES ==========
 
 interface TaskData {
   id: string;
@@ -118,6 +141,8 @@ interface Props {
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => Promise<void>;
 }
+
+// ========== MAIN COMPONENT ==========
 
 export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, luoghi, open, onClose, onSave }: Props) {
   const [form, setForm] = useState({
@@ -200,272 +225,311 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
       ? (parseInt(form.numero_persone) * parseFloat(form.ore_lavoro) * parseFloat(form.costo_ora)).toFixed(2)
       : null;
 
+  const costoSupportoCalcolato =
+    form.supporto_numero_persone && form.supporto_ore_lavoro && form.supporto_costo_ora
+      ? (parseInt(form.supporto_numero_persone) * parseFloat(form.supporto_ore_lavoro) * parseFloat(form.supporto_costo_ora)).toFixed(2)
+      : null;
+
+  const costoTotale =
+    (costoCalcolato ? parseFloat(costoCalcolato) : 0) + (costoSupportoCalcolato ? parseFloat(costoSupportoCalcolato) : 0);
+
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-[420px]">
-        <SheetHeader>
-          <SheetTitle className="pr-8">{task?.titolo ?? "Task"}</SheetTitle>
-          <SheetDescription>
-            {task?.zona_nome} / {task?.lavorazione_nome}
-          </SheetDescription>
-        </SheetHeader>
+      <SheetContent className="overflow-y-auto sm:max-w-[420px] p-0">
+        {/* HEADER — always visible */}
+        <div className="px-6 pt-6 pb-4">
+          <SheetHeader className="space-y-0">
+            <SheetTitle className="sr-only">{task?.titolo ?? "Task"}</SheetTitle>
+            <SheetDescription className="sr-only">Dettaglio task</SheetDescription>
+          </SheetHeader>
+          <Input
+            value={form.titolo}
+            onChange={(e) => setForm({ ...form, titolo: e.target.value })}
+            className="text-lg font-semibold border-0 px-0 h-auto shadow-none focus-visible:ring-0 text-[#1d1d1f]"
+          />
+          <p className="text-xs text-[#86868b] mt-1">
+            {task?.zona_nome} &gt; {task?.lavorazione_nome}
+          </p>
+          {task && (
+            <div className="mt-3">
+              <Badge
+                className={`${STATO_CALCOLATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"} text-xs`}
+              >
+                {STATO_CALCOLATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
+              </Badge>
+              {task.stato_calcolato.startsWith("in_attesa") && (
+                <p className="text-xs text-red-500 mt-1.5">
+                  {task.stato_calcolato === "in_attesa_fornitore" && task.fornitore_nome
+                    ? `${task.fornitore_nome} deve raggiungere: ${task.stato_fornitore_minimo.replace(/_/g, " ")}`
+                    : STATO_CALCOLATO_LABELS[task.stato_calcolato]}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
-        {/* Stato calcolato */}
-        {task && (
-          <div className="mt-4 mb-2">
-            <Badge
-              className={`${STATO_CALCOLATO_COLORS[task.stato_calcolato] ?? "bg-gray-100 text-gray-600"} text-xs`}
-            >
-              {STATO_CALCOLATO_LABELS[task.stato_calcolato] ?? task.stato_calcolato}
-            </Badge>
-            {task.stato_calcolato.startsWith("in_attesa") && (
-              <p className="text-xs text-amber-600 mt-1">
-                {task.stato_calcolato === "in_attesa_fornitore" && task.fornitore_nome
-                  ? `${task.fornitore_nome} deve raggiungere: ${task.stato_fornitore_minimo.replace("_", " ")}`
-                  : STATO_CALCOLATO_LABELS[task.stato_calcolato]}
-              </p>
-            )}
-          </div>
-        )}
+        <div className="px-6 pb-6">
+          {/* SECTION 1: Esecuzione */}
+          <CollapsibleSection title="Esecuzione" defaultOpen={true}>
+            <div className="space-y-3">
+              {/* Lavorazione */}
+              <div>
+                <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Lavorazione</label>
+                <select
+                  value={task?.lavorazione_id ?? ""}
+                  onChange={async (e) => {
+                    if (task && e.target.value !== task.lavorazione_id) {
+                      await onSave({ lavorazione_id: e.target.value });
+                    }
+                  }}
+                  className="flex h-10 w-full rounded-lg border border-[#e5e5e7] bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  {zone.map((z) => {
+                    const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
+                    if (zoneLav.length === 0) return null;
+                    return (
+                      <optgroup key={z.id} label={z.nome}>
+                        {zoneLav.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {z.nome} &gt; {l.nome}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+              </div>
 
-        <div className="mt-4 space-y-4">
-          {/* Titolo */}
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Titolo</label>
-            <Input
-              value={form.titolo}
-              onChange={(e) => setForm({ ...form, titolo: e.target.value })}
-            />
-          </div>
-
-          {/* Lavorazione */}
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Lavorazione</label>
-            <select
-              value={task?.lavorazione_id ?? ""}
-              onChange={async (e) => {
-                if (task && e.target.value !== task.lavorazione_id) {
-                  await onSave({ lavorazione_id: e.target.value });
-                }
-              }}
-              className="flex h-10 w-full rounded-lg border border-[#e5e5e7] bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              {zone.map((z) => {
-                const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
-                if (zoneLav.length === 0) return null;
-                return (
-                  <optgroup key={z.id} label={z.nome}>
-                    {zoneLav.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {z.nome} &gt; {l.nome}
-                      </option>
+              {/* Tipologia */}
+              <div>
+                <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Tipologia</label>
+                <Select value={form.tipologia} onValueChange={(v) => setForm({ ...form, tipologia: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tipologieDb.map((t) => (
+                      <SelectItem key={t.nome} value={t.nome}>{t.nome.replace(/_/g, " ")}</SelectItem>
                     ))}
-                  </optgroup>
-                );
-              })}
-            </select>
-          </div>
-
-          {/* Tipologia */}
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Tipologia</label>
-            <Select value={form.tipologia} onValueChange={(v) => setForm({ ...form, tipologia: v })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleziona..." />
-              </SelectTrigger>
-              <SelectContent>
-                {tipologieDb.map((t) => (
-                  <SelectItem key={t.nome} value={t.nome}>{t.nome.replace(/_/g, " ")}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Fornitore (chi esegue la task) */}
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Fornitore (esecuzione)</label>
-            <Select value={form.fornitore_id || "none"} onValueChange={(v) => setForm({ ...form, fornitore_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nessuno</SelectItem>
-                {fornitori.map((f) => (<SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {form.fornitore_id && form.fornitore_id !== "none" && (
-            <div>
-              <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Stato fornitore minimo</label>
-              <Select value={form.stato_fornitore_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_minimo: v as StatoFornitore })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="confermato">Confermato</SelectItem>
-                  <SelectItem value="sopralluogo_fatto">Sopralluogo fatto</SelectItem>
-                  <SelectItem value="materiali_definiti">Materiali definiti</SelectItem>
-                  <SelectItem value="pronto">Pronto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Fornitore supporto */}
-          {form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" ? (
-            <div className="bg-[#f5f5f7] rounded-lg p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-[#86868b]">Fornitore supporto</label>
-                <button onClick={() => setForm({ ...form, fornitore_supporto_id: "none", stato_fornitore_supporto_minimo: "pronto" })} className="text-[10px] text-red-500">Rimuovi</button>
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={form.fornitore_supporto_id === "_new" ? undefined : form.fornitore_supporto_id} onValueChange={(v) => setForm({ ...form, fornitore_supporto_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Seleziona fornitore..." /></SelectTrigger>
-                <SelectContent>{fornitori.map((f) => (<SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>))}</SelectContent>
-              </Select>
-              <Select value={form.stato_fornitore_supporto_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_supporto_minimo: v as StatoFornitore })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="confermato">Confermato</SelectItem><SelectItem value="sopralluogo_fatto">Sopralluogo fatto</SelectItem>
-                  <SelectItem value="materiali_definiti">Materiali definiti</SelectItem><SelectItem value="pronto">Pronto</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="grid grid-cols-3 gap-2">
-                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Persone</label><Input type="number" value={form.supporto_numero_persone} onChange={(e) => setForm({ ...form, supporto_numero_persone: e.target.value })} /></div>
-                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Ore</label><Input type="number" value={form.supporto_ore_lavoro} onChange={(e) => setForm({ ...form, supporto_ore_lavoro: e.target.value })} /></div>
-                <div><label className="text-[9px] text-[#86868b] block mb-0.5">Costo/ora</label><Input type="number" value={form.supporto_costo_ora} onChange={(e) => setForm({ ...form, supporto_costo_ora: e.target.value })} /></div>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setForm({ ...form, fornitore_supporto_id: "_new" })} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
-              <Plus size={12} /> Aggiungi fornitore supporto
-            </button>
-          )}
 
-          {/* Stato */}
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Stato</label>
-            <Select value={form.stato} onValueChange={(v) => setForm({ ...form, stato: v })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATI_TASK.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Motivo blocco */}
-          {form.stato === "bloccata" && (
-            <div>
-              <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Motivo blocco</label>
-              <Input
-                value={form.motivo_blocco}
-                onChange={(e) => setForm({ ...form, motivo_blocco: e.target.value })}
-                placeholder="Motivo del blocco"
-              />
-            </div>
-          )}
-
-          {/* Date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Data inizio</label>
-              <Input
-                type="date"
-                value={form.data_inizio}
-                onChange={(e) => setForm({ ...form, data_inizio: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Data fine</label>
-              <Input
-                type="date"
-                value={form.data_fine}
-                onChange={(e) => setForm({ ...form, data_fine: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Durata (ore)</label>
-            <Input
-              type="number"
-              value={form.durata_ore}
-              onChange={(e) => setForm({ ...form, durata_ore: e.target.value })}
-            />
-            {form.durata_ore && parseFloat(form.durata_ore) > 0 && (
-              <p className="text-[10px] text-[#86868b] mt-1">
-                {parseFloat(form.durata_ore) <= 11
-                  ? "Meno di 1 giornata"
-                  : `~${Math.ceil(parseFloat(form.durata_ore) / 11)} giorni`}
-                {" "}(giornata lavorativa 7-18)
-              </p>
-            )}
-          </div>
-
-          {/* Costi */}
-          <div className="border-t border-[#e5e5e7] pt-4">
-            <h3 className="text-xs font-semibold text-[#1d1d1f] mb-3">Costi</h3>
-            <div className="grid grid-cols-3 gap-3">
+              {/* Fornitore (esecuzione) */}
               <div>
-                <label className="text-[10px] font-medium text-[#86868b] mb-1 block">Persone</label>
+                <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Fornitore (esecuzione)</label>
+                <Select value={form.fornitore_id || "none"} onValueChange={(v) => setForm({ ...form, fornitore_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessuno</SelectItem>
+                    {fornitori.map((f) => (<SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.fornitore_id && form.fornitore_id !== "none" && (
+                <div>
+                  <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Stato fornitore minimo</label>
+                  <Select value={form.stato_fornitore_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_minimo: v as StatoFornitore })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="confermato">Confermato</SelectItem>
+                      <SelectItem value="sopralluogo_fatto">Sopralluogo fatto</SelectItem>
+                      <SelectItem value="materiali_definiti">Materiali definiti</SelectItem>
+                      <SelectItem value="pronto">Pronto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Fornitore supporto */}
+              {form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" ? (
+                <div className="bg-[#f5f5f7] rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-[#86868b]">Fornitore supporto</label>
+                    <button onClick={() => setForm({ ...form, fornitore_supporto_id: "none", stato_fornitore_supporto_minimo: "pronto" })} className="text-[10px] text-red-500">Rimuovi</button>
+                  </div>
+                  <Select value={form.fornitore_supporto_id === "_new" ? undefined : form.fornitore_supporto_id} onValueChange={(v) => setForm({ ...form, fornitore_supporto_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Seleziona fornitore..." /></SelectTrigger>
+                    <SelectContent>{fornitori.map((f) => (<SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>))}</SelectContent>
+                  </Select>
+                  <Select value={form.stato_fornitore_supporto_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_supporto_minimo: v as StatoFornitore })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="confermato">Confermato</SelectItem><SelectItem value="sopralluogo_fatto">Sopralluogo fatto</SelectItem>
+                      <SelectItem value="materiali_definiti">Materiali definiti</SelectItem><SelectItem value="pronto">Pronto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <button onClick={() => setForm({ ...form, fornitore_supporto_id: "_new" })} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
+                  <Plus size={12} /> Aggiungi fornitore supporto
+                </button>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* SECTION 2: Tempi */}
+          <CollapsibleSection title="Tempi" defaultOpen={true}>
+            <div className="space-y-3">
+              {/* Stato */}
+              <div>
+                <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Stato</label>
+                <Select value={form.stato} onValueChange={(v) => setForm({ ...form, stato: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATI_TASK.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Motivo blocco */}
+              {form.stato === "bloccata" && (
+                <div>
+                  <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Motivo blocco</label>
+                  <Input
+                    value={form.motivo_blocco}
+                    onChange={(e) => setForm({ ...form, motivo_blocco: e.target.value })}
+                    placeholder="Motivo del blocco"
+                  />
+                </div>
+              )}
+
+              {/* Date side by side */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Data inizio</label>
+                  <Input
+                    type="date"
+                    value={form.data_inizio}
+                    onChange={(e) => setForm({ ...form, data_inizio: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Data fine</label>
+                  <Input
+                    type="date"
+                    value={form.data_fine}
+                    onChange={(e) => setForm({ ...form, data_fine: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Durata */}
+              <div>
+                <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Durata (ore)</label>
                 <Input
                   type="number"
-                  value={form.numero_persone}
-                  onChange={(e) => setForm({ ...form, numero_persone: e.target.value })}
+                  value={form.durata_ore}
+                  onChange={(e) => setForm({ ...form, durata_ore: e.target.value })}
                 />
-              </div>
-              <div>
-                <label className="text-[10px] font-medium text-[#86868b] mb-1 block">Ore lavoro</label>
-                <Input
-                  type="number"
-                  value={form.ore_lavoro}
-                  onChange={(e) => setForm({ ...form, ore_lavoro: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-medium text-[#86868b] mb-1 block">Costo/ora</label>
-                <Input
-                  type="number"
-                  value={form.costo_ora}
-                  onChange={(e) => setForm({ ...form, costo_ora: e.target.value })}
-                />
+                {form.durata_ore && parseFloat(form.durata_ore) > 0 && (
+                  <p className="text-[10px] text-[#86868b] mt-1">
+                    {parseFloat(form.durata_ore) <= 11
+                      ? "Meno di 1 giornata"
+                      : `~${Math.ceil(parseFloat(form.durata_ore) / 11)} giorni`}
+                    {" "}(giornata lavorativa 7-18)
+                  </p>
+                )}
               </div>
             </div>
-            {costoCalcolato && (
-              <p className="text-xs text-[#1d1d1f] mt-2 font-medium">
-                Costo manodopera: {parseFloat(costoCalcolato).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-              </p>
-            )}
-          </div>
+          </CollapsibleSection>
 
-          {/* Note */}
-          <div>
-            <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Note</label>
+          {/* SECTION 3: Materiali */}
+          {task && (
+            <MaterialiSection taskId={task.id} fornitori={fornitori} luoghi={luoghi} />
+          )}
+
+          {/* SECTION 4: Dipendenze */}
+          {task && (
+            <DipendenzeSection taskId={task.id} />
+          )}
+
+          {/* SECTION 5: Costi */}
+          <CollapsibleSection title="Costi" defaultOpen={false}>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-medium text-[#86868b] mb-1 block">Persone</label>
+                  <Input
+                    type="number"
+                    value={form.numero_persone}
+                    onChange={(e) => setForm({ ...form, numero_persone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-medium text-[#86868b] mb-1 block">Ore lavoro</label>
+                  <Input
+                    type="number"
+                    value={form.ore_lavoro}
+                    onChange={(e) => setForm({ ...form, ore_lavoro: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-medium text-[#86868b] mb-1 block">Costo/ora</label>
+                  <Input
+                    type="number"
+                    value={form.costo_ora}
+                    onChange={(e) => setForm({ ...form, costo_ora: e.target.value })}
+                  />
+                </div>
+              </div>
+              {costoCalcolato && (
+                <p className="text-xs text-[#1d1d1f] font-medium">
+                  Manodopera: {parseFloat(costoCalcolato).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                </p>
+              )}
+
+              {/* Supporto costs (visible if supporto is set) */}
+              {form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" && form.fornitore_supporto_id !== "_new" && (
+                <div className="bg-[#f5f5f7] rounded-lg p-3 space-y-2">
+                  <p className="text-[10px] font-semibold text-[#86868b] uppercase">Costi supporto</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Persone</label><Input type="number" value={form.supporto_numero_persone} onChange={(e) => setForm({ ...form, supporto_numero_persone: e.target.value })} /></div>
+                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Ore</label><Input type="number" value={form.supporto_ore_lavoro} onChange={(e) => setForm({ ...form, supporto_ore_lavoro: e.target.value })} /></div>
+                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Costo/ora</label><Input type="number" value={form.supporto_costo_ora} onChange={(e) => setForm({ ...form, supporto_costo_ora: e.target.value })} /></div>
+                  </div>
+                  {costoSupportoCalcolato && (
+                    <p className="text-xs text-[#1d1d1f] font-medium">
+                      Supporto: {parseFloat(costoSupportoCalcolato).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {costoTotale > 0 && (
+                <div className="border-t border-[#e5e5e7] pt-2">
+                  <p className="text-sm text-[#1d1d1f] font-semibold">
+                    Totale task: {costoTotale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                  </p>
+                </div>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* SECTION 6: Note */}
+          <CollapsibleSection title="Note" defaultOpen={false}>
             <Textarea
               value={form.note}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               rows={3}
             />
+          </CollapsibleSection>
+
+          {/* Save button */}
+          <div className="pt-4">
+            <Button
+              onClick={handleSave}
+              disabled={saving || !form.titolo.trim()}
+              className="w-full"
+            >
+              {saving ? "Salvataggio..." : "Salva"}
+            </Button>
           </div>
-
-          {/* DIPENDENZE */}
-          {task && (
-            <DipendenzeSection taskId={task.id} />
-          )}
-
-          {/* MATERIALI */}
-          {task && (
-            <MaterialiSection taskId={task.id} fornitori={fornitori} luoghi={luoghi} />
-          )}
-
-          {/* Save */}
-          <Button
-            onClick={handleSave}
-            disabled={saving || !form.titolo.trim()}
-            className="w-full"
-          >
-            {saving ? "Salvataggio..." : "Salva"}
-          </Button>
         </div>
       </SheetContent>
     </Sheet>
@@ -549,20 +613,19 @@ function DipendenzeSection({ taskId }: { taskId: string }) {
   };
 
   return (
-    <div className="border-t border-[#e5e5e7] pt-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-[#1d1d1f] flex items-center gap-1.5">
-          <Link size={13} />
-          Dipendenze ({deps.length})
-        </h3>
+    <CollapsibleSection
+      title="Dipendenze"
+      count={deps.length}
+      defaultOpen={false}
+      action={
         <button
           onClick={() => setShowSearch(!showSearch)}
           className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1"
         >
           <Plus size={12} /> Aggiungi
         </button>
-      </div>
-
+      }
+    >
       {/* Search dropdown */}
       {showSearch && (
         <div className="mb-3">
@@ -631,7 +694,7 @@ function DipendenzeSection({ taskId }: { taskId: string }) {
           </div>
         ))}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -654,9 +717,9 @@ interface MaterialeData {
 }
 
 const STATO_FORN_COLORS: Record<string, string> = {
-  da_trovare: "bg-red-100 text-red-700", contattato: "bg-amber-100 text-amber-700",
-  confermato: "bg-blue-100 text-blue-700", sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
-  materiali_definiti: "bg-violet-100 text-violet-700", pronto: "bg-green-100 text-green-700",
+  da_trovare: "bg-[#FF3B30]/10 text-[#FF3B30]", contattato: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  confermato: "bg-[#0071E3]/10 text-[#0071E3]", sopralluogo_fatto: "bg-[#5856D6]/10 text-[#5856D6]",
+  materiali_definiti: "bg-[#AF52DE]/10 text-[#AF52DE]", pronto: "bg-[#34C759]/10 text-[#34C759]",
 };
 
 interface OperazioneData {
@@ -745,12 +808,16 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
   };
 
   return (
-    <div className="border-t border-[#e5e5e7] pt-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-[#1d1d1f] flex items-center gap-1.5"><Package size={13} /> Materiali ({materiali.length})</h3>
-        <button onClick={openForm} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1"><Plus size={12} /> Aggiungi</button>
-      </div>
-
+    <CollapsibleSection
+      title="Materiali"
+      count={materiali.length}
+      defaultOpen={true}
+      action={
+        <button onClick={openForm} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1">
+          <Plus size={12} /> Aggiungi
+        </button>
+      }
+    >
       {materiali.length === 0 && !showForm && <p className="text-xs text-[#86868b]">Nessun materiale</p>}
 
       <div className="space-y-2">
@@ -758,7 +825,7 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
           const stato = matStatoDetail(m);
           const isExpOps = expandedMat.has(m.id);
           return (
-            <div key={m.id} className="bg-[#f5f5f7] rounded-lg px-3 py-2.5">
+            <div key={m.id} className="border border-[#e5e5e7] rounded-lg px-3 py-2.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <input defaultValue={m.nome} onBlur={(e) => { if (e.target.value !== m.nome) handleUpdateField(m.id, "nome", e.target.value); }}
@@ -858,7 +925,7 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
           )}
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -867,6 +934,7 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
 function OperazioniSubSection({ materialeId, fornitori, luoghi }: { materialeId: string; fornitori: { id: string; nome: string; stato: StatoFornitore }[]; luoghi: LuogoMin[] }) {
   const [ops, setOps] = useState<OperazioneData[]>([]);
   const [adding, setAdding] = useState(false);
+  const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const data = await getOperazioniByMateriale(materialeId);
@@ -879,36 +947,71 @@ function OperazioniSubSection({ materialeId, fornitori, luoghi }: { materialeId:
     await updateOperazione(id, { [field]: value }); await load();
   };
 
+  const toggleOpExpanded = (id: string) => {
+    const next = new Set(expandedOps);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpandedOps(next);
+  };
+
   return (
-    <div className="mt-1.5 ml-2 pl-2 border-l-2 border-[#e5e5e7] space-y-1">
-      {ops.map((op) => (
-        <div key={op.id} className="space-y-1">
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <input defaultValue={op.titolo} onBlur={(e) => { if (e.target.value !== op.titolo) saveField(op.id, "titolo", e.target.value); }}
-              className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[#1d1d1f] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1" />
-            <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveField(op.id, "fornitore_id", e.target.value || null)}
-              className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white max-w-[90px]">
-              <option value="">--</option>
-              {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-            </select>
-            {op.fornitore && <span className={`px-1 py-0.5 rounded-full text-[8px] font-medium ${STATO_FORN_COLORS[op.fornitore.stato] ?? "bg-gray-100"}`}>{op.fornitore.stato.replace(/_/g, " ")}</span>}
-            <select defaultValue={op.stato} onChange={(e) => saveField(op.id, "stato", e.target.value)}
-              className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
-              <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
-            </select>
-            <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer flex-shrink-0">
-              <input type="checkbox" checked={op.organizzato} onChange={(e) => saveField(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-3 h-3" />
-              Organizzato
-            </label>
-            <button onClick={async () => { await removeOperazione(op.id); await load(); }} className="text-[#d2d2d7] hover:text-red-500"><X size={10} /></button>
+    <div className="mt-1.5 ml-2 pl-2 border-l-2 border-[#e5e5e7] space-y-1.5">
+      {ops.map((op) => {
+        const isExpanded = expandedOps.has(op.id);
+        return (
+          <div key={op.id} className="border border-[#e5e5e7] rounded-lg p-2 space-y-1">
+            {/* Line 1: Title (bold) + delete */}
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => toggleOpExpanded(op.id)} className="text-[#86868b] flex-shrink-0">
+                {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+              </button>
+              <input defaultValue={op.titolo} onBlur={(e) => { if (e.target.value !== op.titolo) saveField(op.id, "titolo", e.target.value); }}
+                className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[11px] font-semibold text-[#1d1d1f] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-1" />
+              <select defaultValue={op.stato} onChange={(e) => saveField(op.id, "stato", e.target.value)}
+                className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
+                <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
+              </select>
+              <button onClick={async () => { await removeOperazione(op.id); await load(); }} className="text-[#d2d2d7] hover:text-red-500 flex-shrink-0"><X size={10} /></button>
+            </div>
+            {/* Line 2: Fornitore dropdown + chip stato */}
+            <div className="flex items-center gap-1.5 ml-5">
+              <select defaultValue={op.fornitore_id ?? ""} onChange={(e) => saveField(op.id, "fornitore_id", e.target.value || null)}
+                className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white flex-1 min-w-0">
+                <option value="">Nessun fornitore</option>
+                {fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+              {op.fornitore && <span className={`px-1 py-0.5 rounded-full text-[8px] font-medium flex-shrink-0 ${STATO_FORN_COLORS[op.fornitore.stato] ?? "bg-gray-100"}`}>{op.fornitore.stato.replace(/_/g, " ")}</span>}
+            </div>
+            {/* Line 3: Luogo dropdown + Organizzato checkbox */}
+            <div className="flex items-center gap-1.5 ml-5">
+              <select defaultValue={op.luogo_id ?? ""} onChange={(e) => saveField(op.id, "luogo_id", e.target.value || null)}
+                className="text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white flex-1 min-w-0">
+                <option value="">Luogo partenza...</option>
+                {luoghi.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+              </select>
+              <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer flex-shrink-0">
+                <input type="checkbox" checked={op.organizzato} onChange={(e) => saveField(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-3 h-3" />
+                Organizzato
+              </label>
+            </div>
+            {/* Expandable: durata, costi, note */}
+            {isExpanded && (
+              <div className="ml-5 mt-1 pt-1 border-t border-[#e5e5e7]/50 space-y-1.5">
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Durata (ore)</label>
+                  <input type="number" defaultValue={op.durata_ore ?? ""} onBlur={(e) => saveField(op.id, "durata_ore", e.target.value ? parseFloat(e.target.value) : null)}
+                    className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" />
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#86868b] block mb-0.5">Note</label>
+                  <input defaultValue={op.note ?? ""} onBlur={(e) => saveField(op.id, "note", e.target.value || null)}
+                    placeholder="Note operazione..."
+                    className="w-full text-[10px] text-[#86868b] bg-transparent border-0 border-b border-[#e5e5e7]/50 outline-none focus:border-[#1d1d1f] placeholder:text-[#d2d2d7] px-0 py-0.5" />
+                </div>
+              </div>
+            )}
           </div>
-          <select defaultValue={op.luogo_id ?? ""} onChange={(e) => saveField(op.id, "luogo_id", e.target.value || null)}
-            className="ml-0 text-[10px] text-[#86868b] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white w-full">
-            <option value="">Luogo partenza...</option>
-            {luoghi.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
-          </select>
-        </div>
-      ))}
+        );
+      })}
       {adding ? (
         <div className="flex gap-1 items-center">
           <select

@@ -1,6 +1,8 @@
 "use client";
 
-import { cycleTaskStato, cycleFornitoreStato } from "./lavorazioni/cycle-actions";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { cycleFornitoreStato } from "./lavorazioni/cycle-actions";
 
 const STATO_LABELS: Record<string, string> = {
   da_trovare: "Da trovare",
@@ -9,19 +11,15 @@ const STATO_LABELS: Record<string, string> = {
   sopralluogo_fatto: "Sopralluogo fatto",
   materiali_definiti: "Mat. definiti",
   pronto: "Pronto",
-  in_attesa_fornitore: "Attesa fornitore",
-  in_attesa_dipendenza: "Attesa dipendenza",
-  in_attesa_materiali: "Attesa materiali",
-  in_attesa_permesso: "Attesa permesso",
-  bloccata: "Bloccata",
 };
 
 const STATO_FORNITORE_COLORS: Record<string, string> = {
-  da_trovare: "bg-red-100 text-red-700",
-  contattato: "bg-amber-100 text-amber-700",
-  confermato: "bg-blue-100 text-blue-700",
-  sopralluogo_fatto: "bg-indigo-100 text-indigo-700",
-  materiali_definiti: "bg-violet-100 text-violet-700",
+  da_trovare: "bg-[#FF3B30]/10 text-[#FF3B30]",
+  contattato: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
+  confermato: "bg-[#0071E3]/10 text-[#0071E3]",
+  sopralluogo_fatto: "bg-[#5856D6]/10 text-[#5856D6]",
+  materiali_definiti: "bg-[#AF52DE]/10 text-[#AF52DE]",
+  pronto: "bg-[#34C759]/10 text-[#34C759]",
 };
 
 interface ZonaRiepilogo {
@@ -36,16 +34,6 @@ interface ZonaRiepilogo {
   percentuale: number;
 }
 
-interface TaskUrgente {
-  id: string;
-  titolo: string;
-  zona_nome: string;
-  zona_colore: string;
-  fornitore_nome: string | null;
-  stato_calcolato: string;
-  data_fine: string | null;
-}
-
 interface FornitoreNonPronto {
   id: string;
   nome: string;
@@ -56,22 +44,24 @@ interface FornitoreNonPronto {
 
 interface Props {
   zoneRiepilogo: ZonaRiepilogo[];
-  taskUrgenti: TaskUrgente[];
   fornitoriNonPronti: FornitoreNonPronto[];
   totalTasks: number;
   completedTasks: number;
   blockedTasks: number;
   fornitoriDaTrovare: number;
+  materialiDaAcquistare: number;
+  trasportiDaOrganizzare: number;
 }
 
 export function DashboardClient({
   zoneRiepilogo,
-  taskUrgenti,
   fornitoriNonPronti,
   totalTasks,
   completedTasks,
   blockedTasks,
   fornitoriDaTrovare,
+  materialiDaAcquistare,
+  trasportiDaOrganizzare,
 }: Props) {
   // Countdown
   const apertura = new Date("2026-05-01");
@@ -79,132 +69,168 @@ export function DashboardClient({
   const giorniApertura = Math.ceil((apertura.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
   const pctCompletate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+  // Priority actions: top 5 fornitori blocking the most tasks
+  const topBlockingFornitori = fornitoriNonPronti
+    .filter((f) => f.task_bloccate_da_me > 0)
+    .sort((a, b) => b.task_bloccate_da_me - a.task_bloccate_da_me)
+    .slice(0, 5);
+
+  // Fornitori needing action (da_trovare or contattato)
+  const fornitoriNeedAction = fornitoriNonPronti
+    .filter((f) => f.stato === "da_trovare" || f.stato === "contattato")
+    .sort((a, b) => b.task_bloccate_da_me - a.task_bloccate_da_me);
+
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-6">Dashboard</h1>
+      <h1 className="text-[22px] font-semibold text-[#1d1d1f] mb-6">Dashboard</h1>
 
-      {/* ROW 1 — Contatori principali */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {/* A) COUNTERS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {/* Giorni all'apertura */}
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
-          <p className="text-xs text-[#86868b] font-medium">Giorni all&apos;apertura</p>
-          <p className={`text-3xl font-bold mt-1 ${giorniApertura <= 30 ? "text-red-600" : "text-[#1d1d1f]"}`}>
+          <p className="text-[12px] text-[#86868b] font-medium">Giorni all&apos;apertura</p>
+          <p className={`text-[28px] font-bold mt-1 leading-none ${giorniApertura <= 30 ? "text-[#FF3B30]" : "text-[#1d1d1f]"}`}>
             {giorniApertura}
           </p>
-          <p className="text-[10px] text-[#86868b] mt-0.5">1 maggio 2026</p>
+          <p className="text-[11px] text-[#86868b] mt-1">1 maggio 2026</p>
         </div>
 
-        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
-          <p className="text-xs text-[#86868b] font-medium">Task completate</p>
-          <p className="text-3xl font-bold text-[#1d1d1f] mt-1">
-            {completedTasks}<span className="text-lg font-normal text-[#86868b]">/{totalTasks}</span>
+        {/* Completate */}
+        <Link href="/lavorazioni" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow cursor-pointer">
+          <p className="text-[12px] text-[#86868b] font-medium">Completate</p>
+          <p className="text-[28px] font-bold text-[#1d1d1f] mt-1 leading-none">
+            {completedTasks}<span className="text-[16px] font-normal text-[#86868b]">/{totalTasks}</span>
           </p>
           <div className="h-1.5 bg-[#e5e5e7] rounded-full mt-2 overflow-hidden">
-            <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pctCompletate}%` }} />
+            <div className="h-full bg-[#34C759] rounded-full transition-all" style={{ width: `${pctCompletate}%` }} />
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
-          <p className="text-xs text-[#86868b] font-medium">Task bloccate</p>
-          <p className={`text-3xl font-bold mt-1 ${blockedTasks > 0 ? "text-red-600" : "text-green-600"}`}>
+        {/* Bloccate */}
+        <Link href="/lavorazioni" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow cursor-pointer">
+          <p className="text-[12px] text-[#86868b] font-medium">Bloccate</p>
+          <p className={`text-[28px] font-bold mt-1 leading-none ${blockedTasks > 0 ? "text-[#FF3B30]" : "text-[#34C759]"}`}>
             {blockedTasks}
           </p>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
-          <p className="text-xs text-[#86868b] font-medium">Fornitori da trovare</p>
-          <p className={`text-3xl font-bold mt-1 ${fornitoriDaTrovare > 0 ? "text-amber-600" : "text-green-600"}`}>
+        {/* Fornitori da trovare */}
+        <Link href="/fornitori" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow cursor-pointer">
+          <p className="text-[12px] text-[#86868b] font-medium">Fornitori da trovare</p>
+          <p className={`text-[28px] font-bold mt-1 leading-none ${fornitoriDaTrovare > 0 ? "text-[#FF9F0A]" : "text-[#34C759]"}`}>
             {fornitoriDaTrovare}
           </p>
-        </div>
+        </Link>
       </div>
 
-      {/* ROW 2 — Progresso per zona */}
-      <div className="mb-6">
-        <h2 className="text-sm font-semibold text-[#1d1d1f] mb-3">Progresso per zona</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {zoneRiepilogo.map((z) => (
-            <div key={z.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: z.colore }} />
-                <span className="text-sm font-medium text-[#1d1d1f]">{z.nome}</span>
-                <span className="text-xs text-[#86868b] ml-auto">
-                  {z.task_completate}/{z.task_totali}
-                </span>
+      {/* B) AZIONI PRIORITARIE */}
+      {(topBlockingFornitori.length > 0 || materialiDaAcquistare > 0 || trasportiDaOrganizzare > 0) && (
+        <div className="mb-8">
+          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-3">Azioni prioritarie</h2>
+          <div className="bg-white rounded-[12px] border border-[#e5e5e7] divide-y divide-[#e5e5e7]">
+            {topBlockingFornitori.map((f) => (
+              <div key={f.id} className="px-4 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-[#1d1d1f]">
+                    {f.stato === "da_trovare" ? "Trovare" : "Avanzare"}{" "}
+                    <span className="font-semibold">{f.nome}</span>
+                  </p>
+                  <p className="text-[11px] text-[#FF3B30]">
+                    Sblocca {f.task_bloccate_da_me} task
+                  </p>
+                </div>
+                <button
+                  onClick={() => cycleFornitoreStato(f.id, f.stato)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0 ${STATO_FORNITORE_COLORS[f.stato] ?? "bg-gray-100 text-gray-600"}`}
+                  title="Click per avanzare stato"
+                >
+                  {STATO_LABELS[f.stato] ?? f.stato}
+                </button>
               </div>
-              <div className="h-2 bg-[#e5e5e7] rounded-full overflow-hidden">
+            ))}
+
+            {materialiDaAcquistare > 0 && (
+              <Link href="/materiali" className="px-4 py-3 flex items-center gap-3 hover:bg-[#f5f5f7] transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-[#1d1d1f]">
+                    <span className="font-semibold text-[#FF3B30]">{materialiDaAcquistare}</span> materiali da acquistare
+                  </p>
+                </div>
+                <span className="text-[12px] text-[#86868b]">Vai a Materiali</span>
+                <ChevronRight size={14} className="text-[#86868b] flex-shrink-0" />
+              </Link>
+            )}
+
+            {trasportiDaOrganizzare > 0 && (
+              <Link href="/trasporti" className="px-4 py-3 flex items-center gap-3 hover:bg-[#f5f5f7] transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-[#1d1d1f]">
+                    <span className="font-semibold text-[#FF9F0A]">{trasportiDaOrganizzare}</span> trasporti da organizzare
+                  </p>
+                </div>
+                <span className="text-[12px] text-[#86868b]">Vai a Trasporti</span>
+                <ChevronRight size={14} className="text-[#86868b] flex-shrink-0" />
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* C) PROGRESSO ZONE — compact horizontal bars */}
+      <div className="mb-8">
+        <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-3">Progresso zone</h2>
+        <div className="bg-white rounded-[12px] border border-[#e5e5e7] divide-y divide-[#e5e5e7]">
+          {zoneRiepilogo.map((z) => (
+            <div key={z.id} className="px-4 py-3 flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: z.colore }} />
+              <span className="text-[13px] font-medium text-[#1d1d1f] w-[140px] truncate flex-shrink-0">{z.nome}</span>
+              <div className="flex-1 h-2 bg-[#e5e5e7] rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all"
                   style={{ width: `${z.percentuale}%`, backgroundColor: z.colore }}
                 />
               </div>
-              {z.task_bloccate > 0 && (
-                <p className="text-[10px] text-red-500 mt-1">{z.task_bloccate} bloccate</p>
+              <span className="text-[12px] text-[#86868b] w-[50px] text-right flex-shrink-0">
+                {z.task_completate}/{z.task_totali}
+              </span>
+              {z.task_bloccate > 0 ? (
+                <span className="text-[11px] text-[#FF3B30] font-medium flex-shrink-0 w-[70px] text-right">
+                  {z.task_bloccate} bloccat{z.task_bloccate === 1 ? "a" : "e"}
+                </span>
+              ) : (
+                <span className="w-[70px] flex-shrink-0" />
               )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* ROW 3 — Task urgenti */}
-      {taskUrgenti.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-[#1d1d1f] mb-3">Task in attesa / bloccate</h2>
+      {/* D) FORNITORI — only needing action */}
+      {fornitoriNeedAction.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-3">Fornitori da gestire</h2>
           <div className="bg-white rounded-[12px] border border-[#e5e5e7] divide-y divide-[#e5e5e7]">
-            {taskUrgenti.map((t) => (
-              <div key={t.id} className="px-4 py-3 flex items-center gap-3">
-                <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: t.zona_colore }}
-                />
+            {fornitoriNeedAction.map((f) => (
+              <div key={f.id} className="px-4 py-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#1d1d1f] truncate">{t.titolo}</p>
-                  <p className="text-[10px] text-[#86868b]">{t.zona_nome}</p>
+                  <p className="text-[13px] font-medium text-[#1d1d1f]">{f.nome}</p>
+                  {f.task_bloccate_da_me > 0 && (
+                    <p className="text-[11px] text-[#FF3B30]">{f.task_bloccate_da_me} task bloccate</p>
+                  )}
                 </div>
                 <button
-                  onClick={() => { if (["da_fare","in_corso","completata"].includes(t.stato_calcolato)) cycleTaskStato(t.id, t.stato_calcolato); }}
-                  className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 flex-shrink-0 cursor-pointer hover:opacity-80"
-                  title="Click per cambiare stato"
+                  onClick={() => cycleFornitoreStato(f.id, f.stato)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0 ${STATO_FORNITORE_COLORS[f.stato] ?? "bg-gray-100 text-gray-600"}`}
+                  title="Click per avanzare stato"
                 >
-                  {STATO_LABELS[t.stato_calcolato] ?? t.stato_calcolato}
+                  {STATO_LABELS[f.stato] ?? f.stato}
                 </button>
-                {t.fornitore_nome && (
-                  <span className="text-[10px] text-[#86868b] flex-shrink-0 hidden md:inline">
-                    {t.fornitore_nome}
-                  </span>
-                )}
-                {t.data_fine && (
-                  <span className="text-[10px] text-[#86868b] flex-shrink-0">
-                    {new Date(t.data_fine).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
-                  </span>
-                )}
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* ROW 4 — Fornitori non pronti */}
-      {fornitoriNonPronti.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-[#1d1d1f] mb-3">Stato fornitori</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {fornitoriNonPronti.map((f) => (
-              <div key={f.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-3">
-                <p className="text-xs font-medium text-[#1d1d1f] truncate">{f.nome}</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <button
-                    onClick={() => cycleFornitoreStato(f.id, f.stato)}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer hover:opacity-80 ${STATO_FORNITORE_COLORS[f.stato] ?? "bg-gray-100 text-gray-600"}`}
-                    title="Click per avanzare stato"
-                  >
-                    {STATO_LABELS[f.stato] ?? f.stato}
-                  </button>
-                </div>
-                {f.task_bloccate_da_me > 0 && (
-                  <p className="text-[10px] text-red-500 mt-1">{f.task_bloccate_da_me} task bloccate</p>
-                )}
-              </div>
-            ))}
+            <Link href="/fornitori" className="px-4 py-3 flex items-center justify-center gap-1 hover:bg-[#f5f5f7] transition-colors">
+              <span className="text-[12px] text-[#0071E3] font-medium">Vedi tutti</span>
+              <ChevronRight size={12} className="text-[#0071E3]" />
+            </Link>
           </div>
         </div>
       )}
