@@ -497,11 +497,48 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
     });
   };
 
-  const deleteCatLocal = (id: string) => {
-    setCatalogo(prev => prev.filter(c => c.id !== id));
-    import("@/lib/supabase/client").then(({ createClient }) => {
-      createClient().from("catalogo_materiali").delete().eq("id", id);
-    });
+  const [deleteDialog, setDeleteDialog] = useState<{ id: string; nome: string; taskCount: number } | null>(null);
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [replaceId, setReplaceId] = useState("");
+
+  const startDelete = (c: CatAgg) => {
+    if (c.task_count === 0) {
+      // No tasks — delete directly
+      setCatalogo(prev => prev.filter(x => x.id !== c.id));
+      import("@/lib/supabase/client").then(({ createClient }) => {
+        createClient().from("catalogo_materiali").delete().eq("id", c.id);
+      });
+    } else {
+      setDeleteDialog({ id: c.id, nome: c.nome, taskCount: c.task_count });
+      setReplaceMode(false);
+      setReplaceId("");
+    }
+  };
+
+  const doDeleteAll = async () => {
+    if (!deleteDialog) return;
+    const { createClient } = await import("@/lib/supabase/client");
+    const sb = createClient();
+    // Delete all materiali instances (CASCADE deletes operazioni)
+    await sb.from("materiali").delete().eq("catalogo_id", deleteDialog.id);
+    // Delete catalog entry
+    await sb.from("catalogo_materiali").delete().eq("id", deleteDialog.id);
+    setCatalogo(prev => prev.filter(c => c.id !== deleteDialog.id));
+    setDeleteDialog(null);
+  };
+
+  const doReplace = async () => {
+    if (!deleteDialog || !replaceId) return;
+    const sostituto = catalogo.find(c => c.id === replaceId);
+    if (!sostituto) return;
+    const { createClient } = await import("@/lib/supabase/client");
+    const sb = createClient();
+    // Update all materiali: change catalogo_id and nome to the replacement
+    await sb.from("materiali").update({ catalogo_id: replaceId, nome: sostituto.nome }).eq("catalogo_id", deleteDialog.id);
+    // Delete old catalog entry
+    await sb.from("catalogo_materiali").delete().eq("id", deleteDialog.id);
+    setCatalogo(prev => prev.filter(c => c.id !== deleteDialog.id));
+    setDeleteDialog(null);
   };
 
   const filtered = filterTip === "tutti" ? catalogo : catalogo.filter(c => c.tipologia_materiale === filterTip);
@@ -553,12 +590,7 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
             <div key={c.id} className={`group relative bg-white rounded-[12px] border p-4 pr-10 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
               <button
                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-red-500"
-                onClick={() => {
-                  if (c.task_count > 0) {
-                    if (!confirm(`Questo materiale è usato in ${c.task_count} task. Le istanze rimangono ma perdono il collegamento. Continuare?`)) return;
-                  }
-                  deleteCatLocal(c.id);
-                }}
+                onClick={() => startDelete(c)}
               >
                 <Trash2 size={14} />
               </button>
@@ -587,6 +619,57 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
           );
         })}
       </div>
+
+      {/* Delete dialog */}
+      {deleteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteDialog(null)}>
+          <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-6 w-[400px] max-w-[90vw] shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[#1d1d1f] mb-2">{deleteDialog.nome}</h3>
+            <p className="text-sm text-[#86868b] mb-4">
+              Usato in {deleteDialog.taskCount} task. Cosa vuoi fare?
+            </p>
+
+            {!replaceMode ? (
+              <div className="space-y-2">
+                <button onClick={() => setReplaceMode(true)}
+                  className="w-full text-left px-4 py-3 rounded-lg border border-[#e5e5e7] hover:bg-[#f5f5f7] transition-colors">
+                  <p className="text-sm font-medium text-[#1d1d1f]">Sostituisci con un altro materiale</p>
+                  <p className="text-xs text-[#86868b] mt-0.5">Le istanze nelle task cambiano nome e collegamento</p>
+                </button>
+                <button onClick={doDeleteAll}
+                  className="w-full text-left px-4 py-3 rounded-lg border border-red-200 hover:bg-red-50 transition-colors">
+                  <p className="text-sm font-medium text-red-600">Elimina tutto</p>
+                  <p className="text-xs text-[#86868b] mt-0.5">Elimina dal catalogo e da tutte le {deleteDialog.taskCount} task</p>
+                </button>
+                <button onClick={() => setDeleteDialog(null)}
+                  className="w-full text-center px-4 py-2 text-sm text-[#86868b] hover:text-[#1d1d1f]">
+                  Annulla
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-[#86868b]">Scegli il materiale sostitutivo:</p>
+                <select value={replaceId} onChange={(e) => setReplaceId(e.target.value)}
+                  className="w-full text-sm border border-[#e5e5e7] rounded-lg px-3 py-2 bg-white">
+                  <option value="">Seleziona...</option>
+                  {catalogo.filter(c => c.id !== deleteDialog.id).map(c => (
+                    <option key={c.id} value={c.id}>{c.nome} ({c.tipologia_materiale})</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <button onClick={doReplace} disabled={!replaceId}
+                    className="flex-1 text-sm bg-[#1d1d1f] text-white rounded-lg px-4 py-2 disabled:opacity-50">
+                    Sostituisci ed elimina
+                  </button>
+                  <button onClick={() => setReplaceMode(false)} className="text-sm text-[#86868b] px-4 py-2">
+                    Indietro
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
