@@ -81,7 +81,7 @@ function CollapsibleSection({ title, count, defaultOpen = false, action, childre
           <span className="text-xs font-semibold text-[#1d1d1f]">{title}</span>
           {count !== undefined && <span className="text-xs text-[#86868b]">({count})</span>}
         </div>
-        {action && <div onClick={(e) => e.stopPropagation()}>{action}</div>}
+        {action && <div onClick={(e) => { e.stopPropagation(); if (!open) setOpen(true); }}>{action}</div>}
       </button>
       {open && <div className="pb-4">{children}</div>}
     </div>
