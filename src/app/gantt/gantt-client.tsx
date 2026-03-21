@@ -171,7 +171,6 @@ export function GanttClient({
   /* ---- refs for scroll sync ---- */
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
   const syncing = useRef(false);
 
   /* ---- timeline params (FIX 3: use parseISO for consistent date math) ---- */
@@ -373,7 +372,7 @@ export function GanttClient({
     if (rightRef.current && leftRef.current) {
       rightRef.current.scrollTop = leftRef.current.scrollTop;
     }
-    syncing.current = false;
+    requestAnimationFrame(() => { syncing.current = false; });
   }, []);
 
   const handleRightScroll = useCallback(() => {
@@ -382,10 +381,7 @@ export function GanttClient({
     if (leftRef.current && rightRef.current) {
       leftRef.current.scrollTop = rightRef.current.scrollTop;
     }
-    if (headerRef.current && rightRef.current) {
-      headerRef.current.scrollLeft = rightRef.current.scrollLeft;
-    }
-    syncing.current = false;
+    requestAnimationFrame(() => { syncing.current = false; });
   }, []);
 
   /* ---- drag handlers (FIX 4: optimistic local update + client-side Supabase) ---- */
@@ -491,42 +487,268 @@ export function GanttClient({
     return { sDay, eDay };
   }
 
-  /* ---- FIX 2: bar text abbreviation helper ---- */
-  function getBarLabel(text: string, barWidth: number): string {
-    if (barWidth < 30) return "";
-    const displayText = text.replace(/_/g, " ");
-    if (displayText.length * 7 < barWidth) return displayText;
-    return displayText.slice(0, 4) + ".";
+  /* ---- bar text abbreviation helper ---- */
+  function getBarLabel(tipologia: string | null, barWidth: number): string {
+    if (barWidth < 50 || !tipologia) return "";
+    const full = tipologia.replace(/_/g, " ");
+    if (full.length * 7.5 < barWidth) return full;
+    // Smart abbreviation: 6 chars + "."
+    if (barWidth >= 60) return full.slice(0, 6) + ".";
+    return "";
+  }
+
+  /* ---- render helpers ---- */
+  const totalContentHeight = rows.length * ROW_HEIGHT;
+
+  function renderLeftCell(row: Row, i: number) {
+    const top = i * ROW_HEIGHT;
+
+    if (row.type === "zona") {
+      return (
+        <div
+          key={`l-${i}`}
+          className="absolute flex items-center border-b border-[#e5e5e7]/50 bg-white"
+          style={{ top, height: ROW_HEIGHT, width: LEFT_WIDTH }}
+        >
+          <button
+            onClick={() => toggleZone(row.zona.id)}
+            className="w-full h-full flex items-center gap-1.5 px-3 cursor-pointer"
+          >
+            {expandedZone.has(row.zona.id) ? (
+              <ChevronDown size={12} className="text-[#86868b] flex-shrink-0" />
+            ) : (
+              <ChevronRight size={12} className="text-[#86868b] flex-shrink-0" />
+            )}
+            <div
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: row.zona.colore }}
+            />
+            <span className="font-semibold text-[14px] text-[#1d1d1f] truncate">
+              {row.zona.nome}
+            </span>
+          </button>
+        </div>
+      );
+    }
+
+    if (row.type === "lav") {
+      return (
+        <div
+          key={`l-${i}`}
+          className="absolute flex items-center border-b border-[#e5e5e7]/50"
+          style={{ top, height: ROW_HEIGHT, width: LEFT_WIDTH }}
+        >
+          <button
+            onClick={() => toggleLav(row.lav.id)}
+            className="w-full h-full flex items-center gap-1.5 px-3 pl-7 text-left hover:bg-[#f5f5f7]/50"
+          >
+            {expandedLav.has(row.lav.id) ? (
+              <ChevronDown size={11} className="text-[#86868b] flex-shrink-0" />
+            ) : (
+              <ChevronRight size={11} className="text-[#86868b] flex-shrink-0" />
+            )}
+            <span className="font-medium text-[13px] text-[#1d1d1f] truncate">
+              {row.lav.nome}
+            </span>
+          </button>
+        </div>
+      );
+    }
+
+    // task
+    return (
+      <div
+        key={`l-${i}`}
+        className="absolute flex items-center border-b border-[#e5e5e7]/50"
+        style={{ top, height: ROW_HEIGHT, width: LEFT_WIDTH }}
+      >
+        <div className="flex items-center gap-1 px-3 pl-12 h-full w-full">
+          <span className="text-[12px] text-[#86868b] truncate">
+            {row.task.titolo}
+          </span>
+          {conflictSet.has(row.task.id) && (
+            <span
+              title={conflictDescriptions[row.task.id] ?? "Conflitto attrezzi"}
+              className="flex-shrink-0"
+            >
+              <AlertTriangle size={11} className="text-orange-500" />
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderRightCell(row: Row, i: number) {
+    const top = i * ROW_HEIGHT;
+
+    /* ---- Zona row ---- */
+    if (row.type === "zona") {
+      return (
+        <div
+          key={`r-${i}`}
+          className="absolute border-b border-[#e5e5e7]/50"
+          style={{ top, height: ROW_HEIGHT, width: totalWidth }}
+        >
+          {!expandedZone.has(row.zona.id) &&
+            row.startDay >= 0 &&
+            row.endDay >= 0 && (
+              <div
+                className="absolute"
+                style={{
+                  left: row.startDay * dayWidth + 2,
+                  width: Math.max(
+                    (row.endDay - row.startDay + 1) * dayWidth - 4,
+                    4,
+                  ),
+                  top: (ROW_HEIGHT - 32) / 2,
+                  height: 32,
+                  borderRadius: 6,
+                  backgroundColor: row.zona.colore,
+                  opacity: 0.7,
+                }}
+              />
+            )}
+        </div>
+      );
+    }
+
+    /* ---- Lavorazione row ---- */
+    if (row.type === "lav") {
+      return (
+        <div
+          key={`r-${i}`}
+          className="absolute border-b border-[#e5e5e7]/50"
+          style={{ top, height: ROW_HEIGHT, width: totalWidth }}
+        >
+          {row.startDay >= 0 && row.endDay >= 0 && (
+            <div
+              className="absolute rounded-md"
+              style={{
+                left: row.startDay * dayWidth + 2,
+                width: Math.max(
+                  (row.endDay - row.startDay + 1) * dayWidth - 4,
+                  4,
+                ),
+                top: 8,
+                height: ROW_HEIGHT - 16,
+                backgroundColor: row.zona.colore,
+                opacity: 0.7,
+              }}
+            />
+          )}
+        </div>
+      );
+    }
+
+    /* ---- Task row ---- */
+    const { sDay, eDay } = getBarPosition(row);
+    if (sDay < 0 || eDay < 0) {
+      return (
+        <div
+          key={`r-${i}`}
+          className="absolute border-b border-[#e5e5e7]/50"
+          style={{ top, height: ROW_HEIGHT, width: totalWidth }}
+        />
+      );
+    }
+
+    const barLeft = sDay * dayWidth + 2;
+    const barWidth = Math.max((eDay - sDay + 1) * dayWidth - 4, 4);
+    const barLabel = getBarLabel(row.task.tipologia, barWidth);
+    const isDragging = dragState !== null && dragState.taskId === row.task.id;
+    const barColor = getTaskBarColor(row.task);
+
+    return (
+      <div
+        key={`r-${i}`}
+        className="absolute border-b border-[#e5e5e7]/50"
+        style={{ top, height: ROW_HEIGHT, width: totalWidth }}
+      >
+        <div
+          className="absolute flex items-center overflow-hidden select-none"
+          style={{
+            left: barLeft,
+            width: barWidth,
+            top: 4,
+            height: 28,
+            borderRadius: 6,
+            backgroundColor: barColor,
+            cursor: isDragging ? "grabbing" : "grab",
+            opacity: isDragging ? 0.85 : 1,
+            zIndex: isDragging ? 20 : 1,
+          }}
+          title={[
+            row.task.titolo,
+            row.task.tipologia
+              ? `Tipo: ${row.task.tipologia.replace(/_/g, " ")}`
+              : null,
+            row.task.fornitore_nome
+              ? `Fornitore: ${row.task.fornitore_nome}`
+              : null,
+            `Stato: ${row.task.stato_calcolato.replace(/_/g, " ")}`,
+          ]
+            .filter(Boolean)
+            .join("\n")}
+          onMouseDown={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const relX = e.clientX - rect.left;
+            if (relX <= 4 || relX >= rect.width - 4) return;
+            startDrag(e, row.task, "move");
+          }}
+          onClick={(e) => {
+            if (dragState) return;
+            setPopupTask({ task: row.task, x: e.clientX, y: e.clientY });
+          }}
+        >
+          {/* Left resize handle */}
+          <div
+            className="absolute left-0 top-0 bottom-0 z-10"
+            style={{ width: 4, cursor: "col-resize" }}
+            onMouseDown={(e) => startDrag(e, row.task, "resize-left")}
+          />
+          {barLabel && (
+            <span className="text-[12px] text-white font-medium px-2 truncate leading-none pointer-events-none">
+              {barLabel}
+            </span>
+          )}
+          {/* Right resize handle */}
+          <div
+            className="absolute right-0 top-0 bottom-0 z-10"
+            style={{ width: 4, cursor: "col-resize" }}
+            onMouseDown={(e) => startDrag(e, row.task, "resize-right")}
+          />
+        </div>
+      </div>
+    );
   }
 
   /* ---- render ---- */
-  const totalContentHeight = rows.length * ROW_HEIGHT;
-
   return (
-    <div>
-      {/* FIX 6: Row 1 — Title, toggles, expand/collapse */}
-      <div className="flex items-center gap-3 flex-wrap mb-2">
-        <h1 className="text-2xl font-semibold text-[#1d1d1f]">Gantt</h1>
+    <div className="flex flex-col" style={{ height: "calc(100vh - 140px)" }}>
+      {/* TOOLBAR — does NOT scroll */}
+      <div className="flex-shrink-0 pb-4">
+        {/* Row 1: title + toggles */}
+        <div className="flex items-center gap-3 flex-wrap mb-2">
+          <h1 className="text-xl font-semibold text-[#1d1d1f]">Gantt</h1>
 
-        {/* Mode toggle */}
-        <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
-          <button
-            onClick={() => setMode("cantiere")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-          >
-            Cantiere
-          </button>
-          <button
-            onClick={() => setMode("progetto")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-          >
-            Progetto
-          </button>
-        </div>
+          {/* Cantiere/Progetto toggle */}
+          <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
+            <button
+              onClick={() => setMode("cantiere")}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
+            >
+              Cantiere
+            </button>
+            <button
+              onClick={() => setMode("progetto")}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
+            >
+              Progetto
+            </button>
+          </div>
 
-        {/* Color mode toggle */}
-        <div>
-          <span className="text-[9px] text-[#86868b] block mb-0.5">Colora per</span>
+          {/* Colora per toggle */}
           <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
             {(["zona", "tipologia", "fornitore"] as const).map((cm) => (
               <button
@@ -538,220 +760,120 @@ export function GanttClient({
               </button>
             ))}
           </div>
-        </div>
 
-        {/* FIX 5: Expand all / Collapse all buttons */}
-        <button
-          onClick={() => {
-            setExpandedZone(new Set(zone.map((z) => z.id)));
-            setExpandedLav(new Set(lavorazioni.map((l) => l.id)));
-          }}
-          className="px-3 py-1 rounded-md text-xs font-medium text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"
-        >
-          Espandi tutto
-        </button>
-        <button
-          onClick={() => {
-            setExpandedZone(new Set());
-            setExpandedLav(new Set());
-          }}
-          className="px-3 py-1 rounded-md text-xs font-medium text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"
-        >
-          Comprimi tutto
-        </button>
-      </div>
-
-      {/* FIX 6: Row 2 — Legend */}
-      {legendEntries.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
-          {legendEntries.map((entry) => (
-            <div key={entry.label} className="flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: entry.color }}
-              />
-              <span className="text-[10px] text-[#86868b]">{entry.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* FIX 6: Row 3 — Filter dropdowns aligned left */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        {/* Filter: Zona */}
-        <div>
-          <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
-          <select
-            value={filterZona}
-            onChange={(e) => setFilterZona(e.target.value)}
-            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+          {/* Espandi/Comprimi */}
+          <button
+            onClick={() => {
+              setExpandedZone(new Set(zone.map((z) => z.id)));
+              setExpandedLav(new Set(lavorazioni.map((l) => l.id)));
+            }}
+            className="px-3 py-1 rounded-md text-xs font-medium text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"
           >
-            <option value="">Tutte</option>
-            {uniqueZone.map((z) => (
-              <option key={z} value={z}>
-                {z}
-              </option>
-            ))}
-          </select>
+            Espandi tutto
+          </button>
+          <button
+            onClick={() => {
+              setExpandedZone(new Set());
+              setExpandedLav(new Set());
+            }}
+            className="px-3 py-1 rounded-md text-xs font-medium text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"
+          >
+            Comprimi tutto
+          </button>
         </div>
 
-        {/* Filter: Fornitore */}
-        <div>
-          <span className="text-[9px] text-[#86868b] block mb-0.5">Fornitore</span>
-          <select
-            value={filterFornitore}
-            onChange={(e) => setFilterFornitore(e.target.value)}
-            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
-          >
-            <option value="">Tutti</option>
-            {uniqueFornitori.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
+        {/* Row 2: legend */}
+        {legendEntries.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+            {legendEntries.map((entry) => (
+              <div key={entry.label} className="flex items-center gap-1.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="text-[10px] text-[#86868b]">{entry.label}</span>
+              </div>
             ))}
-          </select>
-        </div>
+          </div>
+        )}
 
-        {/* Filter: Tipologia */}
-        <div>
-          <span className="text-[9px] text-[#86868b] block mb-0.5">Tipologia</span>
-          <select
-            value={filterTipologia}
-            onChange={(e) => setFilterTipologia(e.target.value)}
-            className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
-          >
-            <option value="">Tutte</option>
-            {uniqueTipologie.map((t) => (
-              <option key={t} value={t}>
-                {t.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
+        {/* Row 3: filters */}
+        <div className="flex flex-wrap gap-3">
+          <div>
+            <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
+            <select
+              value={filterZona}
+              onChange={(e) => setFilterZona(e.target.value)}
+              className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+            >
+              <option value="">Tutte</option>
+              {uniqueZone.map((z) => (
+                <option key={z} value={z}>{z}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="text-[9px] text-[#86868b] block mb-0.5">Fornitore</span>
+            <select
+              value={filterFornitore}
+              onChange={(e) => setFilterFornitore(e.target.value)}
+              className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+            >
+              <option value="">Tutti</option>
+              {uniqueFornitori.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="text-[9px] text-[#86868b] block mb-0.5">Tipologia</span>
+            <select
+              value={filterTipologia}
+              onChange={(e) => setFilterTipologia(e.target.value)}
+              className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white"
+            >
+              <option value="">Tutte</option>
+              {uniqueTipologie.map((t) => (
+                <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* FIX 1: Two-panel Gantt — flex container with overflow hidden */}
-      <div
-        className="flex overflow-hidden border border-[#e5e5e7] rounded-[12px] bg-white"
-        style={{ height: "calc(100vh - 200px)" }}
-      >
-        {/* FIX 1: LEFT PANEL — visible, no overflow-hidden, proper flex-shrink-0 */}
+      {/* GANTT AREA — fills remaining height */}
+      <div className="flex-1 relative overflow-hidden border border-[#e5e5e7] rounded-[12px]">
+        {/* LEFT COLUMN — absolute positioned, own vertical scroll */}
         <div
-          className="w-[280px] min-w-[280px] flex-shrink-0 bg-white border-r border-[#e5e5e7] flex flex-col z-10"
+          ref={leftRef}
+          onScroll={handleLeftScroll}
+          className="absolute left-0 top-0 bottom-0 w-[280px] overflow-y-auto bg-white z-20 border-r border-[#e5e5e7]"
+          style={{ boxShadow: "2px 0 8px rgba(0,0,0,0.06)", scrollbarWidth: "none" }}
         >
-          {/* Left header */}
+          {/* Header cell */}
           <div
-            className="flex items-end pb-1 px-3 border-b border-[#e5e5e7] bg-white flex-shrink-0"
             style={{ height: HEADER_HEIGHT }}
+            className="sticky top-0 bg-white z-10 border-b border-[#e5e5e7] flex items-end px-4 pb-2"
           >
             <span className="text-[11px] text-[#86868b] font-medium">Lavorazione</span>
           </div>
-          {/* Left body — scrollable */}
-          <div
-            ref={leftRef}
-            onScroll={handleLeftScroll}
-            className="overflow-y-auto overflow-x-hidden flex-1"
-            style={{ scrollbarWidth: "none" }}
-          >
-            <div className="relative" style={{ height: totalContentHeight }}>
-              {rows.map((row, i) => {
-                const top = i * ROW_HEIGHT;
-
-                if (row.type === "zona") {
-                  return (
-                    <div
-                      key={`l-${i}`}
-                      className="absolute flex items-center border-b border-[#e5e5e7]/50"
-                      style={{
-                        top,
-                        height: ROW_HEIGHT,
-                        width: LEFT_WIDTH,
-                      }}
-                    >
-                      <button
-                        onClick={() => toggleZone(row.zona.id)}
-                        className="w-full h-full flex items-center gap-1.5 px-3 cursor-pointer"
-                      >
-                        {expandedZone.has(row.zona.id) ? (
-                          <ChevronDown size={12} className="text-[#86868b] flex-shrink-0" />
-                        ) : (
-                          <ChevronRight size={12} className="text-[#86868b] flex-shrink-0" />
-                        )}
-                        {/* FIX 7: Small colored dot instead of full colored background */}
-                        <div
-                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: row.zona.colore }}
-                        />
-                        <span className="font-semibold text-[14px] text-[#1d1d1f] truncate">
-                          {row.zona.nome}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                if (row.type === "lav") {
-                  return (
-                    <div
-                      key={`l-${i}`}
-                      className="absolute flex items-center border-b border-[#e5e5e7]/50"
-                      style={{ top, height: ROW_HEIGHT, width: LEFT_WIDTH }}
-                    >
-                      <button
-                        onClick={() => toggleLav(row.lav.id)}
-                        className="w-full h-full flex items-center gap-1.5 px-3 pl-7 text-left hover:bg-[#f5f5f7]/50"
-                      >
-                        {expandedLav.has(row.lav.id) ? (
-                          <ChevronDown size={11} className="text-[#86868b] flex-shrink-0" />
-                        ) : (
-                          <ChevronRight size={11} className="text-[#86868b] flex-shrink-0" />
-                        )}
-                        <span className="font-medium text-[13px] text-[#1d1d1f] truncate">
-                          {row.lav.nome}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                // task
-                return (
-                  <div
-                    key={`l-${i}`}
-                    className="absolute flex items-center border-b border-[#e5e5e7]/50"
-                    style={{ top, height: ROW_HEIGHT, width: LEFT_WIDTH }}
-                  >
-                    <div className="flex items-center gap-1 px-3 pl-12 h-full w-full">
-                      <span className="text-[12px] text-[#86868b] truncate">
-                        {row.task.titolo}
-                      </span>
-                      {conflictSet.has(row.task.id) && (
-                        <span
-                          title={conflictDescriptions[row.task.id] ?? "Conflitto attrezzi"}
-                          className="flex-shrink-0"
-                        >
-                          <AlertTriangle size={11} className="text-orange-500" />
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          {/* Row labels */}
+          <div className="relative" style={{ height: totalContentHeight }}>
+            {rows.map((row, i) => renderLeftCell(row, i))}
           </div>
         </div>
 
-        {/* FIX 1: RIGHT PANEL — flex-1 with both overflows */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Right header — scrolls horizontally only */}
-          <div
-            ref={headerRef}
-            className="flex-shrink-0 border-b border-[#e5e5e7] bg-white overflow-hidden"
-            style={{ height: HEADER_HEIGHT }}
-          >
+        {/* RIGHT AREA — absolute positioned, scrolls both X and Y */}
+        <div
+          ref={rightRef}
+          onScroll={handleRightScroll}
+          className="absolute left-[280px] top-0 right-0 bottom-0 overflow-auto"
+        >
+          <div style={{ width: totalWidth, minWidth: totalWidth }}>
+            {/* Day headers — sticky top */}
             <div
-              className="flex relative"
-              style={{ width: totalWidth, height: HEADER_HEIGHT }}
+              className="flex sticky top-0 bg-white z-10 border-b border-[#e5e5e7]"
+              style={{ height: HEADER_HEIGHT }}
             >
               {/* "Oggi" label */}
               {todayOffset >= 0 && todayOffset < days.length && (
@@ -799,18 +921,9 @@ export function GanttClient({
                 );
               })}
             </div>
-          </div>
 
-          {/* Right body — scrolls both ways */}
-          <div
-            ref={rightRef}
-            onScroll={handleRightScroll}
-            className="flex-1 overflow-x-auto overflow-y-auto"
-          >
-            <div
-              className="relative"
-              style={{ width: totalWidth, height: totalContentHeight }}
-            >
+            {/* Rows with bars */}
+            <div className="relative" style={{ height: totalContentHeight }}>
               {/* Weekend stripe columns */}
               {days.map((day, di) =>
                 isWeekend(day) ? (
@@ -852,168 +965,14 @@ export function GanttClient({
                 />
               )}
 
-              {/* Rows */}
-              {rows.map((row, i) => {
-                const top = i * ROW_HEIGHT;
-
-                /* ---- Zona row (FIX 7: plain white bg, aggregated bar as positioned element) ---- */
-                if (row.type === "zona") {
-                  return (
-                    <div
-                      key={`r-${i}`}
-                      className="absolute border-b border-[#e5e5e7]/50"
-                      style={{
-                        top,
-                        height: ROW_HEIGHT,
-                        width: totalWidth,
-                      }}
-                    >
-                      {/* Aggregated bar when collapsed */}
-                      {!expandedZone.has(row.zona.id) &&
-                        row.startDay >= 0 &&
-                        row.endDay >= 0 && (
-                          <div
-                            className="absolute"
-                            style={{
-                              left: row.startDay * dayWidth + 2,
-                              width: Math.max(
-                                (row.endDay - row.startDay + 1) * dayWidth - 4,
-                                4,
-                              ),
-                              top: (ROW_HEIGHT - 32) / 2,
-                              height: 32,
-                              borderRadius: 6,
-                              backgroundColor: row.zona.colore,
-                              opacity: 0.5,
-                            }}
-                          />
-                        )}
-                    </div>
-                  );
-                }
-
-                /* ---- Lavorazione row ---- */
-                if (row.type === "lav") {
-                  return (
-                    <div
-                      key={`r-${i}`}
-                      className="absolute border-b border-[#e5e5e7]/50"
-                      style={{ top, height: ROW_HEIGHT, width: totalWidth }}
-                    >
-                      {row.startDay >= 0 && row.endDay >= 0 && (
-                        <div
-                          className="absolute rounded-md"
-                          style={{
-                            left: row.startDay * dayWidth + 2,
-                            width: Math.max(
-                              (row.endDay - row.startDay + 1) * dayWidth - 4,
-                              4,
-                            ),
-                            top: 8,
-                            height: ROW_HEIGHT - 16,
-                            backgroundColor: row.zona.colore,
-                            opacity: 0.7,
-                          }}
-                        />
-                      )}
-                    </div>
-                  );
-                }
-
-                /* ---- Task row ---- */
-                const { sDay, eDay } = getBarPosition(row);
-                if (sDay < 0 || eDay < 0) {
-                  return (
-                    <div
-                      key={`r-${i}`}
-                      className="absolute border-b border-[#e5e5e7]/50"
-                      style={{ top, height: ROW_HEIGHT, width: totalWidth }}
-                    />
-                  );
-                }
-
-                const barLeft = sDay * dayWidth + 2;
-                const barWidth = Math.max((eDay - sDay + 1) * dayWidth - 4, 4);
-                const barLabel = row.task.tipologia
-                  ? getBarLabel(row.task.tipologia, barWidth)
-                  : "";
-                const isDragging =
-                  dragState !== null && dragState.taskId === row.task.id;
-                const barColor = getTaskBarColor(row.task);
-
-                return (
-                  <div
-                    key={`r-${i}`}
-                    className="absolute border-b border-[#e5e5e7]/50"
-                    style={{ top, height: ROW_HEIGHT, width: totalWidth }}
-                  >
-                    {/* Task bar */}
-                    <div
-                      className="absolute flex items-center overflow-hidden select-none"
-                      style={{
-                        left: barLeft,
-                        width: barWidth,
-                        top: 4,
-                        height: 28,
-                        borderRadius: 6,
-                        backgroundColor: barColor,
-                        cursor: isDragging ? "grabbing" : "grab",
-                        opacity: isDragging ? 0.85 : 1,
-                        zIndex: isDragging ? 20 : 1,
-                      }}
-                      title={[
-                        row.task.titolo,
-                        row.task.tipologia
-                          ? `Tipo: ${row.task.tipologia.replace(/_/g, " ")}`
-                          : null,
-                        row.task.fornitore_nome
-                          ? `Fornitore: ${row.task.fornitore_nome}`
-                          : null,
-                        `Stato: ${row.task.stato_calcolato.replace(/_/g, " ")}`,
-                      ]
-                        .filter(Boolean)
-                        .join("\n")}
-                      onMouseDown={(e) => {
-                        // Ignore if clicking on edge handles
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const relX = e.clientX - rect.left;
-                        if (relX <= 4 || relX >= rect.width - 4) return;
-                        startDrag(e, row.task, "move");
-                      }}
-                      onClick={(e) => {
-                        // Only trigger popup if not dragging
-                        if (dragState) return;
-                        setPopupTask({ task: row.task, x: e.clientX, y: e.clientY });
-                      }}
-                    >
-                      {/* Left resize handle */}
-                      <div
-                        className="absolute left-0 top-0 bottom-0 z-10"
-                        style={{ width: 4, cursor: "col-resize" }}
-                        onMouseDown={(e) => startDrag(e, row.task, "resize-left")}
-                      />
-                      {/* FIX 2: Bar text with abbreviation logic */}
-                      {barLabel && (
-                        <span className="text-[12px] text-white font-medium px-2 truncate leading-none pointer-events-none">
-                          {barLabel}
-                        </span>
-                      )}
-                      {/* Right resize handle */}
-                      <div
-                        className="absolute right-0 top-0 bottom-0 z-10"
-                        style={{ width: 4, cursor: "col-resize" }}
-                        onMouseDown={(e) => startDrag(e, row.task, "resize-right")}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {/* Row bars */}
+              {rows.map((row, i) => renderRightCell(row, i))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Task popup */}
+      {/* Popup */}
       {popupTask && (
         <div className="fixed inset-0 z-50" onClick={() => setPopupTask(null)}>
           <div
