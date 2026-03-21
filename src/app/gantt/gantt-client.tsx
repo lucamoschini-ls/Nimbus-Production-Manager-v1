@@ -174,7 +174,7 @@ export function GanttClient({
   const syncing = useRef(false);
 
   /* ---- timeline params (FIX 3: use parseISO for consistent date math) ---- */
-  const dayWidth = mode === "cantiere" ? 40 : 18;
+  const dayWidth = mode === "cantiere" ? 55 : 35;
   const startDate = useMemo(
     () => parseISO(mode === "cantiere" ? "2026-04-01" : "2026-03-01"),
     [mode],
@@ -729,37 +729,29 @@ export function GanttClient({
       {/* TOOLBAR — does NOT scroll */}
       <div className="flex-shrink-0 pb-4">
         {/* Row 1: title + toggles */}
-        <div className="flex items-center gap-3 flex-wrap mb-2">
+        <div className="flex items-center flex-wrap mb-2 gap-2">
           <h1 className="text-xl font-semibold text-[#1d1d1f]">Gantt</h1>
+
+          <div className="h-6 border-l border-[#e5e5e7] mx-2" />
 
           {/* Cantiere/Progetto toggle */}
           <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
-            <button
-              onClick={() => setMode("cantiere")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-            >
-              Cantiere
-            </button>
-            <button
-              onClick={() => setMode("progetto")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-            >
-              Progetto
-            </button>
+            <button onClick={() => setMode("cantiere")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "cantiere" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Cantiere</button>
+            <button onClick={() => setMode("progetto")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === "progetto" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Progetto</button>
           </div>
+
+          <div className="h-6 border-l border-[#e5e5e7] mx-2" />
 
           {/* Colora per toggle */}
           <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
             {(["zona", "tipologia", "fornitore"] as const).map((cm) => (
-              <button
-                key={cm}
-                onClick={() => setColorMode(cm)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${colorMode === cm ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}
-              >
+              <button key={cm} onClick={() => setColorMode(cm)} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${colorMode === cm ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>
                 {cm === "zona" ? "Zona" : cm === "tipologia" ? "Tipologia" : "Fornitore"}
               </button>
             ))}
           </div>
+
+          <div className="h-6 border-l border-[#e5e5e7] mx-2" />
 
           {/* Espandi/Comprimi */}
           <button
