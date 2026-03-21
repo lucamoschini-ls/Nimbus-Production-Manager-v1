@@ -550,9 +550,9 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
           }
 
           return (
-            <div key={c.id} className={`group/cat relative bg-white rounded-[12px] border p-4 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
+            <div key={c.id} className={`group relative bg-white rounded-[12px] border p-4 pr-10 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
               <button
-                className="absolute top-3 right-3 opacity-0 group-hover/cat:opacity-100 transition-opacity text-[#d2d2d7] hover:text-red-500 p-1"
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-red-500"
                 onClick={() => {
                   if (c.task_count > 0) {
                     if (!confirm(`Questo materiale è usato in ${c.task_count} task. Le istanze rimangono ma perdono il collegamento. Continuare?`)) return;
