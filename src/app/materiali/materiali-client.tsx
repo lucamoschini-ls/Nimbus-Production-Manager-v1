@@ -587,13 +587,9 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
           }
 
           return (
-            <div key={c.id} className={`group relative bg-white rounded-[12px] border p-4 pr-10 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
-              <button
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-red-500"
-                onClick={() => startDelete(c)}
-              >
-                <Trash2 size={14} />
-              </button>
+            <div key={c.id} className={`relative bg-white rounded-[12px] border p-4 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
+              <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) updateCatLocal(c.id, "nome", e.target.value); }}
                   className="text-sm font-medium text-[#1d1d1f] bg-transparent border-0 outline-none flex-1 min-w-[120px] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-2" />
@@ -615,6 +611,15 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
                 </div>
               )}
               {conflict && <p className="mt-2 text-xs text-orange-600 font-medium">{conflict}</p>}
+              </div>{/* close flex-1 */}
+              <button
+                onClick={() => startDelete(c)}
+                className="p-1.5 text-[#d2d2d7] hover:text-red-500 transition-colors flex-shrink-0 mt-0.5"
+                title="Elimina dal catalogo"
+              >
+                <Trash2 size={14} />
+              </button>
+              </div>{/* close flex justify-between */}
             </div>
           );
         })}
