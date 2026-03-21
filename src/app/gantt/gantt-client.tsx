@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { format, eachDayOfInterval, isWeekend, differenceInDays, parseISO, subDays } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -24,7 +24,7 @@ interface OpInfo {
   stato_calcolato: string; data_inizio: string | null; data_fine: string | null;
   fornitore_id: string | null; fornitore: { nome: string; stato: string } | null;
 }
-interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; opsByMat: Record<string, OpInfo[]>; tipColorMap: Record<string, string>; conflictTaskIds?: string[]; }
+interface Props { zone: Zona[]; lavorazioni: Lavorazione[]; tasks: Task[]; materiali: Materiale[]; opsByMat: Record<string, OpInfo[]>; tipColorMap: Record<string, string>; conflictDescriptions?: Record<string, string>; }
 
 const STATO_BAR_COLORS: Record<string, string> = {
   da_fare: "#d1d5db", in_corso: "#3b82f6", completata: "#22c55e", bloccata: "#ef4444",
@@ -40,8 +40,8 @@ const FORNITORE_PALETTE = [
 
 type ColorMode = "tipologia" | "zona" | "fornitore";
 
-export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tipColorMap, conflictTaskIds = [] }: Props) {
-  const conflictSet = new Set(conflictTaskIds);
+export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tipColorMap, conflictDescriptions = {} }: Props) {
+  const conflictSet = new Set(Object.keys(conflictDescriptions));
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
   const [colorMode, setColorMode] = useState<ColorMode>("tipologia");
   const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set(lavorazioni.map(l => l.id)));
@@ -206,7 +206,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
 
       <div className="flex border border-[#e5e5e7] rounded-[12px] bg-white overflow-hidden">
         {/* Left column: labels */}
-        <div className="w-[200px] min-w-[200px] border-r border-[#e5e5e7] bg-white z-10">
+        <div className="w-[200px] min-w-[200px] border-r border-[#e5e5e7] bg-white sticky left-0 z-10" style={{ boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
           <div className="h-[48px] border-b border-[#e5e5e7] px-3 flex items-end pb-1">
             <span className="text-[10px] text-[#86868b] font-medium">Lavorazione</span>
           </div>
@@ -230,8 +230,9 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
             }
             if (row.type === "task") {
               return (
-                <div key={`t-${row.task.id}-${i}`} className="flex items-center px-3 pl-7 border-b border-[#e5e5e7]" style={{ height: ROW_HEIGHT }}>
+                <div key={`t-${row.task.id}-${i}`} className="flex items-center gap-1 px-3 pl-7 border-b border-[#e5e5e7]" style={{ height: ROW_HEIGHT }}>
                   <span className="text-[10px] text-[#86868b] truncate">{row.task.titolo}</span>
+                  {conflictSet.has(row.task.id) && <span title={conflictDescriptions[row.task.id] ?? "Conflitto attrezzi"} className="flex-shrink-0"><AlertTriangle size={10} className="text-orange-500" /></span>}
                 </div>
               );
             }
@@ -315,7 +316,6 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                           width: barWidth,
                           top: 9, height: ROW_HEIGHT - 18,
                           backgroundColor: getTaskBarColor(row.task),
-                          ...(conflictSet.has(row.task.id) ? { border: "2px dashed #f97316" } : {}),
                         }} title={`${row.task.titolo} (${row.task.stato_calcolato})`}
                           onClick={(e) => setPopupTask({ task: row.task, x: e.clientX, y: e.clientY })}
                         >

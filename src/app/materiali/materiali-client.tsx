@@ -5,7 +5,7 @@ import { Package, Filter } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali, updateCatalogoItem, addCatalogoItem } from "./actions";
+import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali, addCatalogoItem } from "./actions";
 
 const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
 const PROVENIENZA = [
@@ -126,8 +126,21 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
   const [filterProvenienza, setFilterProvenienza] = useState("tutti");
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
 
   const filtered = materiali.filter((m) => {
+    // Quick filter overrides regular filters
+    if (quickFilter) {
+      if (quickFilter === "da_acquistare") return m.provenienza === "acquisto" && (m.quantita_disponibile ?? 0) < (m.quantita ?? 0);
+      if (quickFilter === "da_noleggiare") return m.provenienza === "noleggio" && (m.quantita_disponibile ?? 0) < (m.quantita ?? 0);
+      if (quickFilter === "da_trasportare") {
+        const ops = opsByMat[m.id] || [];
+        return ops.some(op => (op.tipologia ?? "").includes("trasporto") && op.stato !== "completata");
+      }
+      if (quickFilter === "in_loco") return m.provenienza === "in_loco";
+      if (quickFilter === "completi") return (m.quantita_disponibile ?? 0) >= (m.quantita ?? 0) && (m.quantita ?? 0) > 0;
+      return true;
+    }
     if (filterZona !== "tutti" && m.task?.lavorazione?.zona?.id !== filterZona) return false;
     if (filterStato !== "tutti") {
       const k = matStato(m).key;
@@ -157,6 +170,42 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
       {activeTab === "catalogo" && <CatalogoTab catalogo={catalogo} />}
 
       {activeTab === "materiali" && <>
+      {/* Smart summary counters */}
+      {(() => {
+        const qDaAcquistare = materiali.filter(m => m.provenienza === "acquisto" && (m.quantita_disponibile ?? 0) < (m.quantita ?? 0)).length;
+        const qDaNoleggiare = materiali.filter(m => m.provenienza === "noleggio" && (m.quantita_disponibile ?? 0) < (m.quantita ?? 0)).length;
+        const qDaTrasportare = materiali.filter(m => {
+          const ops = opsByMat[m.id] || [];
+          return ops.some(op => (op.tipologia ?? "").includes("trasporto") && op.stato !== "completata");
+        }).length;
+        const qInLoco = materiali.filter(m => m.provenienza === "in_loco").length;
+        const qCompleti = materiali.filter(m => (m.quantita_disponibile ?? 0) >= (m.quantita ?? 0) && (m.quantita ?? 0) > 0).length;
+        return (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button onClick={() => setQuickFilter(quickFilter === "da_acquistare" ? null : "da_acquistare")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${quickFilter === "da_acquistare" ? "bg-red-600 text-white" : "bg-red-100 text-red-700 hover:bg-red-200"}`}>
+              Da acquistare: {qDaAcquistare}
+            </button>
+            <button onClick={() => setQuickFilter(quickFilter === "da_noleggiare" ? null : "da_noleggiare")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${quickFilter === "da_noleggiare" ? "bg-red-600 text-white" : "bg-red-100 text-red-700 hover:bg-red-200"}`}>
+              Da noleggiare: {qDaNoleggiare}
+            </button>
+            <button onClick={() => setQuickFilter(quickFilter === "da_trasportare" ? null : "da_trasportare")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${quickFilter === "da_trasportare" ? "bg-orange-600 text-white" : "bg-orange-100 text-orange-700 hover:bg-orange-200"}`}>
+              Da trasportare: {qDaTrasportare}
+            </button>
+            <button onClick={() => setQuickFilter(quickFilter === "in_loco" ? null : "in_loco")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${quickFilter === "in_loco" ? "bg-green-600 text-white" : "bg-green-100 text-green-700 hover:bg-green-200"}`}>
+              In loco: {qInLoco}
+            </button>
+            <button onClick={() => setQuickFilter(quickFilter === "completi" ? null : "completi")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${quickFilter === "completi" ? "bg-green-600 text-white" : "bg-green-100 text-green-700 hover:bg-green-200"}`}>
+              Completi: {qCompleti}
+            </button>
+            {quickFilter && (
+              <button onClick={() => setQuickFilter(null)} className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f5f5f7] text-[#86868b] hover:bg-[#e5e5e7] transition-colors">
+                Mostra tutti
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Contatori */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
@@ -391,9 +440,9 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
                             className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
                             <option value="da_fare">Da fare</option><option value="in_corso">In corso</option><option value="completata">Completata</option>
                           </select>
-                          <label className="flex items-center gap-0.5 text-[9px] text-[#86868b] cursor-pointer flex-shrink-0">
-                            <input type="checkbox" checked={op.organizzato} onChange={(e) => saveOp(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-3 h-3" />
-                            Org.
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer flex-shrink-0">
+                            <input type="checkbox" checked={op.organizzato} onChange={(e) => saveOp(op.id, "organizzato", e.target.checked)} className="rounded border-[#e5e5e7] w-4 h-4" />
+                            <span className="text-[#86868b]">Organizzato</span>
                           </label>
                           <select defaultValue={op.luogo_id ?? ""} onChange={(e) => saveOp(op.id, "luogo_id", e.target.value || null)}
                             className="text-[10px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white">
@@ -483,9 +532,9 @@ function CatalogoTab({ catalogo }: { catalogo: CatAgg[] }) {
           return (
             <div key={c.id} className={`bg-white rounded-[12px] border p-4 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) updateCatalogoItem(c.id, { nome: e.target.value }); }}
+                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) { import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ nome: e.target.value }).eq("id", c.id); }); } }}
                   className="text-sm font-medium text-[#1d1d1f] bg-transparent border-0 outline-none flex-1 min-w-[120px] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-2" />
-                <select defaultValue={c.tipologia_materiale} onChange={(e) => updateCatalogoItem(c.id, { tipologia_materiale: e.target.value })}
+                <select defaultValue={c.tipologia_materiale} onChange={(e) => { import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ tipologia_materiale: e.target.value }).eq("id", c.id); }); }}
                   className="text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
                   <option value="strutturale">strutturale</option><option value="consumo">consumo</option><option value="attrezzo">attrezzo</option>
                 </select>

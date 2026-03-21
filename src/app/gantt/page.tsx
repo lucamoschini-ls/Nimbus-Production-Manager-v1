@@ -46,8 +46,8 @@ export default async function GanttPage() {
       byCat2[m.catalogo_id].push(m.task_id);
     }
   });
-  const conflictTaskIds = new Set<string>();
-  const allTasksG = (tasks ?? []) as unknown as { id: string; data_inizio: string | null; data_fine: string | null }[];
+  const conflictDescriptions: Record<string, string> = {};
+  const allTasksG = (tasks ?? []) as unknown as { id: string; titolo: string; data_inizio: string | null; data_fine: string | null }[];
   for (const tids of Object.values(byCat2)) {
     if (tids.length < 2) continue;
     for (let i = 0; i < tids.length; i++) {
@@ -57,7 +57,8 @@ export default async function GanttPage() {
         const tj = allTasksG.find(t => t.id === tids[j]);
         if (!tj?.data_inizio || !tj?.data_fine) continue;
         if (ti.data_inizio <= tj.data_fine && tj.data_inizio <= ti.data_fine) {
-          conflictTaskIds.add(tids[i]); conflictTaskIds.add(tids[j]);
+          conflictDescriptions[tids[i]] = `Attrezzo usato anche in: ${tj.titolo}`;
+          conflictDescriptions[tids[j]] = `Attrezzo usato anche in: ${ti.titolo}`;
         }
       }
     }
@@ -71,7 +72,7 @@ export default async function GanttPage() {
       materiali={materiali ?? []}
       opsByMat={opsByMat}
       tipColorMap={tipColorMap}
-      conflictTaskIds={Array.from(conflictTaskIds)}
+      conflictDescriptions={conflictDescriptions}
     />
   );
 }

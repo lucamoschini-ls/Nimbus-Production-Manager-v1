@@ -168,7 +168,7 @@ export function TrasportiClient({ ops, fornitori, luoghi, zone }: Props) {
                         <label className="flex items-center gap-1.5 text-xs cursor-pointer self-end">
                           <input type="checkbox" checked={op.organizzato} onChange={(e) => updateOperazioneField(op.id, { organizzato: e.target.checked })}
                             className="rounded border-[#e5e5e7] w-4 h-4" />
-                          <span className={op.organizzato ? "text-green-700 font-medium" : "text-[#86868b]"}>{op.organizzato ? "Organizzato" : "Da organizzare"}</span>
+                          <span className="text-[#86868b]">Organizzato</span>
                         </label>
                       </div>
                       <div className="flex flex-wrap items-end gap-3">
