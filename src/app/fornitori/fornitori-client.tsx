@@ -241,20 +241,17 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore }: Props
                         if (taskFilter === "completate") return t.stato_calcolato === "completata";
                         return true;
                       }).map((t) => (
-                        <div key={t.id} className="flex items-center gap-2 text-xs hover:bg-white rounded px-2 py-1.5 -mx-2 transition-colors">
-                          <button onClick={(e) => { e.stopPropagation(); import("../lavorazioni/cycle-actions").then(({ cycleTaskStato }) => cycleTaskStato(t.id, t.stato_calcolato)); }}
-                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 cursor-pointer hover:opacity-80 ${STATO_TASK_COLORS[t.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}
+                        <div key={t.id} className="flex items-start gap-3 text-xs hover:bg-white rounded px-2 py-2 -mx-2 transition-colors">
+                          <a href={`/lavorazioni?task=${t.id}`} className="flex-1 min-w-0 hover:underline">
+                            <span className="text-[#1d1d1f] block" style={{ whiteSpace: "normal" }}>{t.titolo}</span>
+                            <span className="text-[10px] text-[#86868b] block mt-0.5">{t.zona_nome} &gt; {t.lavorazione_nome}</span>
+                            {t.via && <span className="text-[10px] text-violet-500 block">{t.via}</span>}
+                          </a>
+                          <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); import("../lavorazioni/cycle-actions").then(({ cycleTaskStato }) => cycleTaskStato(t.id, t.stato_calcolato)); }}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 cursor-pointer hover:opacity-80 whitespace-nowrap ${STATO_TASK_COLORS[t.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}
                             title="Click per ciclare stato">
                             {t.stato_calcolato.replace(/_/g, " ")}
                           </button>
-                          <a href={`/lavorazioni?task=${t.id}`} className="flex-1 min-w-0 hover:underline">
-                            <span className="text-[#1d1d1f] truncate block">{t.titolo}</span>
-                            <span className="text-[10px] text-[#86868b]">{t.zona_nome} &gt; {t.lavorazione_nome}</span>
-                            {t.via && <span className="text-[10px] text-violet-500 block">{t.via}</span>}
-                          </a>
-                          {t.stato_calcolato.startsWith("in_attesa") && (
-                            <span className="text-[10px] text-red-500 flex-shrink-0">{t.stato_calcolato.replace(/_/g, " ")}</span>
-                          )}
                         </div>
                       ))}
                     </div>
