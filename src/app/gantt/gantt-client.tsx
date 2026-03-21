@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { format, eachDayOfInterval, isWeekend, differenceInDays, parseISO, subDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -44,8 +44,31 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
   const conflictSet = new Set(Object.keys(conflictDescriptions));
   const [mode, setMode] = useState<"cantiere" | "progetto">("cantiere");
   const [colorMode, setColorMode] = useState<ColorMode>("tipologia");
-  const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set(lavorazioni.map(l => l.id)));
+  const [expandedLav, setExpandedLav] = useState<Set<string>>(new Set());
+  const [expandedZone, setExpandedZone] = useState<Set<string>>(new Set());
   const [popupTask, setPopupTask] = useState<{ task: Task; x: number; y: number } | null>(null);
+
+  const leftColRef = useRef<HTMLDivElement>(null);
+  const rightColRef = useRef<HTMLDivElement>(null);
+  const syncingRef = useRef(false);
+
+  const handleLeftScroll = useCallback(() => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    if (rightColRef.current && leftColRef.current) {
+      rightColRef.current.scrollTop = leftColRef.current.scrollTop;
+    }
+    syncingRef.current = false;
+  }, []);
+
+  const handleRightScroll = useCallback(() => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    if (leftColRef.current && rightColRef.current) {
+      leftColRef.current.scrollTop = rightColRef.current.scrollTop;
+    }
+    syncingRef.current = false;
+  }, []);
 
   const ZONA_COLORS: Record<string, string> = {};
   zone.forEach((z) => (ZONA_COLORS[z.id] = z.colore));
@@ -110,8 +133,15 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
     setExpandedLav(next);
   };
 
+  const toggleZone = (id: string) => {
+    const next = new Set(expandedZone);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpandedZone(next);
+  };
+
   type Row =
     | { type: "zona"; zona: Zona }
+    | { type: "zona-bar"; zona: Zona; startDay: number; endDay: number }
     | { type: "lav"; lav: Lavorazione; zona: Zona; startDay: number; endDay: number }
     | { type: "task"; task: Task; startDay: number; endDay: number }
     | { type: "op"; op: OpInfo; startDay: number; endDay: number }
@@ -121,35 +151,47 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
   for (const z of zone) {
     rows.push({ type: "zona", zona: z });
     const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
-    for (const lav of zoneLav) {
-      const lavTasks = tasks.filter((t) => t.lavorazione_id === lav.id);
-      const datesStart = lavTasks.filter((t) => t.data_inizio).map((t) => parseISO(t.data_inizio!));
-      const datesEnd = lavTasks.filter((t) => t.data_fine).map((t) => parseISO(t.data_fine!));
-      const lavStart = datesStart.length > 0 ? Math.min(...datesStart.map((d) => differenceInDays(d, startDate))) : -1;
-      const lavEnd = datesEnd.length > 0 ? Math.max(...datesEnd.map((d) => differenceInDays(d, startDate))) : -1;
 
-      rows.push({ type: "lav", lav, zona: z, startDay: lavStart, endDay: lavEnd });
+    if (!expandedZone.has(z.id)) {
+      // Zone collapsed: show single aggregated zona-bar row
+      const allZoneTasks = tasks.filter((t) => zoneLav.some((l) => l.id === t.lavorazione_id));
+      const allStarts = allZoneTasks.filter((t) => t.data_inizio).map((t) => differenceInDays(parseISO(t.data_inizio!), startDate));
+      const allEnds = allZoneTasks.filter((t) => t.data_fine).map((t) => differenceInDays(parseISO(t.data_fine!), startDate));
+      const zStart = allStarts.length > 0 ? Math.min(...allStarts) : -1;
+      const zEnd = allEnds.length > 0 ? Math.max(...allEnds) : -1;
+      rows.push({ type: "zona-bar", zona: z, startDay: zStart, endDay: zEnd });
+    } else {
+      // Zone expanded: show lavorazioni
+      for (const lav of zoneLav) {
+        const lavTasks = tasks.filter((t) => t.lavorazione_id === lav.id);
+        const datesStart = lavTasks.filter((t) => t.data_inizio).map((t) => parseISO(t.data_inizio!));
+        const datesEnd = lavTasks.filter((t) => t.data_fine).map((t) => parseISO(t.data_fine!));
+        const lavStart = datesStart.length > 0 ? Math.min(...datesStart.map((d) => differenceInDays(d, startDate))) : -1;
+        const lavEnd = datesEnd.length > 0 ? Math.max(...datesEnd.map((d) => differenceInDays(d, startDate))) : -1;
 
-      if (expandedLav.has(lav.id)) {
-        for (const task of lavTasks) {
-          const tStart = task.data_inizio ? differenceInDays(parseISO(task.data_inizio), startDate) : -1;
-          const tEnd = task.data_fine ? differenceInDays(parseISO(task.data_fine), startDate) : -1;
-          rows.push({ type: "task", task, startDay: tStart, endDay: tEnd });
+        rows.push({ type: "lav", lav, zona: z, startDay: lavStart, endDay: lavEnd });
 
-          // Material rows + operazioni sotto ogni materiale
-          const taskMat = matByTask[task.id] || [];
-          for (const m of taskMat) {
-            if (!m.data_necessaria) continue;
-            const matEnd = differenceInDays(parseISO(m.data_necessaria), startDate);
-            const ggConsegna = m.giorni_consegna ?? 3;
-            const matStart = differenceInDays(subDays(parseISO(m.data_necessaria), ggConsegna), startDate);
-            rows.push({ type: "mat", mat: m, startDay: matStart, endDay: matEnd });
-            // Operazioni sotto questo materiale
-            const matOps = opsByMat[m.id] || [];
-            for (const op of matOps) {
-              const opStart = op.data_inizio ? differenceInDays(parseISO(op.data_inizio), startDate) : matStart;
-              const opEnd = op.data_fine ? differenceInDays(parseISO(op.data_fine), startDate) : matEnd;
-              rows.push({ type: "op", op, startDay: opStart, endDay: opEnd });
+        if (expandedLav.has(lav.id)) {
+          for (const task of lavTasks) {
+            const tStart = task.data_inizio ? differenceInDays(parseISO(task.data_inizio), startDate) : -1;
+            const tEnd = task.data_fine ? differenceInDays(parseISO(task.data_fine), startDate) : -1;
+            rows.push({ type: "task", task, startDay: tStart, endDay: tEnd });
+
+            // Material rows + operazioni sotto ogni materiale
+            const taskMat = matByTask[task.id] || [];
+            for (const m of taskMat) {
+              if (!m.data_necessaria) continue;
+              const matEnd = differenceInDays(parseISO(m.data_necessaria), startDate);
+              const ggConsegna = m.giorni_consegna ?? 3;
+              const matStart = differenceInDays(subDays(parseISO(m.data_necessaria), ggConsegna), startDate);
+              rows.push({ type: "mat", mat: m, startDay: matStart, endDay: matEnd });
+              // Operazioni sotto questo materiale
+              const matOps = opsByMat[m.id] || [];
+              for (const op of matOps) {
+                const opStart = op.data_inizio ? differenceInDays(parseISO(op.data_inizio), startDate) : matStart;
+                const opEnd = op.data_fine ? differenceInDays(parseISO(op.data_fine), startDate) : matEnd;
+                rows.push({ type: "op", op, startDay: opStart, endDay: opEnd });
+              }
             }
           }
         }
@@ -158,8 +200,8 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
   }
 
   const totalWidth = days.length * dayWidth;
-  const ROW_HEIGHT = 32;
-  const MAT_ROW_HEIGHT = 24;
+  const ROW_HEIGHT = 36;
+  const MAT_ROW_HEIGHT = 28;
 
   function matBarColor(m: Materiale): string {
     const disp = m.quantita_disponibile ?? 0;
@@ -204,18 +246,26 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
         </div>
       )}
 
-      <div className="flex border border-[#e5e5e7] rounded-[12px] bg-white overflow-hidden">
+      <div className="flex border border-[#e5e5e7] rounded-[12px] bg-white overflow-hidden h-[calc(100vh-180px)]">
         {/* Left column: labels */}
-        <div className="w-[200px] min-w-[200px] border-r border-[#e5e5e7] bg-white sticky left-0 z-10" style={{ boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
+        <div ref={leftColRef} onScroll={handleLeftScroll} className="w-[200px] min-w-[200px] border-r border-[#e5e5e7] bg-white sticky left-0 z-10 overflow-y-auto" style={{ boxShadow: '2px 0 4px rgba(0,0,0,0.05)' }}>
           <div className="h-[48px] border-b border-[#e5e5e7] px-3 flex items-end pb-1">
             <span className="text-[10px] text-[#86868b] font-medium">Lavorazione</span>
           </div>
           {rows.map((row, i) => {
             if (row.type === "zona") {
               return (
-                <div key={`z-${row.zona.id}`} className="flex items-center gap-2 px-3 border-b border-[#e5e5e7]" style={{ height: ROW_HEIGHT, backgroundColor: row.zona.colore + "15" }}>
+                <button key={`z-${row.zona.id}`} onClick={() => toggleZone(row.zona.id)} className="w-full flex items-center gap-1.5 px-3 border-b border-[#e5e5e7] cursor-pointer" style={{ height: ROW_HEIGHT, backgroundColor: row.zona.colore + "15" }}>
+                  {expandedZone.has(row.zona.id) ? <ChevronDown size={10} className="text-[#86868b]" /> : <ChevronRight size={10} className="text-[#86868b]" />}
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.zona.colore }} />
                   <span className="text-[10px] font-semibold text-[#1d1d1f] truncate">{row.zona.nome}</span>
+                </button>
+              );
+            }
+            if (row.type === "zona-bar") {
+              return (
+                <div key={`zb-${row.zona.id}`} className="flex items-center px-3 pl-7 border-b border-[#e5e5e7]" style={{ height: ROW_HEIGHT }}>
+                  <span className="text-[10px] text-[#86868b] truncate italic">Tutte le lavorazioni</span>
                 </div>
               );
             }
@@ -256,7 +306,7 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
         </div>
 
         {/* Right: timeline */}
-        <div className="flex-1 overflow-x-auto">
+        <div ref={rightColRef} onScroll={handleRightScroll} className="flex-1 overflow-x-auto overflow-y-auto">
           <div style={{ width: totalWidth, minWidth: totalWidth }}>
             {/* Day headers */}
             <div className="flex h-[48px] border-b border-[#e5e5e7] sticky top-0 bg-white z-10">
@@ -298,6 +348,16 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                     )}
                     {isZona && <div className="absolute inset-0" style={{ backgroundColor: (row as { zona: Zona }).zona.colore + "10" }} />}
 
+                    {/* Zona aggregated bar */}
+                    {row.type === "zona-bar" && row.startDay >= 0 && row.endDay >= 0 && (
+                      <div className="absolute rounded-sm" style={{
+                        left: row.startDay * dayWidth + 2,
+                        width: Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4),
+                        top: 6, height: ROW_HEIGHT - 12,
+                        backgroundColor: row.zona.colore, opacity: 0.5,
+                      }} />
+                    )}
+
                     {/* Lavorazione bar */}
                     {row.type === "lav" && row.startDay >= 0 && row.endDay >= 0 && (
                       <div className="absolute rounded-sm" style={{
@@ -310,17 +370,18 @@ export function GanttClient({ zone, lavorazioni, tasks, materiali, opsByMat, tip
                     {/* Task bar */}
                     {row.type === "task" && row.startDay >= 0 && row.endDay >= 0 && (() => {
                       const barWidth = Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4);
+                      const barLabel = row.task.tipologia ? row.task.tipologia.replace(/_/g, " ") : "";
                       return (
                         <div className="absolute rounded-sm cursor-pointer hover:brightness-110 overflow-hidden flex items-center" style={{
                           left: row.startDay * dayWidth + 2,
                           width: barWidth,
-                          top: 9, height: ROW_HEIGHT - 18,
+                          top: 4, height: ROW_HEIGHT - 8,
                           backgroundColor: getTaskBarColor(row.task),
                         }} title={`${row.task.titolo} (${row.task.stato_calcolato})`}
                           onClick={(e) => setPopupTask({ task: row.task, x: e.clientX, y: e.clientY })}
                         >
-                          {barWidth > 60 && (
-                            <span className="text-[8px] text-white font-medium px-1 truncate leading-none">{row.task.titolo}</span>
+                          {barWidth > 50 && barLabel && (
+                            <span className="text-[11px] text-white font-medium px-1 truncate leading-none">{barLabel}</span>
                           )}
                         </div>
                       );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Package, Filter } from "lucide-react";
+import { Package, Filter, Trash2 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -530,11 +530,26 @@ function CatalogoTab({ catalogo }: { catalogo: CatAgg[] }) {
           }
 
           return (
-            <div key={c.id} className={`bg-white rounded-[12px] border p-4 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
+            <div key={c.id} className={`group/cat relative bg-white rounded-[12px] border p-4 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
+              <button
+                className="absolute top-3 right-3 opacity-0 group-hover/cat:opacity-100 transition-opacity text-[#d2d2d7] hover:text-red-500 p-1"
+                onClick={() => {
+                  if (c.task_count > 0) {
+                    if (!confirm(`Questo materiale è usato in ${c.task_count} task. Le istanze rimangono ma perdono il collegamento. Continuare?`)) return;
+                  }
+                  import("@/lib/supabase/client").then(({ createClient }) => {
+                    createClient().from("catalogo_materiali").delete().eq("id", c.id).then(() => {
+                      window.location.reload();
+                    });
+                  });
+                }}
+              >
+                <Trash2 size={14} />
+              </button>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) { import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ nome: e.target.value }).eq("id", c.id); }); } }}
+                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) { const newVal = e.target.value; import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ nome: newVal }).eq("id", c.id).then(({ error }) => { if (error) console.error(error); }); }); } }}
                   className="text-sm font-medium text-[#1d1d1f] bg-transparent border-0 outline-none flex-1 min-w-[120px] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-2" />
-                <select defaultValue={c.tipologia_materiale} onChange={(e) => { import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ tipologia_materiale: e.target.value }).eq("id", c.id); }); }}
+                <select defaultValue={c.tipologia_materiale} onChange={(e) => { const newVal = e.target.value; import("@/lib/supabase/client").then(({ createClient }) => { createClient().from("catalogo_materiali").update({ tipologia_materiale: newVal }).eq("id", c.id).then(({ error }) => { if (error) console.error(error); }); }); }}
                   className="text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
                   <option value="strutturale">strutturale</option><option value="consumo">consumo</option><option value="attrezzo">attrezzo</option>
                 </select>

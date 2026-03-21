@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+// Button removed — quick add doesn't need form
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -114,6 +114,8 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
 
   const [selectedTask, setSelectedTask] = useState<TaskCompleta | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
+  const [newLavName, setNewLavName] = useState("");
 
   const toggleTaskExpand = (taskId: string) => {
     setExpandedTasks((prev) => {
@@ -133,10 +135,6 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
       }
     }
   }, [initialTaskId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [addingTaskTo, setAddingTaskTo] = useState<string | null>(null);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
-  const [newLavName, setNewLavName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
   const [editingLavName, setEditingLavName] = useState<string | null>(null);
 
@@ -175,15 +173,6 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
     setDeleteConfirm(null);
   };
 
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim() || !selectedLav) return;
-    _savedLavId = selectedLav;
-    await createTask({ lavorazione_id: selectedLav, titolo: newTaskTitle.trim() });
-    setNewTaskTitle("");
-    setAddingTaskTo(null);
-  };
-
   const handleMoveZona = async (newZonaId: string) => {
     if (!selectedLavData || newZonaId === selectedLavData.zona_id) return;
     _savedLavId = selectedLavData.id;
@@ -208,21 +197,24 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   }
 
   // Render the add-task form or button
+  const [creatingTask, setCreatingTask] = useState(false);
+  const handleQuickAddTask = async () => {
+    if (!selectedLav || creatingTask) return;
+    setCreatingTask(true);
+    _savedLavId = selectedLav;
+    await createTask({ lavorazione_id: selectedLav, titolo: "Nuova task" });
+    setCreatingTask(false);
+  };
+
   const renderAddTask = (position: "top" | "bottom") => {
     const cls = position === "top" ? "mb-3" : "mt-3";
-    if (addingTaskTo === selectedLav) {
-      return (
-        <form className={`${cls} flex gap-2`} onSubmit={handleAddTask}>
-          <input autoFocus value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="Titolo task"
-            className="flex-1 text-sm border border-[#e5e5e7] rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
-            onBlur={() => { if (!newTaskTitle.trim()) setAddingTaskTo(null); }} />
-          <Button type="submit" size="sm">Aggiungi</Button>
-        </form>
-      );
-    }
     return (
-      <button onClick={() => setAddingTaskTo(selectedLav)} className={`${cls} flex items-center gap-1.5 text-sm text-[#86868b] hover:text-[#1d1d1f] transition-colors`}>
-        <Plus size={16} /> Aggiungi task
+      <button
+        onClick={handleQuickAddTask}
+        disabled={creatingTask}
+        className={`${cls} flex items-center gap-1.5 text-sm text-[#86868b] hover:text-[#1d1d1f] transition-colors disabled:opacity-50`}
+      >
+        <Plus size={16} /> {creatingTask ? "Creazione..." : "Aggiungi task"}
       </button>
     );
   };
