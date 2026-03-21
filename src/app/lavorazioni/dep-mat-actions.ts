@@ -68,9 +68,30 @@ export async function addMateriale(data: {
   giorni_consegna?: number;
   note?: string;
   catalogo_id?: string;
+  _createInCatalog?: boolean;
 }) {
   const supabase = await createClient();
-  const { error } = await supabase.from("materiali").insert(data);
+
+  const { _createInCatalog, ...insertData } = data;
+
+  // If no catalogo_id and _createInCatalog, create catalog entry first
+  if (!insertData.catalogo_id && _createInCatalog) {
+    const { data: catEntry, error: catErr } = await supabase
+      .from("catalogo_materiali")
+      .insert({
+        nome: insertData.nome,
+        tipologia_materiale: "consumo",
+        unita_default: insertData.unita || null,
+        prezzo_unitario_default: insertData.prezzo_unitario || null,
+        provenienza_default: insertData.provenienza || null,
+      })
+      .select("id")
+      .single();
+    if (catErr) throw new Error(catErr.message);
+    insertData.catalogo_id = catEntry.id;
+  }
+
+  const { error } = await supabase.from("materiali").insert(insertData);
   if (error) throw new Error(error.message);
   revalidatePath("/lavorazioni");
   revalidatePath("/materiali");

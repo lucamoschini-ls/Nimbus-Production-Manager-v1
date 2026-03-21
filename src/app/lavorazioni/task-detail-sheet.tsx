@@ -790,6 +790,7 @@ function MaterialiSection({ taskId, fornitori, luoghi }: { taskId: string; forni
       giorni_consegna: newMat.giorni_consegna ? parseInt(newMat.giorni_consegna) : undefined,
       note: newMat.note || undefined,
       catalogo_id: newMat.catalogo_id || undefined,
+      _createInCatalog: !newMat.catalogo_id,
     });
     setNewMat({ nome: "", quantita: "", unita: "pz", prezzo_unitario: "", provenienza: "acquisto", giorni_consegna: "", note: "", catalogo_id: "" });
     setShowForm(false); await loadMateriali();
