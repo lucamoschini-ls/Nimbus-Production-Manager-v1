@@ -573,12 +573,32 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
-                  console.log("Delete clicked:", c.id, c.nome, "tasks:", c.task_count);
                   const ok = window.confirm("Eliminare " + c.nome + " dal catalogo?");
                   if (!ok) return;
+
                   const sb = createClient();
-                  await sb.from("materiali").update({ catalogo_id: null }).eq("catalogo_id", c.id);
-                  await sb.from("catalogo_materiali").delete().eq("id", c.id);
+
+                  const { error: err1 } = await sb
+                    .from("materiali")
+                    .update({ catalogo_id: null })
+                    .eq("catalogo_id", c.id);
+
+                  if (err1) {
+                    alert("Errore scollega materiali: " + JSON.stringify(err1));
+                    return;
+                  }
+
+                  const { error: err2 } = await sb
+                    .from("catalogo_materiali")
+                    .delete()
+                    .eq("id", c.id);
+
+                  if (err2) {
+                    alert("Errore elimina catalogo: " + JSON.stringify(err2));
+                    return;
+                  }
+
+                  alert("Eliminato con successo!");
                   setCatalogo(prev => prev.filter(x => x.id !== c.id));
                 }}
                 className="p-1.5 text-[#d2d2d7] hover:text-red-500 transition-colors flex-shrink-0 mt-0.5"
