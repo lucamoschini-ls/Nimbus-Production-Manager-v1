@@ -183,8 +183,6 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
     supporto_ore_lavoro: "",
     supporto_costo_ora: "",
   });
-  const [saving, setSaving] = useState(false);
-
   useEffect(() => {
     if (task) {
       setForm({
@@ -210,33 +208,10 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
     }
   }, [task]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await onSave({
-        titolo: form.titolo,
-        tipologia: form.tipologia || null,
-        fornitore_id: form.fornitore_id && form.fornitore_id !== "none" ? form.fornitore_id : null,
-        stato_fornitore_minimo: form.stato_fornitore_minimo,
-        stato: form.stato,
-        motivo_blocco: form.stato === "bloccata" ? form.motivo_blocco || null : null,
-        data_inizio: form.data_inizio || null,
-        data_fine: form.data_fine || null,
-        durata_ore: form.durata_ore ? parseFloat(form.durata_ore) : null,
-        numero_persone: form.numero_persone ? parseInt(form.numero_persone) : null,
-        ore_lavoro: form.ore_lavoro ? parseFloat(form.ore_lavoro) : null,
-        costo_ora: form.costo_ora ? parseFloat(form.costo_ora) : null,
-        note: form.note || null,
-        fornitore_supporto_id: form.fornitore_supporto_id && form.fornitore_supporto_id !== "none" && form.fornitore_supporto_id !== "_new" ? form.fornitore_supporto_id : null,
-        stato_fornitore_supporto_minimo: form.stato_fornitore_supporto_minimo,
-        supporto_numero_persone: form.supporto_numero_persone ? parseInt(form.supporto_numero_persone) : null,
-        supporto_ore_lavoro: form.supporto_ore_lavoro ? parseFloat(form.supporto_ore_lavoro) : null,
-        supporto_costo_ora: form.supporto_costo_ora ? parseFloat(form.supporto_costo_ora) : null,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const autoSave = useCallback((field: string, value: unknown) => {
+    if (!task) return;
+    onSave({ [field]: value });
+  }, [task, onSave]);
 
   const costoCalcolato =
     form.numero_persone && form.ore_lavoro && form.costo_ora
@@ -263,6 +238,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
           <Input
             value={form.titolo}
             onChange={(e) => setForm({ ...form, titolo: e.target.value })}
+            onBlur={(e) => autoSave("titolo", e.target.value)}
             className="text-lg font-semibold border-0 px-0 h-auto shadow-none focus-visible:ring-0 text-[#1d1d1f]"
           />
           <div className="flex items-center justify-between mt-1">
@@ -363,7 +339,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
               {/* Tipologia */}
               <div>
                 <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Tipologia</label>
-                <Select value={form.tipologia} onValueChange={(v) => setForm({ ...form, tipologia: v })}>
+                <Select value={form.tipologia} onValueChange={(v) => { setForm({ ...form, tipologia: v }); autoSave("tipologia", v || null); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleziona..." />
                   </SelectTrigger>
@@ -378,7 +354,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
               {/* Fornitore (esecuzione) */}
               <div>
                 <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Fornitore (esecuzione)</label>
-                <Select value={form.fornitore_id || "none"} onValueChange={(v) => setForm({ ...form, fornitore_id: v })}>
+                <Select value={form.fornitore_id || "none"} onValueChange={(v) => { setForm({ ...form, fornitore_id: v }); autoSave("fornitore_id", v && v !== "none" ? v : null); }}>
                   <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nessuno</SelectItem>
@@ -390,7 +366,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
               {form.fornitore_id && form.fornitore_id !== "none" && (
                 <div>
                   <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Stato fornitore minimo</label>
-                  <Select value={form.stato_fornitore_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_minimo: v as StatoFornitore })}>
+                  <Select value={form.stato_fornitore_minimo} onValueChange={(v) => { setForm({ ...form, stato_fornitore_minimo: v as StatoFornitore }); autoSave("stato_fornitore_minimo", v); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="confermato">Confermato</SelectItem>
@@ -407,13 +383,13 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                 <div className="bg-[#f5f5f7] rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-[#86868b]">Fornitore supporto</label>
-                    <button onClick={() => setForm({ ...form, fornitore_supporto_id: "none", stato_fornitore_supporto_minimo: "pronto" })} className="text-[10px] text-red-500">Rimuovi</button>
+                    <button onClick={() => { setForm({ ...form, fornitore_supporto_id: "none", stato_fornitore_supporto_minimo: "pronto" }); autoSave("fornitore_supporto_id", null); }} className="text-[10px] text-red-500">Rimuovi</button>
                   </div>
-                  <Select value={form.fornitore_supporto_id === "_new" ? undefined : form.fornitore_supporto_id} onValueChange={(v) => setForm({ ...form, fornitore_supporto_id: v })}>
+                  <Select value={form.fornitore_supporto_id === "_new" ? undefined : form.fornitore_supporto_id} onValueChange={(v) => { setForm({ ...form, fornitore_supporto_id: v }); autoSave("fornitore_supporto_id", v); }}>
                     <SelectTrigger><SelectValue placeholder="Seleziona fornitore..." /></SelectTrigger>
                     <SelectContent>{fornitori.map((f) => (<SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>))}</SelectContent>
                   </Select>
-                  <Select value={form.stato_fornitore_supporto_minimo} onValueChange={(v) => setForm({ ...form, stato_fornitore_supporto_minimo: v as StatoFornitore })}>
+                  <Select value={form.stato_fornitore_supporto_minimo} onValueChange={(v) => { setForm({ ...form, stato_fornitore_supporto_minimo: v as StatoFornitore }); autoSave("stato_fornitore_supporto_minimo", v); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="confermato">Confermato</SelectItem><SelectItem value="sopralluogo_fatto">Sopralluogo fatto</SelectItem>
@@ -435,7 +411,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
               {/* Stato */}
               <div>
                 <label className="text-xs font-medium text-[#86868b] mb-1.5 block">Stato</label>
-                <Select value={form.stato} onValueChange={(v) => setForm({ ...form, stato: v })}>
+                <Select value={form.stato} onValueChange={(v) => { setForm({ ...form, stato: v }); autoSave("stato", v); }}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -454,6 +430,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                   <Input
                     value={form.motivo_blocco}
                     onChange={(e) => setForm({ ...form, motivo_blocco: e.target.value })}
+                    onBlur={(e) => autoSave("motivo_blocco", e.target.value || null)}
                     placeholder="Motivo del blocco"
                   />
                 </div>
@@ -466,7 +443,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                   <Input
                     type="date"
                     value={form.data_inizio}
-                    onChange={(e) => setForm({ ...form, data_inizio: e.target.value })}
+                    onChange={(e) => { setForm({ ...form, data_inizio: e.target.value }); autoSave("data_inizio", e.target.value || null); }}
                   />
                 </div>
                 <div>
@@ -474,7 +451,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                   <Input
                     type="date"
                     value={form.data_fine}
-                    onChange={(e) => setForm({ ...form, data_fine: e.target.value })}
+                    onChange={(e) => { setForm({ ...form, data_fine: e.target.value }); autoSave("data_fine", e.target.value || null); }}
                   />
                 </div>
               </div>
@@ -486,6 +463,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                   type="number"
                   value={form.durata_ore}
                   onChange={(e) => setForm({ ...form, durata_ore: e.target.value })}
+                  onBlur={(e) => autoSave("durata_ore", e.target.value ? parseFloat(e.target.value) : null)}
                 />
                 {form.durata_ore && parseFloat(form.durata_ore) > 0 && (
                   <p className="text-[10px] text-[#86868b] mt-1">
@@ -519,6 +497,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                     type="number"
                     value={form.numero_persone}
                     onChange={(e) => setForm({ ...form, numero_persone: e.target.value })}
+                    onBlur={(e) => autoSave("numero_persone", e.target.value ? parseInt(e.target.value) : null)}
                   />
                 </div>
                 <div>
@@ -527,6 +506,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                     type="number"
                     value={form.ore_lavoro}
                     onChange={(e) => setForm({ ...form, ore_lavoro: e.target.value })}
+                    onBlur={(e) => autoSave("ore_lavoro", e.target.value ? parseFloat(e.target.value) : null)}
                   />
                 </div>
                 <div>
@@ -535,6 +515,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                     type="number"
                     value={form.costo_ora}
                     onChange={(e) => setForm({ ...form, costo_ora: e.target.value })}
+                    onBlur={(e) => autoSave("costo_ora", e.target.value ? parseFloat(e.target.value) : null)}
                   />
                 </div>
               </div>
@@ -549,9 +530,9 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                 <div className="bg-[#f5f5f7] rounded-lg p-3 space-y-2">
                   <p className="text-[10px] font-semibold text-[#86868b] uppercase">Costi supporto</p>
                   <div className="grid grid-cols-3 gap-2">
-                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Persone</label><Input type="number" value={form.supporto_numero_persone} onChange={(e) => setForm({ ...form, supporto_numero_persone: e.target.value })} /></div>
-                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Ore</label><Input type="number" value={form.supporto_ore_lavoro} onChange={(e) => setForm({ ...form, supporto_ore_lavoro: e.target.value })} /></div>
-                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Costo/ora</label><Input type="number" value={form.supporto_costo_ora} onChange={(e) => setForm({ ...form, supporto_costo_ora: e.target.value })} /></div>
+                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Persone</label><Input type="number" value={form.supporto_numero_persone} onChange={(e) => setForm({ ...form, supporto_numero_persone: e.target.value })} onBlur={(e) => autoSave("supporto_numero_persone", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Ore</label><Input type="number" value={form.supporto_ore_lavoro} onChange={(e) => setForm({ ...form, supporto_ore_lavoro: e.target.value })} onBlur={(e) => autoSave("supporto_ore_lavoro", e.target.value ? parseFloat(e.target.value) : null)} /></div>
+                    <div><label className="text-[9px] text-[#86868b] block mb-0.5">Costo/ora</label><Input type="number" value={form.supporto_costo_ora} onChange={(e) => setForm({ ...form, supporto_costo_ora: e.target.value })} onBlur={(e) => autoSave("supporto_costo_ora", e.target.value ? parseFloat(e.target.value) : null)} /></div>
                   </div>
                   {costoSupportoCalcolato && (
                     <p className="text-xs text-[#1d1d1f] font-medium">
@@ -576,20 +557,10 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
             <Textarea
               value={form.note}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
+              onBlur={(e) => autoSave("note", e.target.value || null)}
               rows={3}
             />
           </CollapsibleSection>
-
-          {/* Save button */}
-          <div className="pt-4">
-            <Button
-              onClick={handleSave}
-              disabled={saving || !form.titolo.trim()}
-              className="w-full"
-            >
-              {saving ? "Salvataggio..." : "Salva"}
-            </Button>
-          </div>
         </div>
       </SheetContent>
     </Sheet>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, ChevronRight, Plus, Trash2, Package } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2, Package, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 // Button removed — quick add doesn't need form
 import {
@@ -114,6 +114,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
 
   const [selectedTask, setSelectedTask] = useState<TaskCompleta | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [filterFornitore, setFilterFornitore] = useState<string>("");
   const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
   const [newLavName, setNewLavName] = useState("");
 
@@ -160,7 +161,10 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   };
 
   const selectedLavData = lavorazioni.find((l) => l.id === selectedLav);
-  const selectedLavTasks = tasks.filter((t) => t.lavorazione_id === selectedLav);
+  const selectedLavTasksAll = tasks.filter((t) => t.lavorazione_id === selectedLav);
+  const selectedLavTasks = filterFornitore
+    ? selectedLavTasksAll.filter((t) => t.fornitore_id === filterFornitore || (t as unknown as Record<string, unknown>).fornitore_supporto_id === filterFornitore)
+    : selectedLavTasksAll;
   const selectedZona = selectedLavData ? zone.find((z) => z.id === selectedLavData.zona_id) : null;
 
   const handleDeleteLav = (lav: Lavorazione) => {
@@ -365,16 +369,31 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                     {selectedLavData.nome}
                   </h1>
                 )}
-                {selectedLavTasks.length > 0 && (
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="flex-1 max-w-xs h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-[#34C759] transition-all" style={{ width: `${Math.round((selectedLavTasks.filter((t) => t.stato_calcolato === "completata").length / selectedLavTasks.length) * 100)}%` }} />
-                    </div>
-                    <span className="text-xs text-[#86868b]">
-                      {selectedLavTasks.filter((t) => t.stato_calcolato === "completata").length}/{selectedLavTasks.length} completate
-                    </span>
+                <div className="flex items-center gap-3 mt-2">
+                  {selectedLavTasks.length > 0 && (
+                    <>
+                      <div className="flex-1 max-w-xs h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-[#34C759] transition-all" style={{ width: `${Math.round((selectedLavTasks.filter((t) => t.stato_calcolato === "completata").length / selectedLavTasks.length) * 100)}%` }} />
+                      </div>
+                      <span className="text-xs text-[#86868b]">
+                        {selectedLavTasks.filter((t) => t.stato_calcolato === "completata").length}/{selectedLavTasks.length} completate
+                      </span>
+                    </>
+                  )}
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <Filter size={12} className="text-[#86868b]" />
+                    <select
+                      value={filterFornitore}
+                      onChange={(e) => setFilterFornitore(e.target.value)}
+                      className="text-xs text-[#86868b] bg-transparent border border-[#e5e5e7] rounded-lg px-2 py-1 outline-none hover:text-[#1d1d1f] focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Tutti i fornitori</option>
+                      {fornitori.map((f) => (
+                        <option key={f.id} value={f.id}>{f.nome}</option>
+                      ))}
+                    </select>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* + Aggiungi task — TOP */}
@@ -587,7 +606,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
 
       <TaskDetailSheet task={selectedTask} fornitori={fornitori} tipologieDb={tipologie} zone={zone} lavorazioni={lavorazioni} luoghi={luoghi} open={!!selectedTask}
         onClose={() => setSelectedTask(null)}
-        onSave={async (data) => { if (selectedTask) { _savedLavId = selectedLav; await updateTask(selectedTask.id, data); setSelectedTask(null); } }}
+        onSave={async (data) => { if (selectedTask) { _savedLavId = selectedLav; await updateTask(selectedTask.id, data); } }}
       />
     </div>
   );

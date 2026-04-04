@@ -6,9 +6,11 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 interface CostoZona { zona: string; costo_manodopera: number; costo_materiali: number; }
 interface TaskConCosto {
   id: string; titolo: string; zona_nome: string; zona_colore: string; zona_ordine: number;
-  lavorazione_nome: string; costo_manodopera: number | null; fornitore_nome: string | null;
+  lavorazione_nome: string; costo_manodopera: number | null; fornitore_id: string | null; fornitore_nome: string | null;
+  ore_lavoro: number | null; numero_persone: number | null;
   data_inizio: string | null; durata_ore: number | null;
   supporto_numero_persone: number | null; supporto_ore_lavoro: number | null; supporto_costo_ora: number | null;
+  fornitore_supporto_nome: string | null;
 }
 export interface PresenzaCosto {
   id: string; data: string; fornitore_id: string; numero_persone: number; ore: number;
@@ -20,8 +22,10 @@ interface Props { costiZona: CostoZona[]; taskConCosti: TaskConCosto[]; presenze
 function eur(n: number) { return n.toLocaleString("it-IT", { style: "currency", currency: "EUR" }); }
 
 export function CostiClient({ costiZona, taskConCosti, presenze }: Props) {
-  const [tab, setTab] = useState<"preventivo" | "consuntivo" | "confronto">("preventivo");
+  const [tab, setTab] = useState<"preventivo" | "per_fornitore" | "consuntivo" | "confronto">("preventivo");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expandedForn, setExpandedForn] = useState<Set<string>>(new Set());
+  const toggleForn = (k: string) => { const n = new Set(expandedForn); if (n.has(k)) n.delete(k); else n.add(k); setExpandedForn(n); };
   const toggle = (k: string) => { const n = new Set(expanded); if (n.has(k)) n.delete(k); else n.add(k); setExpanded(n); };
 
   // Preventivo totals
@@ -54,8 +58,8 @@ export function CostiClient({ costiZona, taskConCosti, presenze }: Props) {
       <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-4">Costi</h1>
 
       <div className="flex gap-1 mb-6 bg-[#f5f5f7] rounded-lg p-1 w-fit">
-        {(["preventivo", "consuntivo", "confronto"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${tab === t ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>{t}</button>
+        {([["preventivo", "Preventivo"], ["per_fornitore", "Per fornitore"], ["consuntivo", "Consuntivo"], ["confronto", "Confronto"]] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === key ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>{label}</button>
         ))}
       </div>
 
@@ -140,6 +144,104 @@ export function CostiClient({ costiZona, taskConCosti, presenze }: Props) {
           </div>
         </div>
       )}
+
+      {/* ===== PER FORNITORE ===== */}
+      {tab === "per_fornitore" && (() => {
+        // Group by fornitore
+        const fornData: Record<string, { nome: string; taskCount: number; ore: number; prev: number; cons: number; tasks: TaskConCosto[] }> = {};
+
+        taskConCosti.forEach(t => {
+          if (t.fornitore_nome) {
+            if (!fornData[t.fornitore_nome]) fornData[t.fornitore_nome] = { nome: t.fornitore_nome, taskCount: 0, ore: 0, prev: 0, cons: 0, tasks: [] };
+            fornData[t.fornitore_nome].taskCount++;
+            fornData[t.fornitore_nome].ore += (t.ore_lavoro ?? 0) * (t.numero_persone ?? 0);
+            fornData[t.fornitore_nome].prev += t.costo_manodopera ?? 0;
+            fornData[t.fornitore_nome].tasks.push(t);
+          }
+          // support
+          if (t.fornitore_supporto_nome) {
+            const sn = t.fornitore_supporto_nome;
+            if (!fornData[sn]) fornData[sn] = { nome: sn, taskCount: 0, ore: 0, prev: 0, cons: 0, tasks: [] };
+            fornData[sn].taskCount++;
+            fornData[sn].ore += (t.supporto_ore_lavoro ?? 0) * (t.supporto_numero_persone ?? 0);
+            fornData[sn].prev += (t.supporto_numero_persone ?? 0) * (t.supporto_ore_lavoro ?? 0) * (t.supporto_costo_ora ?? 0);
+          }
+        });
+
+        // Add consuntivo from presenze
+        presenze.forEach(p => {
+          if (fornData[p.fornitore.nome]) {
+            fornData[p.fornitore.nome].cons += p.costo_totale ?? 0;
+          }
+        });
+
+        const fornRows = Object.values(fornData).sort((a, b) => b.prev - a.prev);
+        const totTask = fornRows.reduce((s, r) => s + r.taskCount, 0);
+        const totOre = fornRows.reduce((s, r) => s + r.ore, 0);
+        const totPrevForn = fornRows.reduce((s, r) => s + r.prev, 0);
+        const totConsForn = fornRows.reduce((s, r) => s + r.cons, 0);
+        const totDiff = totConsForn - totPrevForn;
+
+        return (
+          <div>
+            <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+              <div className="grid grid-cols-7 gap-3 px-4 py-3 border-b border-[#e5e5e7] bg-[#f5f5f7]">
+                <span className="text-xs font-semibold text-[#1d1d1f] col-span-2">Fornitore</span>
+                <span className="text-xs font-semibold text-[#1d1d1f] text-right">Task</span>
+                <span className="text-xs font-semibold text-[#1d1d1f] text-right">Ore</span>
+                <span className="text-xs font-semibold text-[#1d1d1f] text-right">Prev.</span>
+                <span className="text-xs font-semibold text-[#1d1d1f] text-right">Cons.</span>
+                <span className="text-xs font-semibold text-[#1d1d1f] text-right">Diff.</span>
+              </div>
+              {fornRows.map(row => {
+                const diff = row.cons - row.prev;
+                const isExp = expandedForn.has(row.nome);
+                return (
+                  <div key={row.nome}>
+                    <button onClick={() => toggleForn(row.nome)} className="w-full grid grid-cols-7 gap-3 px-4 py-2.5 border-b border-[#e5e5e7] hover:bg-[#f5f5f7]/50 text-left">
+                      <span className="text-sm text-[#1d1d1f] font-medium flex items-center gap-2 col-span-2">
+                        {isExp ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        {row.nome}
+                      </span>
+                      <span className="text-sm text-[#86868b] text-right">{row.taskCount}</span>
+                      <span className="text-sm text-[#86868b] text-right">{row.ore > 0 ? `${Math.round(row.ore)}h` : "-"}</span>
+                      <span className="text-sm text-right">{row.prev > 0 ? eur(row.prev) : "-"}</span>
+                      <span className="text-sm text-right">{row.cons > 0 ? eur(row.cons) : "-"}</span>
+                      <span className={`text-sm text-right font-medium ${diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : "text-[#86868b]"}`}>
+                        {row.prev > 0 || row.cons > 0 ? (diff > 0 ? "+" : "") + eur(diff) : "-"}
+                      </span>
+                    </button>
+                    {isExp && row.tasks.length > 0 && (
+                      <div className="bg-[#f5f5f7]/30">
+                        {row.tasks.map(t => (
+                          <div key={t.id} className="grid grid-cols-7 gap-3 px-4 py-1.5 border-b border-[#e5e5e7]/50 pl-10 text-xs text-[#86868b]">
+                            <span className="truncate col-span-2">{t.titolo}</span>
+                            <span className="text-right">-</span>
+                            <span className="text-right">{(t.ore_lavoro ?? 0) * (t.numero_persone ?? 0) > 0 ? `${(t.ore_lavoro ?? 0) * (t.numero_persone ?? 0)}h` : "-"}</span>
+                            <span className="text-right">{t.costo_manodopera ? eur(t.costo_manodopera) : "-"}</span>
+                            <span className="text-right">-</span>
+                            <span className="text-right">-</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <div className="grid grid-cols-7 gap-3 px-4 py-3 bg-[#f5f5f7]">
+                <span className="text-sm font-bold col-span-2">TOTALE</span>
+                <span className="text-sm font-bold text-right">{totTask}</span>
+                <span className="text-sm font-bold text-right">{totOre > 0 ? `${Math.round(totOre)}h` : "-"}</span>
+                <span className="text-sm font-bold text-right">{eur(totPrevForn)}</span>
+                <span className="text-sm font-bold text-right">{eur(totConsForn)}</span>
+                <span className={`text-sm font-bold text-right ${totDiff > 0 ? "text-red-600" : totDiff < 0 ? "text-green-600" : ""}`}>
+                  {totDiff !== 0 ? (totDiff > 0 ? "+" : "") + eur(totDiff) : "-"}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ===== CONSUNTIVO ===== */}
       {tab === "consuntivo" && (

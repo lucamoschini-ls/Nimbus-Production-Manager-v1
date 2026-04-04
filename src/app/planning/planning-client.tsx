@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import {
   startOfWeek,
   addDays,
@@ -13,6 +12,7 @@ import {
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { TaskDetailOverlay } from "@/components/task-detail-overlay";
 
 const HOURS_PER_DAY = 11;
 const WEEK_DAYS = 6; // Mon–Sat
@@ -105,7 +105,7 @@ function getTaskDays(
 }
 
 export function PlanningClient({ tasks, zone, tipologie }: Props) {
-  const router = useRouter();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Default week: the Monday of the week containing April 14, 2026
   const [weekStart, setWeekStart] = useState<Date>(
@@ -345,11 +345,7 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
                             {dayTasks.map((task) => (
                               <button
                                 key={task.id}
-                                onClick={() =>
-                                  router.push(
-                                    `/lavorazioni?task=${task.id}`
-                                  )
-                                }
+                                onClick={() => setSelectedTaskId(task.id)}
                                 className="text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80"
                                 style={{
                                   backgroundColor: task.zona_colore
@@ -402,6 +398,9 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
           </table>
         </div>
       </div>
+
+      {/* Task Detail Overlay */}
+      <TaskDetailOverlay taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
     </div>
   );
 }

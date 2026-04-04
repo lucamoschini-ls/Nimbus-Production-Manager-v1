@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { FornitoreSheet } from "./fornitore-sheet";
 import { PermessoSheet } from "./permesso-sheet";
+import { TaskDetailOverlay } from "@/components/task-detail-overlay";
 import { updateFornitore, createFornitore, updatePermesso, createPermesso } from "./actions";
 import type { StatoFornitore, StatoPermesso } from "@/lib/types";
 
@@ -94,9 +95,10 @@ interface Props {
   permessi: Permesso[];
   tasksByFornitore: Record<string, TaskForFornitore[]>;
   tipologieFornitore: TipologiaFornitore[];
+  fornCosts: Record<string, { oreTotali: number; costoTotale: number }>;
 }
 
-export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipologieFornitore }: Props) {
+export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipologieFornitore, fornCosts }: Props) {
   const [activeTab, setActiveTab] = useState<"fornitori" | "permessi">("fornitori");
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [filterTipologia, setFilterTipologia] = useState<string>("tutti");
@@ -106,6 +108,7 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
   const [selectedPermesso, setSelectedPermesso] = useState<Permesso | null>(null);
   const [isNewFornitore, setIsNewFornitore] = useState(false);
   const [isNewPermesso, setIsNewPermesso] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const STATO_ORDER: Record<string, number> = { da_trovare: 0, contattato: 1, confermato: 2, sopralluogo_fatto: 3, materiali_definiti: 4, pronto: 5 };
 
@@ -261,6 +264,17 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
                     </button>
                     {fornitore.task_bloccate_da_me > 0 && <span className="text-red-500">{fornitore.task_bloccate_da_me} bloccate</span>}
                   </div>
+                  {(() => {
+                    const fc = fornCosts[fornitore.id];
+                    if (!fc || (fc.oreTotali === 0 && fc.costoTotale === 0)) {
+                      return <p className="text-[10px] text-[#d2d2d7] mt-0.5">Ore e costi da compilare</p>;
+                    }
+                    return (
+                      <p className="text-[10px] text-[#86868b] mt-0.5">
+                        ~{Math.round(fc.oreTotali)} ore · {fc.costoTotale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                      </p>
+                    );
+                  })()}
                 </div>
                 {isExpanded && fornTasks.length > 0 && (
                   <div className="border-t border-[#e5e5e7] bg-[#f5f5f7]/30 px-5 py-3">
@@ -281,11 +295,11 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
                         return true;
                       }).map((t) => (
                         <div key={t.id} className="flex items-start gap-3 text-xs hover:bg-white rounded px-2 py-2 -mx-2 transition-colors">
-                          <a href={`/lavorazioni?task=${t.id}`} className="flex-1 min-w-0 hover:underline">
+                          <button onClick={() => setSelectedTaskId(t.id)} className="flex-1 min-w-0 hover:underline text-left">
                             <span className="text-[#1d1d1f] block" style={{ whiteSpace: "normal" }}>{t.titolo}</span>
                             <span className="text-[10px] text-[#86868b] block mt-0.5">{t.zona_nome} &gt; {t.lavorazione_nome}</span>
                             {t.via && <span className="text-[10px] text-violet-500 block">{t.via}</span>}
-                          </a>
+                          </button>
                           <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); import("../lavorazioni/cycle-actions").then(({ cycleTaskStato }) => cycleTaskStato(t.id, t.stato_calcolato)); }}
                             className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 cursor-pointer hover:opacity-80 whitespace-nowrap ${STATO_TASK_COLORS[t.stato_calcolato] ?? "bg-gray-100 text-gray-600"}`}
                             title="Click per ciclare stato">
@@ -371,6 +385,9 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
           setIsNewPermesso(false);
         }}
       />
+
+      {/* Task Detail Overlay */}
+      <TaskDetailOverlay taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
     </div>
   );
 }
