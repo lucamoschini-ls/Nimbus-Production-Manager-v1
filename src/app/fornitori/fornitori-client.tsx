@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Filter } from "lucide-react";
+import { Plus, Filter, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -98,9 +98,11 @@ interface Props {
   fornCosts: Record<string, { oreTotali: number; costoTotale: number }>;
 }
 
-export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipologieFornitore, fornCosts: fornCostsInitial }: Props) {
+export function FornitoriClient({ fornitori: fornitoriInitial, permessi, tasksByFornitore, tipologieFornitore, fornCosts: fornCostsInitial }: Props) {
+  const [fornitoriList, setFornitoriList] = useState(fornitoriInitial);
   const [fornCosts, setFornCosts] = useState(fornCostsInitial);
   const [activeTab, setActiveTab] = useState<"fornitori" | "permessi">("fornitori");
+  const [deletingFornId, setDeletingFornId] = useState<string | null>(null);
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [filterTipologia, setFilterTipologia] = useState<string>("tutti");
   const [selectedFornitore, setSelectedFornitore] = useState<Fornitore | null>(null);
@@ -129,6 +131,33 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
     });
     setFornCosts(newCosts);
   };
+
+  const handleDeleteFornitore = async (fornitore: Fornitore) => {
+    const taskCount = fornitore.task_totali ?? 0;
+    if (taskCount === 0) {
+      const ok = window.confirm("Eliminare " + fornitore.nome + "?");
+      if (!ok) return;
+      const { createClient } = await import("@/lib/supabase/client");
+      const sb = createClient();
+      await sb.from("fornitori").delete().eq("id", fornitore.id);
+      setFornitoriList(prev => prev.filter(f => f.id !== fornitore.id));
+      setDeletingFornId(null);
+    } else {
+      setDeletingFornId(fornitore.id);
+    }
+  };
+
+  const confirmDeleteFornitore = async (id: string) => {
+    const { createClient } = await import("@/lib/supabase/client");
+    const sb = createClient();
+    await sb.from("task").update({ fornitore_id: null }).eq("fornitore_id", id);
+    await sb.from("task").update({ fornitore_supporto_id: null }).eq("fornitore_supporto_id", id);
+    await sb.from("operazioni").update({ fornitore_id: null }).eq("fornitore_id", id);
+    await sb.from("fornitori").delete().eq("id", id);
+    setFornitoriList(prev => prev.filter(f => f.id !== id));
+    setDeletingFornId(null);
+  };
+
   const [taskFilter, setTaskFilter] = useState<"tutte" | "bloccate" | "in_corso" | "completate">("tutte");
   const [selectedPermesso, setSelectedPermesso] = useState<Permesso | null>(null);
   const [isNewFornitore, setIsNewFornitore] = useState(false);
@@ -139,8 +168,8 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
 
   const filteredFornitori = (() => {
     let base = filterStato === "tutti"
-      ? fornitori
-      : fornitori.filter((f) => f.stato === filterStato);
+      ? fornitoriList
+      : fornitoriList.filter((f) => f.stato === filterStato);
     if (filterTipologia !== "tutti") {
       base = base.filter((f) => f.tipo === filterTipologia);
     }
@@ -228,7 +257,7 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
               : "text-[#86868b] hover:text-[#1d1d1f]"
           }`}
         >
-          Fornitori ({fornitori.length})
+          Fornitori ({fornitoriList.length})
         </button>
         <button
           onClick={() => setActiveTab("permessi")}
@@ -249,8 +278,15 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
             const fornTasks = tasksByFornitore[fornitore.id] || [];
             const isExpanded = expandedFornitore === fornitore.id;
             return (
-              <div key={fornitore.id} className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
-                <div className="p-5 cursor-pointer hover:bg-[#f5f5f7]/30 transition-colors" onClick={() => setSelectedFornitore(fornitore)}>
+              <div key={fornitore.id} className="group bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteFornitore(fornitore); }}
+                  className="absolute top-2 right-2 p-1 text-[#d2d2d7] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  title="Elimina fornitore"
+                >
+                  <Trash2 size={14} />
+                </button>
+                <div className="p-5 pr-10 cursor-pointer hover:bg-[#f5f5f7]/30 transition-colors" onClick={() => setSelectedFornitore(fornitore)}>
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="text-sm font-semibold text-[#1d1d1f]">{fornitore.nome}</h3>
@@ -332,6 +368,19 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
                           </button>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+                {deletingFornId === fornitore.id && (
+                  <div className="mx-5 mb-4 p-4 rounded-lg" style={{ backgroundColor: "#FFF5F5", border: "1px solid #FFD2D2" }}>
+                    <p className="text-sm text-[#1d1d1f] mb-3">
+                      <span className="font-semibold">{fornitore.nome}</span> assegnato a {fornitore.task_totali} task. Eliminando, le task perderanno l&apos;assegnazione.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => confirmDeleteFornitore(fornitore.id)}
+                        className="text-xs px-3 py-1.5 rounded-md bg-[#FF3B30] text-white hover:opacity-90 font-medium">Elimina</button>
+                      <button onClick={() => setDeletingFornId(null)}
+                        className="text-xs px-3 py-1.5 text-[#86868b] hover:text-[#1d1d1f]">Annulla</button>
                     </div>
                   </div>
                 )}
