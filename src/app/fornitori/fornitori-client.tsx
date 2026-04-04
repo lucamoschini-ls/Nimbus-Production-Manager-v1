@@ -98,12 +98,37 @@ interface Props {
   fornCosts: Record<string, { oreTotali: number; costoTotale: number }>;
 }
 
-export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipologieFornitore, fornCosts }: Props) {
+export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipologieFornitore, fornCosts: fornCostsInitial }: Props) {
+  const [fornCosts, setFornCosts] = useState(fornCostsInitial);
   const [activeTab, setActiveTab] = useState<"fornitori" | "permessi">("fornitori");
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [filterTipologia, setFilterTipologia] = useState<string>("tutti");
   const [selectedFornitore, setSelectedFornitore] = useState<Fornitore | null>(null);
   const [expandedFornitore, setExpandedFornitore] = useState<string | null>(null);
+
+  const refetchCosts = async () => {
+    const { createClient } = await import("@/lib/supabase/client");
+    const sb = createClient();
+    const { data: taskCosts } = await sb.from("v_task_completa")
+      .select("fornitore_id, ore_lavoro, numero_persone, costo_manodopera, fornitore_supporto_id, supporto_ore_lavoro, supporto_numero_persone, supporto_costo_ora")
+      .not("fornitore_id", "is", null);
+    const newCosts: Record<string, { oreTotali: number; costoTotale: number }> = {};
+    (taskCosts ?? []).forEach((t: Record<string, number | null | string>) => {
+      if (t.fornitore_id) {
+        const fid = t.fornitore_id as string;
+        if (!newCosts[fid]) newCosts[fid] = { oreTotali: 0, costoTotale: 0 };
+        newCosts[fid].oreTotali += ((t.ore_lavoro as number) ?? 0) * ((t.numero_persone as number) ?? 0);
+        newCosts[fid].costoTotale += (t.costo_manodopera as number) ?? 0;
+      }
+      if (t.fornitore_supporto_id) {
+        const sid = t.fornitore_supporto_id as string;
+        if (!newCosts[sid]) newCosts[sid] = { oreTotali: 0, costoTotale: 0 };
+        newCosts[sid].oreTotali += ((t.supporto_ore_lavoro as number) ?? 0) * ((t.supporto_numero_persone as number) ?? 0);
+        newCosts[sid].costoTotale += ((t.supporto_numero_persone as number) ?? 0) * ((t.supporto_ore_lavoro as number) ?? 0) * ((t.supporto_costo_ora as number) ?? 0);
+      }
+    });
+    setFornCosts(newCosts);
+  };
   const [taskFilter, setTaskFilter] = useState<"tutte" | "bloccate" | "in_corso" | "completate">("tutte");
   const [selectedPermesso, setSelectedPermesso] = useState<Permesso | null>(null);
   const [isNewFornitore, setIsNewFornitore] = useState(false);
@@ -387,7 +412,7 @@ export function FornitoriClient({ fornitori, permessi, tasksByFornitore, tipolog
       />
 
       {/* Task Detail Overlay */}
-      <TaskDetailOverlay taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
+      <TaskDetailOverlay taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} onTaskUpdated={refetchCosts} />
     </div>
   );
 }

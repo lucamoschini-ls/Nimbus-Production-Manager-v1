@@ -7,9 +7,10 @@ import { TaskDetailSheet } from "@/app/lavorazioni/task-detail-sheet";
 interface Props {
   taskId: string | null;
   onClose: () => void;
+  onTaskUpdated?: () => void;
 }
 
-export function TaskDetailOverlay({ taskId, onClose }: Props) {
+export function TaskDetailOverlay({ taskId, onClose, onTaskUpdated }: Props) {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const [task, setTask] = useState<any>(null);
   const [fornitori, setFornitori] = useState<any[]>([]);
@@ -78,6 +79,7 @@ export function TaskDetailOverlay({ taskId, onClose }: Props) {
           .eq("id", taskId)
           .single();
         if (updated) setTask(updated);
+        onTaskUpdated?.();
       }}
     />
   );
