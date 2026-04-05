@@ -37,6 +37,9 @@ interface TransportOp {
   id: string;
   matNome: string;
   taskId: string;
+  taskTitolo: string;
+  zonaNome: string;
+  lavNome: string;
   fornitoreNome: string;
   luogoNome: string | null;
   data_inizio: string;
@@ -48,6 +51,7 @@ interface Props {
   zone: { id: string; nome: string }[];
   tipologie: { nome: string }[];
   transportOps?: TransportOp[];
+  tipColorMap?: Record<string, string>;
 }
 
 const TIPOLOGIA_SHORT: Record<string, string> = {
@@ -116,7 +120,7 @@ function getTaskDays(
   return days;
 }
 
-export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Props) {
+export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipColorMap = {} }: Props) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Default week: the Monday of the week containing April 14, 2026
@@ -382,9 +386,18 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Pr
                               </span>
                             )}
                             {dayOps.map((op) => (
-                              <AppTooltip key={op.id} content={`Trasporto: ${op.matNome}${op.luogoNome ? ` da ${op.luogoNome}` : ""}`}>
-                                <div
-                                  className="rounded-md px-2 py-1"
+                              <AppTooltip
+                                key={op.id}
+                                content={<>
+                                  <strong>Trasporto: {op.matNome}</strong>
+                                  {op.luogoNome && <><br />Da: {op.luogoNome}</>}
+                                  <br />Task: {op.taskTitolo}
+                                  <br />{op.zonaNome} / {op.lavNome}
+                                </>}
+                              >
+                                <button
+                                  onClick={() => setSelectedTaskId(op.taskId)}
+                                  className="w-full text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80 cursor-pointer"
                                   style={{
                                     backgroundColor: "rgba(14, 165, 233, 0.15)",
                                     borderLeft: "3px solid #0ea5e9",
@@ -393,22 +406,30 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Pr
                                   <div className="text-[10px] font-medium text-[#0ea5e9] truncate max-w-[120px]">
                                     TRAS {op.matNome}
                                   </div>
-                                </div>
+                                </button>
                               </AppTooltip>
                             ))}
                             {dayTasks.map((task) => (
                               <AppTooltip
                                 key={task.id}
-                                content={<><strong>{task.titolo}</strong><br />{task.zona_nome} / {task.lavorazione_nome}{task.tipologia ? <><br />{task.tipologia.replace(/_/g, " ")}</> : null}</>}
+                                content={<>
+                                  <strong>{task.titolo}</strong>
+                                  <br />{task.zona_nome} / {task.lavorazione_nome}
+                                  {task.fornitore_nome && <><br />Fornitore: {task.fornitore_nome}</>}
+                                  {task.tipologia && <><br />Tipo: {task.tipologia.replace(/_/g, " ")}</>}
+                                  {task.stato_calcolato && <><br />Stato: {task.stato_calcolato.replace(/_/g, " ")}</>}
+                                </>}
                               >
                                 <button
                                   onClick={() => setSelectedTaskId(task.id)}
                                   className="text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80"
                                   style={{
-                                    backgroundColor: task.zona_colore
-                                      ? hexToRgba(task.zona_colore, 0.2)
-                                      : "rgba(0,0,0,0.05)",
-                                    borderLeft: `3px solid ${task.zona_colore || "#ccc"}`,
+                                    backgroundColor: task.tipologia && tipColorMap[task.tipologia]
+                                      ? hexToRgba(tipColorMap[task.tipologia], 0.2)
+                                      : task.zona_colore
+                                        ? hexToRgba(task.zona_colore, 0.15)
+                                        : "rgba(0,0,0,0.05)",
+                                    borderLeft: `3px solid ${(task.tipologia && tipColorMap[task.tipologia]) || task.zona_colore || "#ccc"}`,
                                   }}
                                 >
                                   <div className="text-[10px] font-medium text-[#1d1d1f] truncate max-w-[120px]">

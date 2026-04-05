@@ -3,6 +3,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { AppTooltip } from "@/components/ui/app-tooltip";
+import { ImpactDialog } from "@/components/impact-dialog";
+import { fetchDependencyGraph, analyzeImpact, type DepGraph, type ImpactedTask } from "@/lib/dependency-utils";
 import {
   format,
   eachDayOfInterval,
@@ -85,6 +87,7 @@ interface Props {
   transportOpsByTask: Record<string, TransportOp[]>;
   tipColorMap: Record<string, string>;
   conflictDescriptions?: Record<string, string>;
+  dipendenze?: { task_id: string; dipende_da_id: string }[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -149,6 +152,7 @@ export function GanttClient({
   transportOpsByTask,
   tipColorMap,
   conflictDescriptions = {},
+  dipendenze = [],
 }: Props) {
   void _materiali;
   void _opsByMat;
@@ -164,6 +168,21 @@ export function GanttClient({
     task: Task;
     x: number;
     y: number;
+  } | null>(null);
+
+  /* ---- dependency graph (for impact analysis) ---- */
+  const depGraphRef = useRef<DepGraph | null>(null);
+  useEffect(() => {
+    fetchDependencyGraph(createClient()).then((g) => { depGraphRef.current = g; });
+  }, []);
+
+  /* ---- impact dialog state ---- */
+  const [pendingImpact, setPendingImpact] = useState<{
+    taskId: string;
+    taskTitle: string;
+    newStart: string;
+    newEnd: string;
+    impacted: ImpactedTask[];
   } | null>(null);
 
   /* ---- filters ---- */
@@ -438,13 +457,26 @@ export function GanttClient({
           if (newEnd < newStart) newEnd = newStart;
         }
 
-        // Optimistic local update
+        // Check for dependency impact before saving
+        const graph = depGraphRef.current;
+        const taskTitle = tasks.find((t) => t.id === dragState.taskId)?.titolo || "";
+        if (graph) {
+          const impacted = analyzeImpact(dragState.taskId, newEnd, graph);
+          const hasChanges = impacted.some((t) => t.changed);
+          if (hasChanges) {
+            // Show impact dialog — don't save yet
+            setPendingImpact({ taskId: dragState.taskId, taskTitle, newStart, newEnd, impacted });
+            setDragState(null);
+            setDragDelta(0);
+            return;
+          }
+        }
+
+        // No impact — save directly
         setLocalTaskOverrides((prev) => ({
           ...prev,
           [dragState.taskId]: { data_inizio: newStart, data_fine: newEnd },
         }));
-
-        // Client-side Supabase update (no revalidatePath, no page reload)
         const sb = createClient();
         sb.from("task")
           .update({ data_inizio: newStart, data_fine: newEnd })
@@ -1035,10 +1067,107 @@ export function GanttClient({
 
               {/* Row bars */}
               {rows.map((row, i) => renderRightCell(row, i))}
+
+              {/* SVG dependency arrows */}
+              <svg
+                className="absolute top-0 left-0 pointer-events-none"
+                width={totalWidth}
+                height={totalContentHeight}
+                style={{ zIndex: 3 }}
+              >
+                <defs>
+                  <marker id="dep-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6" fill="none" stroke="#86868b" strokeWidth="1" />
+                  </marker>
+                </defs>
+                {(() => {
+                  // Build task row index map
+                  const taskRowIdx = new Map<string, number>();
+                  rows.forEach((r, i) => { if (r.type === "task") taskRowIdx.set(r.task.id, i); });
+
+                  const arrows: React.ReactNode[] = [];
+                  for (const dep of dipendenze) {
+                    const srcIdx = taskRowIdx.get(dep.dipende_da_id);
+                    const tgtIdx = taskRowIdx.get(dep.task_id);
+                    if (srcIdx === undefined || tgtIdx === undefined) continue;
+
+                    const srcRow = rows[srcIdx];
+                    const tgtRow = rows[tgtIdx];
+                    if (srcRow.type !== "task" || tgtRow.type !== "task") continue;
+                    if (srcRow.endDay < 0 || tgtRow.startDay < 0) continue;
+
+                    const sx = (srcRow.endDay + 1) * dayWidth;
+                    const sy = srcIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+                    const tx = tgtRow.startDay * dayWidth;
+                    const ty = tgtIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+
+                    const isConflict = srcRow.endDay >= tgtRow.startDay;
+                    const color = isConflict ? "#ef4444" : "#86868b";
+
+                    arrows.push(
+                      <path
+                        key={`dep-${dep.dipende_da_id}-${dep.task_id}`}
+                        d={`M${sx},${sy} C${sx + 15},${sy} ${tx - 15},${ty} ${tx},${ty}`}
+                        stroke={color}
+                        strokeWidth="1.5"
+                        fill="none"
+                        opacity="0.4"
+                        markerEnd="url(#dep-arrow)"
+                      />
+                    );
+                  }
+                  return arrows;
+                })()}
+              </svg>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Impact Dialog */}
+      <ImpactDialog
+        open={!!pendingImpact}
+        taskTitle={pendingImpact?.taskTitle ?? ""}
+        newDate={pendingImpact?.newEnd ?? ""}
+        impactedTasks={pendingImpact?.impacted ?? []}
+        onCancel={() => setPendingImpact(null)}
+        onSingleOnly={() => {
+          if (!pendingImpact) return;
+          const { taskId, newStart, newEnd } = pendingImpact;
+          setLocalTaskOverrides((prev) => ({ ...prev, [taskId]: { data_inizio: newStart, data_fine: newEnd } }));
+          const sb = createClient();
+          sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId).then();
+          if (depGraphRef.current) {
+            const info = depGraphRef.current.taskInfo.get(taskId);
+            if (info) { info.data_inizio = newStart; info.data_fine = newEnd; }
+          }
+          setPendingImpact(null);
+        }}
+        onCascade={async () => {
+          if (!pendingImpact) return;
+          const { taskId, newStart, newEnd, impacted } = pendingImpact;
+          const sb = createClient();
+          // Update the dragged task
+          await sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId);
+          const overrides: Record<string, { data_inizio: string; data_fine: string }> = {
+            [taskId]: { data_inizio: newStart, data_fine: newEnd },
+          };
+          // Update all impacted tasks
+          for (const t of impacted.filter((x) => x.changed)) {
+            await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
+            overrides[t.id] = { data_inizio: t.newDataInizio, data_fine: t.newDataFine };
+          }
+          setLocalTaskOverrides((prev) => ({ ...prev, ...overrides }));
+          // Update dep graph cache
+          if (depGraphRef.current) {
+            for (const [id, dates] of Object.entries(overrides)) {
+              const info = depGraphRef.current.taskInfo.get(id);
+              if (info) { info.data_inizio = dates.data_inizio; info.data_fine = dates.data_fine; }
+            }
+          }
+          setPendingImpact(null);
+        }}
+      />
 
       {/* Popup */}
       {popupTask && (

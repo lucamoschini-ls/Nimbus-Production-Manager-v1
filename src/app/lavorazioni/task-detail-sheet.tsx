@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Plus, Search, ChevronDown, ChevronRight, Copy } from "lucide-react";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { fetchDependencyGraph, analyzeImpact, type DepGraph, type ImpactedTask } from "@/lib/dependency-utils";
+import { ImpactDialog } from "@/components/impact-dialog";
 import {
   Sheet,
   SheetContent,
@@ -146,6 +149,21 @@ interface Props {
 // ========== MAIN COMPONENT ==========
 
 export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, luoghi, open, onClose, onSave }: Props) {
+  // Dependency impact analysis
+  const depGraphRef = useRef<DepGraph | null>(null);
+  const [pendingDateImpact, setPendingDateImpact] = useState<{
+    field: string;
+    value: string;
+    newEnd: string;
+    impacted: ImpactedTask[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (open && !depGraphRef.current) {
+      fetchDependencyGraph(createBrowserClient()).then((g) => { depGraphRef.current = g; });
+    }
+  }, [open]);
+
   const [showDuplicaSelect, setShowDuplicaSelect] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
 
@@ -451,7 +469,20 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                   <Input
                     type="date"
                     value={form.data_fine}
-                    onChange={(e) => { setForm({ ...form, data_fine: e.target.value }); autoSave("data_fine", e.target.value || null); }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setForm({ ...form, data_fine: val });
+                      // Check impact before saving
+                      if (val && task && depGraphRef.current) {
+                        const impacted = analyzeImpact(task.id, val, depGraphRef.current);
+                        const hasChanges = impacted.some((t) => t.changed);
+                        if (hasChanges) {
+                          setPendingDateImpact({ field: "data_fine", value: val, newEnd: val, impacted });
+                          return; // Don't save yet
+                        }
+                      }
+                      autoSave("data_fine", val || null);
+                    }}
                   />
                 </div>
               </div>
@@ -563,6 +594,43 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
           </CollapsibleSection>
         </div>
       </SheetContent>
+
+      {/* Impact Dialog for date changes */}
+      <ImpactDialog
+        open={!!pendingDateImpact}
+        taskTitle={task?.titolo ?? ""}
+        newDate={pendingDateImpact?.newEnd ?? ""}
+        impactedTasks={pendingDateImpact?.impacted ?? []}
+        onCancel={() => {
+          // Revert form to original value
+          if (task) setForm((f) => ({ ...f, data_fine: task.data_fine ?? "" }));
+          setPendingDateImpact(null);
+        }}
+        onSingleOnly={() => {
+          if (pendingDateImpact) {
+            autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
+          }
+          setPendingDateImpact(null);
+        }}
+        onCascade={async () => {
+          if (!pendingDateImpact) return;
+          // Save this task's date
+          autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
+          // Save all impacted tasks
+          const sb = createBrowserClient();
+          for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
+            await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
+          }
+          // Update graph cache
+          if (depGraphRef.current) {
+            for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
+              const info = depGraphRef.current.taskInfo.get(t.id);
+              if (info) { info.data_inizio = t.newDataInizio; info.data_fine = t.newDataFine; }
+            }
+          }
+          setPendingDateImpact(null);
+        }}
+      />
     </Sheet>
   );
 }

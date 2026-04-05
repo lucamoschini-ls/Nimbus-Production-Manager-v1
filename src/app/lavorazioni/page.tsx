@@ -5,7 +5,7 @@ export default async function LavorazioniPage({ searchParams }: { searchParams: 
   const supabase = await createClient();
   const params = await searchParams;
 
-  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: fornitori }, { data: tipologie }, { data: materiali }, { data: luoghi }] =
+  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: fornitori }, { data: tipologie }, { data: materiali }, { data: luoghi }, { data: dipendenze }] =
     await Promise.all([
       supabase.from("zone").select("*").order("ordine"),
       supabase.from("lavorazioni").select("*").order("ordine"),
@@ -14,6 +14,7 @@ export default async function LavorazioniPage({ searchParams }: { searchParams: 
       supabase.from("tipologie").select("nome, colore").order("ordine"),
       supabase.from("materiali").select("id, task_id, nome, quantita, unita, quantita_disponibile, quantita_ordinata, provenienza, data_necessaria, giorni_consegna, catalogo_id, operazioni:operazioni(id, titolo, tipologia, organizzato, stato, fornitore:fornitori!operazioni_fornitore_id_fkey(nome))").order("created_at"),
       supabase.from("luoghi").select("id, nome").order("ordine"),
+      supabase.from("task_dipendenze").select("task_id, dipende_da_id"),
     ]);
 
   // Calcola conflitti attrezzi: materiale_id -> "Nome attrezzo usato anche in TaskX (date)"
@@ -57,6 +58,7 @@ export default async function LavorazioniPage({ searchParams }: { searchParams: 
       luoghi={luoghi ?? []}
       initialTaskId={params.task}
       attrezziConflicts={attrezziConflicts}
+      dipendenze={(dipendenze ?? []) as { task_id: string; dipende_da_id: string }[]}
     />
   );
 }

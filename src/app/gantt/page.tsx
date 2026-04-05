@@ -61,6 +61,9 @@ export default async function GanttPage() {
     transportOpsByTask[mat.task_id].push(tOp);
   }
 
+  // Fetch dipendenze for SVG arrows + impact analysis
+  const { data: dipendenze } = await supabase.from("task_dipendenze").select("task_id, dipende_da_id");
+
   // Calcola task con conflitti attrezzi
   const { data: attCat } = await supabase.from("catalogo_materiali").select("id").eq("tipologia_materiale", "attrezzo");
   const attIds = new Set((attCat ?? []).map(a => a.id));
@@ -100,6 +103,7 @@ export default async function GanttPage() {
       transportOpsByTask={transportOpsByTask}
       tipColorMap={tipColorMap}
       conflictDescriptions={conflictDescriptions}
+      dipendenze={(dipendenze ?? []) as { task_id: string; dipende_da_id: string }[]}
     />
   );
 }

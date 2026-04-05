@@ -12,7 +12,7 @@ export default async function PlanningPage() {
           "id, titolo, tipologia, fornitore_nome, fornitore_id, data_inizio, data_fine, durata_ore, zona_nome, zona_colore, lavorazione_nome, stato_calcolato"
         ),
       supabase.from("zone").select("id, nome").order("ordine"),
-      supabase.from("tipologie").select("nome").order("ordine"),
+      supabase.from("tipologie").select("nome, colore").order("ordine"),
       supabase
         .from("operazioni")
         .select("id, materiale_id, titolo, tipologia, data_inizio, data_fine, fornitore:fornitori!operazioni_fornitore_id_fkey(nome), luogo:luoghi!operazioni_luogo_id_fkey(nome)")
@@ -21,9 +21,11 @@ export default async function PlanningPage() {
     ]);
 
   // Build transport ops for planning: fornitore_nome + date + label
-  type PlanningOp = { id: string; matNome: string; taskId: string; fornitoreNome: string; luogoNome: string | null; data_inizio: string; data_fine: string };
+  type PlanningOp = { id: string; matNome: string; taskId: string; taskTitolo: string; zonaNome: string; lavNome: string; fornitoreNome: string; luogoNome: string | null; data_inizio: string; data_fine: string };
   const matMap = new Map<string, { task_id: string; nome: string }>();
   (allMats ?? []).forEach((m: { id: string; task_id: string; nome: string }) => matMap.set(m.id, m));
+  const taskLookup = new Map<string, { titolo: string; zona_nome: string | null; lavorazione_nome: string | null }>();
+  (tasks ?? []).forEach((t: { id: string; titolo: string; zona_nome: string | null; lavorazione_nome: string | null }) => taskLookup.set(t.id, t));
 
   const transportOps: PlanningOp[] = [];
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -34,10 +36,14 @@ export default async function PlanningPage() {
     const fornNome = Array.isArray(op.fornitore) ? op.fornitore[0]?.nome : op.fornitore?.nome;
     const luogoNome = Array.isArray(op.luogo) ? op.luogo[0]?.nome : op.luogo?.nome;
     if (!mat || !fornNome) continue;
+    const parentTask = taskLookup.get(mat.task_id);
     transportOps.push({
       id: op.id,
       matNome: mat.nome,
       taskId: mat.task_id,
+      taskTitolo: parentTask?.titolo ?? "",
+      zonaNome: parentTask?.zona_nome ?? "",
+      lavNome: parentTask?.lavorazione_nome ?? "",
       fornitoreNome: fornNome,
       luogoNome: luogoNome ?? null,
       data_inizio: op.data_inizio,
@@ -46,12 +52,16 @@ export default async function PlanningPage() {
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
+  const tipColorMap: Record<string, string> = {};
+  (tipologie ?? []).forEach((t: { nome: string; colore: string }) => { tipColorMap[t.nome] = t.colore; });
+
   return (
     <PlanningClient
       tasks={tasks ?? []}
       zone={zone ?? []}
       tipologie={tipologie ?? []}
       transportOps={transportOps}
+      tipColorMap={tipColorMap}
     />
   );
 }

@@ -69,11 +69,24 @@ interface Props {
   fornitori: FornitoreMin[]; tipologie: TipologiaDb[]; materiali: MaterialeInline[];
   luoghi: LuogoMin[]; initialTaskId?: string;
   attrezziConflicts?: Record<string, string>;
+  dipendenze?: { task_id: string; dipende_da_id: string }[];
 }
 
-export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali, luoghi, initialTaskId, attrezziConflicts = {} }: Props) {
+export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipologie, materiali, luoghi, initialTaskId, attrezziConflicts = {}, dipendenze = [] }: Props) {
   const tipColorMap: Record<string, string> = {};
   tipologie.forEach((t) => { tipColorMap[t.nome] = t.colore; });
+
+  // Build dependency lookup maps
+  const depsOfTask: Record<string, string[]> = {};  // "Dipende da"
+  const blocksTask: Record<string, string[]> = {};  // "Blocca"
+  for (const d of dipendenze) {
+    if (!depsOfTask[d.task_id]) depsOfTask[d.task_id] = [];
+    depsOfTask[d.task_id].push(d.dipende_da_id);
+    if (!blocksTask[d.dipende_da_id]) blocksTask[d.dipende_da_id] = [];
+    blocksTask[d.dipende_da_id].push(d.task_id);
+  }
+  const taskTitleMap: Record<string, string> = {};
+  tasks.forEach(t => { taskTitleMap[t.id] = t.titolo; });
 
   // Group materiali by task_id
   const materialiByTask: Record<string, MaterialeInline[]> = {};
@@ -475,6 +488,24 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                           </div>
                         )}
                       </div>
+
+                      {/* LEVEL 2 — Dependencies */}
+                      {isTaskExpanded && (depsOfTask[task.id]?.length > 0 || blocksTask[task.id]?.length > 0) && (
+                        <div className="mx-3 ml-[30px] pt-2 border-t border-[#e5e5e7]/60 space-y-0.5">
+                          {depsOfTask[task.id]?.length > 0 && (
+                            <p className="text-[11px] text-[#86868b]">
+                              <span className="font-medium">Dipende da:</span>{" "}
+                              {depsOfTask[task.id].map(id => taskTitleMap[id] || id).join(", ")}
+                            </p>
+                          )}
+                          {blocksTask[task.id]?.length > 0 && (
+                            <p className="text-[11px] text-[#86868b]">
+                              <span className="font-medium">Blocca:</span>{" "}
+                              {blocksTask[task.id].map(id => taskTitleMap[id] || id).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      )}
 
                       {/* LEVEL 2 — Expanded materials list (read-only, no editable fields) */}
                       {isTaskExpanded && taskMat.length > 0 && (
