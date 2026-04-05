@@ -32,14 +32,9 @@ export function useImpactAnalysis() {
 
   /** Ensure graph is loaded, fetching if necessary */
   const getGraph = useCallback(async (): Promise<DepGraph> => {
-    if (graphRef.current) {
-      alert("3 - Graph already cached, dependedBy size: " + graphRef.current.dependedBy.size);
-      return graphRef.current;
-    }
-    alert("3 - Fetching dep graph from DB...");
+    if (graphRef.current) return graphRef.current;
     const g = await fetchDependencyGraph(createClient());
     graphRef.current = g;
-    alert("4 - Graph fetched. dependedBy size: " + g.dependedBy.size + ", taskInfo size: " + g.taskInfo.size);
     return g;
   }, []);
 
@@ -58,15 +53,10 @@ export function useImpactAnalysis() {
       saveFn: () => void
     ) => {
       const graph = await getGraph();
-      const dependents = graph.dependedBy.get(taskId) || [];
-      alert("5a - Direct dependents of this task: " + dependents.length + " → " + dependents.map(id => graph.taskInfo.get(id)?.titolo || id).join(", "));
       const impacted = analyzeImpact(taskId, newDataFine, graph);
-      alert("5b - Impact result: " + impacted.length + " tasks, " + impacted.filter(t => t.changed).length + " changed");
-
       const hasChanges = impacted.some((t) => t.changed);
 
       if (hasChanges) {
-        alert("6 - Opening modal with " + impacted.filter(t => t.changed).length + " impacted tasks");
         setPending({
           taskId,
           taskTitle,
@@ -79,7 +69,7 @@ export function useImpactAnalysis() {
         return; // Don't save — modal will handle it
       }
 
-      saveFn(); // No impact — calls alert("7") in the saveFn wrapper
+      saveFn(); // No impact — save directly
     },
     [getGraph]
   );

@@ -459,15 +459,13 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                     value={form.data_fine}
                     onChange={(e) => {
                       const val = e.target.value;
-                      alert("1 - onChange data_fine triggered, nuovo valore: " + val);
                       setForm({ ...form, data_fine: val });
                       if (!val || !task) { autoSave("data_fine", val || null); return; }
-                      alert("2 - About to check impact for task: " + task.id + " (" + task.titolo + ")");
                       impact.checkDateChange(
                         task.id,
                         task.titolo,
                         val,
-                        () => { alert("7 - No impact, saving directly"); autoSave("data_fine", val || null); }
+                        () => autoSave("data_fine", val || null)
                       );
                     }}
                   />

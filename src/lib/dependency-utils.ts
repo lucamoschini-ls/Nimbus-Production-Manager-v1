@@ -77,7 +77,8 @@ export function analyzeImpact(
       const info = graph.taskInfo.get(depId);
       if (!info) continue;
 
-      // The dependent must start AFTER the parent's new end
+      // The dependent must start at least 1 day AFTER the parent's new end
+      // e.g. parent ends 16/04 → dependent must start 17/04 or later
       const requiredStart = format(
         addDays(parseISO(parentNewEnd), 1),
         "yyyy-MM-dd"
@@ -86,22 +87,9 @@ export function analyzeImpact(
       const currentStart = info.data_inizio;
       const currentEnd = info.data_fine;
 
-      // If the dependent already starts after the required date, no change needed
-      if (currentStart && currentStart > parentNewEnd) {
-        // No conflict — but still add to list as "unchanged" for information
-        result.push({
-          id: depId,
-          titolo: info.titolo,
-          fornitore_nome: info.fornitore_nome,
-          currentDataInizio: currentStart,
-          currentDataFine: currentEnd,
-          newDataInizio: currentStart,
-          newDataFine: currentEnd || currentStart,
-          changed: false,
-          depth,
-        });
-        // Don't recurse for unchanged tasks
-        continue;
+      // No conflict: dependent already starts on or after the required start date
+      if (currentStart && currentStart >= requiredStart) {
+        continue; // Skip — no change needed, don't clutter the list
       }
 
       // Calculate new end preserving duration
