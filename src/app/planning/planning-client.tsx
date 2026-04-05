@@ -13,6 +13,7 @@ import {
 import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
+import { useRouter } from "next/navigation";
 import { AppTooltip } from "@/components/ui/app-tooltip";
 
 const HOURS_PER_DAY = 11;
@@ -121,6 +122,7 @@ function getTaskDays(
 }
 
 export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipColorMap = {} }: Props) {
+  const router = useRouter();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Default week: the Monday of the week containing April 14, 2026
@@ -479,7 +481,11 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
       </div>
 
       {/* Task Detail Overlay */}
-      <TaskDetailOverlay taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
+      <TaskDetailOverlay
+        taskId={selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+        onTaskUpdated={() => router.refresh()}
+      />
     </div>
   );
 }
