@@ -82,18 +82,25 @@ export function useImpactAnalysis() {
     setPending(null);
   }, [pending]);
 
-  /** Handle "Sposta tutto" — save changed task + cascade all impacted */
+  /** Handle "Sposta tutto" — save changed task + cascade all impacted tasks + operazioni */
   const handleCascade = useCallback(async () => {
     if (!pending) return;
     // Save the original task
     pending.onSave();
-    // Save all impacted tasks
     const sb = createClient();
+    // Save all impacted tasks + their operazioni
     for (const t of pending.impacted.filter((x) => x.changed)) {
       await sb
         .from("task")
         .update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine })
         .eq("id", t.id);
+      // Save impacted operazioni
+      for (const op of t.ops) {
+        await sb
+          .from("operazioni")
+          .update({ data_inizio: op.newDataInizio, data_fine: op.newDataFine })
+          .eq("id", op.id);
+      }
     }
     // Update graph cache
     if (graphRef.current) {
@@ -106,6 +113,17 @@ export function useImpactAnalysis() {
         if (tInfo) {
           tInfo.data_inizio = t.newDataInizio;
           tInfo.data_fine = t.newDataFine;
+        }
+        // Update op cache
+        const cachedOps = graphRef.current.taskOps.get(t.id);
+        if (cachedOps) {
+          for (const op of t.ops) {
+            const cached = cachedOps.find((o) => o.id === op.id);
+            if (cached) {
+              cached.data_inizio = op.newDataInizio;
+              cached.data_fine = op.newDataFine;
+            }
+          }
         }
       }
     }

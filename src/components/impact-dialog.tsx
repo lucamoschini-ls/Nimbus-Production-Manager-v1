@@ -38,7 +38,7 @@ export function ImpactDialog({
   onCancel,
 }: ImpactDialogProps) {
   const changed = impactedTasks.filter((t) => t.changed);
-  const unchanged = impactedTasks.filter((t) => !t.changed);
+  const totalOps = changed.reduce((s, t) => s + t.ops.length, 0);
 
   return (
     <AlertDialog open={open}>
@@ -53,7 +53,11 @@ export function ImpactDialog({
               {changed.length > 0 && (
                 <span>
                   {" "}Questa modifica impatta{" "}
-                  <strong className="text-[#1d1d1f]">{changed.length} task</strong>:
+                  <strong className="text-[#1d1d1f]">
+                    {changed.length} task
+                    {totalOps > 0 && ` + ${totalOps} operazion${totalOps === 1 ? "e" : "i"}`}
+                  </strong>
+                  :
                 </span>
               )}
             </div>
@@ -61,7 +65,7 @@ export function ImpactDialog({
         </AlertDialogHeader>
 
         {changed.length > 0 && (
-          <div className="max-h-64 overflow-y-auto -mx-1 px-1 space-y-2 my-2">
+          <div className="max-h-72 overflow-y-auto -mx-1 px-1 space-y-2 my-2">
             {changed.map((t) => (
               <div
                 key={t.id}
@@ -75,9 +79,7 @@ export function ImpactDialog({
                   </span>
                 </div>
                 <div className="text-[11px] text-[#86868b] mt-0.5">
-                  {t.fornitore_nome && (
-                    <span>{t.fornitore_nome} · </span>
-                  )}
+                  {t.fornitore_nome && <span>{t.fornitore_nome} · </span>}
                   <span className="line-through">
                     {fmtDate(t.currentDataInizio)}–{fmtDate(t.currentDataFine)}
                   </span>
@@ -86,14 +88,25 @@ export function ImpactDialog({
                     {fmtDate(t.newDataInizio)}–{fmtDate(t.newDataFine)}
                   </span>
                 </div>
+                {/* Impacted operazioni */}
+                {t.ops.length > 0 && (
+                  <div className="mt-1.5 space-y-0.5">
+                    {t.ops.map((op) => (
+                      <div key={op.id} className="text-[10px] text-[#86868b] flex items-start gap-1">
+                        <span className="text-[#0ea5e9] mt-px flex-shrink-0">└</span>
+                        <span className="truncate">
+                          {op.label}
+                          <span className="mx-1">·</span>
+                          <span className="line-through">{fmtDate(op.currentDataInizio)}</span>
+                          <span className="mx-0.5">&rarr;</span>
+                          <span className="font-medium text-[#1d1d1f]">{fmtDate(op.newDataInizio)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
-          </div>
-        )}
-
-        {unchanged.length > 0 && (
-          <div className="text-[11px] text-[#86868b] mt-1">
-            {unchanged.length} task dipendent{unchanged.length === 1 ? "e" : "i"} gi&agrave; dopo la nuova data (invariat{unchanged.length === 1 ? "a" : "e"}).
           </div>
         )}
 
@@ -114,7 +127,7 @@ export function ImpactDialog({
             onClick={onCascade}
             className="inline-flex h-10 items-center justify-center rounded-md bg-[#1d1d1f] px-4 text-[13px] font-medium text-white hover:bg-[#333] transition-colors"
           >
-            Sposta tutto ({changed.length})
+            Sposta tutto ({changed.length + totalOps})
           </button>
         </AlertDialogFooter>
       </AlertDialogContent>
