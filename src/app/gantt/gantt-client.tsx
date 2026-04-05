@@ -169,6 +169,7 @@ export function GanttClient({
     x: number;
     y: number;
   } | null>(null);
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   /* ---- dependency graph (for impact analysis) ---- */
   const depGraphRef = useRef<DepGraph | null>(null);
@@ -798,6 +799,8 @@ export function GanttClient({
             opacity: isDragging ? 0.85 : 1,
             zIndex: isDragging ? 20 : 1,
           }}
+          onMouseEnter={() => setHoveredTaskId(row.task.id)}
+          onMouseLeave={() => setHoveredTaskId(null)}
           onMouseDown={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const relX = e.clientX - rect.left;
@@ -1068,57 +1071,64 @@ export function GanttClient({
               {/* Row bars */}
               {rows.map((row, i) => renderRightCell(row, i))}
 
-              {/* SVG dependency arrows */}
-              <svg
-                className="absolute top-0 left-0 pointer-events-none"
-                width={totalWidth}
-                height={totalContentHeight}
-                style={{ zIndex: 3 }}
-              >
-                <defs>
-                  <marker id="dep-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                    <path d="M0,0 L6,3 L0,6" fill="none" stroke="#86868b" strokeWidth="1" />
-                  </marker>
-                </defs>
-                {(() => {
-                  // Build task row index map
-                  const taskRowIdx = new Map<string, number>();
-                  rows.forEach((r, i) => { if (r.type === "task") taskRowIdx.set(r.task.id, i); });
+              {/* SVG dependency arrows — only shown on hover */}
+              {hoveredTaskId && (
+                <svg
+                  className="absolute top-0 left-0 pointer-events-none"
+                  width={totalWidth}
+                  height={totalContentHeight}
+                  style={{ zIndex: 3 }}
+                >
+                  <defs>
+                    <marker id="dep-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6" fill="none" stroke="#86868b" strokeWidth="1" />
+                    </marker>
+                    <marker id="dep-arrow-red" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6" fill="none" stroke="#ef4444" strokeWidth="1" />
+                    </marker>
+                  </defs>
+                  {(() => {
+                    const taskRowIdx = new Map<string, number>();
+                    rows.forEach((r, i) => { if (r.type === "task") taskRowIdx.set(r.task.id, i); });
 
-                  const arrows: React.ReactNode[] = [];
-                  for (const dep of dipendenze) {
-                    const srcIdx = taskRowIdx.get(dep.dipende_da_id);
-                    const tgtIdx = taskRowIdx.get(dep.task_id);
-                    if (srcIdx === undefined || tgtIdx === undefined) continue;
+                    const arrows: React.ReactNode[] = [];
+                    for (const dep of dipendenze) {
+                      // Only show arrows connected to the hovered task
+                      if (dep.dipende_da_id !== hoveredTaskId && dep.task_id !== hoveredTaskId) continue;
 
-                    const srcRow = rows[srcIdx];
-                    const tgtRow = rows[tgtIdx];
-                    if (srcRow.type !== "task" || tgtRow.type !== "task") continue;
-                    if (srcRow.endDay < 0 || tgtRow.startDay < 0) continue;
+                      const srcIdx = taskRowIdx.get(dep.dipende_da_id);
+                      const tgtIdx = taskRowIdx.get(dep.task_id);
+                      if (srcIdx === undefined || tgtIdx === undefined) continue;
 
-                    const sx = (srcRow.endDay + 1) * dayWidth;
-                    const sy = srcIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
-                    const tx = tgtRow.startDay * dayWidth;
-                    const ty = tgtIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+                      const srcRow = rows[srcIdx];
+                      const tgtRow = rows[tgtIdx];
+                      if (srcRow.type !== "task" || tgtRow.type !== "task") continue;
+                      if (srcRow.endDay < 0 || tgtRow.startDay < 0) continue;
 
-                    const isConflict = srcRow.endDay >= tgtRow.startDay;
-                    const color = isConflict ? "#ef4444" : "#86868b";
+                      const sx = (srcRow.endDay + 1) * dayWidth;
+                      const sy = srcIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+                      const tx = tgtRow.startDay * dayWidth;
+                      const ty = tgtIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-                    arrows.push(
-                      <path
-                        key={`dep-${dep.dipende_da_id}-${dep.task_id}`}
-                        d={`M${sx},${sy} C${sx + 15},${sy} ${tx - 15},${ty} ${tx},${ty}`}
-                        stroke={color}
-                        strokeWidth="1.5"
-                        fill="none"
-                        opacity="0.4"
-                        markerEnd="url(#dep-arrow)"
-                      />
-                    );
-                  }
-                  return arrows;
-                })()}
-              </svg>
+                      const isConflict = srcRow.endDay >= tgtRow.startDay;
+                      const color = isConflict ? "#ef4444" : "#86868b";
+
+                      arrows.push(
+                        <path
+                          key={`dep-${dep.dipende_da_id}-${dep.task_id}`}
+                          d={`M${sx},${sy} C${sx + 15},${sy} ${tx - 15},${ty} ${tx},${ty}`}
+                          stroke={color}
+                          strokeWidth="1.5"
+                          fill="none"
+                          opacity="0.6"
+                          markerEnd={isConflict ? "url(#dep-arrow-red)" : "url(#dep-arrow)"}
+                        />
+                      );
+                    }
+                    return arrows;
+                  })()}
+                </svg>
+              )}
             </div>
           </div>
         </div>

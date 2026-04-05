@@ -151,6 +151,7 @@ interface Props {
 export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, luoghi, open, onClose, onSave }: Props) {
   // Dependency impact analysis
   const depGraphRef = useRef<DepGraph | null>(null);
+  const [, setDepGraphReady] = useState(false);
   const [pendingDateImpact, setPendingDateImpact] = useState<{
     field: string;
     value: string;
@@ -159,9 +160,13 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
   } | null>(null);
 
   useEffect(() => {
-    if (open && !depGraphRef.current) {
-      fetchDependencyGraph(createBrowserClient()).then((g) => { depGraphRef.current = g; });
+    if (open) {
+      fetchDependencyGraph(createBrowserClient()).then((g) => {
+        depGraphRef.current = g;
+        setDepGraphReady(true);
+      });
     }
+    return () => { setDepGraphReady(false); };
   }, [open]);
 
   const [showDuplicaSelect, setShowDuplicaSelect] = useState(false);
@@ -245,6 +250,7 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
     (costoCalcolato ? parseFloat(costoCalcolato) : 0) + (costoSupportoCalcolato ? parseFloat(costoSupportoCalcolato) : 0);
 
   return (
+    <>
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="overflow-y-auto sm:max-w-[420px] p-0">
         {/* HEADER — always visible */}
@@ -472,13 +478,15 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                     onChange={(e) => {
                       const val = e.target.value;
                       setForm({ ...form, data_fine: val });
+                      if (!val || !task) { autoSave("data_fine", val || null); return; }
                       // Check impact before saving
-                      if (val && task && depGraphRef.current) {
-                        const impacted = analyzeImpact(task.id, val, depGraphRef.current);
+                      const graph = depGraphRef.current;
+                      if (graph) {
+                        const impacted = analyzeImpact(task.id, val, graph);
                         const hasChanges = impacted.some((t) => t.changed);
                         if (hasChanges) {
                           setPendingDateImpact({ field: "data_fine", value: val, newEnd: val, impacted });
-                          return; // Don't save yet
+                          return; // Don't save yet — modal will handle it
                         }
                       }
                       autoSave("data_fine", val || null);
@@ -594,44 +602,41 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
           </CollapsibleSection>
         </div>
       </SheetContent>
-
-      {/* Impact Dialog for date changes */}
-      <ImpactDialog
-        open={!!pendingDateImpact}
-        taskTitle={task?.titolo ?? ""}
-        newDate={pendingDateImpact?.newEnd ?? ""}
-        impactedTasks={pendingDateImpact?.impacted ?? []}
-        onCancel={() => {
-          // Revert form to original value
-          if (task) setForm((f) => ({ ...f, data_fine: task.data_fine ?? "" }));
-          setPendingDateImpact(null);
-        }}
-        onSingleOnly={() => {
-          if (pendingDateImpact) {
-            autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
-          }
-          setPendingDateImpact(null);
-        }}
-        onCascade={async () => {
-          if (!pendingDateImpact) return;
-          // Save this task's date
-          autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
-          // Save all impacted tasks
-          const sb = createBrowserClient();
-          for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
-            await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
-          }
-          // Update graph cache
-          if (depGraphRef.current) {
-            for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
-              const info = depGraphRef.current.taskInfo.get(t.id);
-              if (info) { info.data_inizio = t.newDataInizio; info.data_fine = t.newDataFine; }
-            }
-          }
-          setPendingDateImpact(null);
-        }}
-      />
     </Sheet>
+
+    {/* Impact Dialog for date changes — outside Sheet to ensure it renders on top */}
+    <ImpactDialog
+      open={!!pendingDateImpact}
+      taskTitle={task?.titolo ?? ""}
+      newDate={pendingDateImpact?.newEnd ?? ""}
+      impactedTasks={pendingDateImpact?.impacted ?? []}
+      onCancel={() => {
+        if (task) setForm((f) => ({ ...f, data_fine: task.data_fine ?? "" }));
+        setPendingDateImpact(null);
+      }}
+      onSingleOnly={() => {
+        if (pendingDateImpact) {
+          autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
+        }
+        setPendingDateImpact(null);
+      }}
+      onCascade={async () => {
+        if (!pendingDateImpact) return;
+        autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
+        const sb = createBrowserClient();
+        for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
+          await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
+        }
+        if (depGraphRef.current) {
+          for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
+            const info = depGraphRef.current.taskInfo.get(t.id);
+            if (info) { info.data_inizio = t.newDataInizio; info.data_fine = t.newDataFine; }
+          }
+        }
+        setPendingDateImpact(null);
+      }}
+    />
+    </>
   );
 }
 
