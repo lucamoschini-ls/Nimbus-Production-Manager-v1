@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2, Package, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { AppTooltip } from "@/components/ui/app-tooltip";
 // Button removed — quick add doesn't need form
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -503,7 +504,9 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                                         <span className="text-[#86868b]">{op.tipologia ? op.tipologia.replace(/_/g, " ") : op.titolo}</span>
                                         {op.fornitore && <span className="text-[#1d1d1f]"> — </span>}
                                         {op.fornitore && <span className="text-[#1d1d1f] font-medium">{op.fornitore.nome}</span>}
-                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${op.organizzato ? "bg-[#34C759]" : "bg-[#d2d2d7]"}`} title={op.organizzato ? "Organizzato" : "Non organizzato"} />
+                                        <AppTooltip content={op.organizzato ? "Organizzato" : "Non organizzato"}>
+                                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${op.organizzato ? "bg-[#34C759]" : "bg-[#d2d2d7]"}`} />
+                                        </AppTooltip>
                                       </div>
                                     ))}
                                   </div>

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { AppTooltip } from "@/components/ui/app-tooltip";
 import {
   format,
   eachDayOfInterval,
@@ -610,12 +611,11 @@ export function GanttClient({
             {row.task.titolo}
           </span>
           {conflictSet.has(row.task.id) && (
-            <span
-              title={conflictDescriptions[row.task.id] ?? "Conflitto attrezzi"}
-              className="flex-shrink-0"
-            >
-              <AlertTriangle size={11} className="text-orange-500" />
-            </span>
+            <AppTooltip content={conflictDescriptions[row.task.id] ?? "Conflitto attrezzi"}>
+              <span className="flex-shrink-0">
+                <AlertTriangle size={11} className="text-orange-500" />
+              </span>
+            </AppTooltip>
           )}
         </div>
       </div>
@@ -714,13 +714,16 @@ export function GanttClient({
               backgroundColor: "#0ea5e9",
               opacity: 0.7,
             }}
-            title={`Trasporto: ${row.op.matNome}${row.op.fornitoreNome ? ` (${row.op.fornitoreNome})` : ""}${row.op.luogoNome ? ` da ${row.op.luogoNome}` : ""}`}
           >
-            {opWidth > 50 && (
-              <span className="text-[9px] text-white font-medium px-1 truncate pointer-events-none">
-                {row.op.matNome}
+            <AppTooltip content={`Trasporto: ${row.op.matNome}${row.op.fornitoreNome ? ` (${row.op.fornitoreNome})` : ""}${row.op.luogoNome ? ` da ${row.op.luogoNome}` : ""}`}>
+              <span className="flex items-center w-full h-full">
+                {opWidth > 50 && (
+                  <span className="text-[9px] text-white font-medium px-1 truncate pointer-events-none">
+                    {row.op.matNome}
+                  </span>
+                )}
               </span>
-            )}
+            </AppTooltip>
           </div>
         </div>
       );
@@ -763,18 +766,6 @@ export function GanttClient({
             opacity: isDragging ? 0.85 : 1,
             zIndex: isDragging ? 20 : 1,
           }}
-          title={[
-            row.task.titolo,
-            row.task.tipologia
-              ? `Tipo: ${row.task.tipologia.replace(/_/g, " ")}`
-              : null,
-            row.task.fornitore_nome
-              ? `Fornitore: ${row.task.fornitore_nome}`
-              : null,
-            `Stato: ${row.task.stato_calcolato.replace(/_/g, " ")}`,
-          ]
-            .filter(Boolean)
-            .join("\n")}
           onMouseDown={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const relX = e.clientX - rect.left;

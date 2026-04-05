@@ -13,9 +13,10 @@ import {
 import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
+import { AppTooltip } from "@/components/ui/app-tooltip";
 
 const HOURS_PER_DAY = 11;
-const WEEK_DAYS = 6; // Mon–Sat
+const WEEK_DAYS = 7; // Mon–Sun
 
 interface PlanningTask {
   id: string;
@@ -106,7 +107,7 @@ function getTaskDays(
   ) {
     // Only include Mon–Sat (0=Sun, 1=Mon ... 6=Sat)
     const dow = current.getDay();
-    if (dow >= 1 && dow <= 6) {
+    if (dow >= 0 && dow <= 6) {
       days.push(current);
     }
     current = addDays(current, 1);
@@ -231,7 +232,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Pr
   const goToToday = () =>
     setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
-  const dayLabels = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+  const dayLabels = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
   return (
     <div className="space-y-4">
@@ -320,7 +321,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Pr
                 {weekDays.map((day, i) => (
                   <th
                     key={i}
-                    className="bg-[#f5f5f7] text-center text-xs font-medium text-[#86868b] px-2 py-3 border-b border-r border-[#e5e5e7] last:border-r-0"
+                    className={`text-center text-xs font-medium text-[#86868b] px-2 py-3 border-b border-r border-[#e5e5e7] last:border-r-0 ${i === 6 ? "bg-[#F9F9F9]" : "bg-[#f5f5f7]"}`}
                   >
                     {dayLabels[i]} {format(day, "dd/MM")}
                   </th>
@@ -371,7 +372,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Pr
                         return (
                         <td
                           key={dayIdx}
-                          className="px-1 py-1 border-r border-[#e5e5e7] last:border-r-0 align-top"
+                          className={`px-1 py-1 border-r border-[#e5e5e7] last:border-r-0 align-top ${dayIdx === 6 ? "bg-[#F9F9F9]" : ""}`}
                           style={{ minHeight: 60 }}
                         >
                           <div className="flex flex-col gap-1 min-h-[52px]">
@@ -381,41 +382,44 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Pr
                               </span>
                             )}
                             {dayOps.map((op) => (
-                              <div
-                                key={op.id}
-                                className="rounded-md px-2 py-1"
-                                style={{
-                                  backgroundColor: "rgba(14, 165, 233, 0.15)",
-                                  borderLeft: "3px solid #0ea5e9",
-                                }}
-                                title={`Trasporto: ${op.matNome}${op.luogoNome ? ` da ${op.luogoNome}` : ""}`}
-                              >
-                                <div className="text-[10px] font-medium text-[#0ea5e9] truncate max-w-[120px]">
-                                  TRAS {op.matNome}
+                              <AppTooltip key={op.id} content={`Trasporto: ${op.matNome}${op.luogoNome ? ` da ${op.luogoNome}` : ""}`}>
+                                <div
+                                  className="rounded-md px-2 py-1"
+                                  style={{
+                                    backgroundColor: "rgba(14, 165, 233, 0.15)",
+                                    borderLeft: "3px solid #0ea5e9",
+                                  }}
+                                >
+                                  <div className="text-[10px] font-medium text-[#0ea5e9] truncate max-w-[120px]">
+                                    TRAS {op.matNome}
+                                  </div>
                                 </div>
-                              </div>
+                              </AppTooltip>
                             ))}
                             {dayTasks.map((task) => (
-                              <button
+                              <AppTooltip
                                 key={task.id}
-                                onClick={() => setSelectedTaskId(task.id)}
-                                className="text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80"
-                                style={{
-                                  backgroundColor: task.zona_colore
-                                    ? hexToRgba(task.zona_colore, 0.2)
-                                    : "rgba(0,0,0,0.05)",
-                                  borderLeft: `3px solid ${task.zona_colore || "#ccc"}`,
-                                }}
-                                title={`${task.zona_nome} / ${task.lavorazione_nome}\n${task.titolo}\n${task.tipologia || ""}`}
+                                content={<><strong>{task.titolo}</strong><br />{task.zona_nome} / {task.lavorazione_nome}{task.tipologia ? <><br />{task.tipologia.replace(/_/g, " ")}</> : null}</>}
                               >
-                                <div className="text-[10px] font-medium text-[#1d1d1f] truncate max-w-[120px]">
-                                  {task.tipologia
-                                    ? TIPOLOGIA_SHORT[task.tipologia] ||
-                                      task.tipologia.slice(0, 4).toUpperCase()
-                                    : ""}{" "}
-                                  {task.titolo}
-                                </div>
-                              </button>
+                                <button
+                                  onClick={() => setSelectedTaskId(task.id)}
+                                  className="text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80"
+                                  style={{
+                                    backgroundColor: task.zona_colore
+                                      ? hexToRgba(task.zona_colore, 0.2)
+                                      : "rgba(0,0,0,0.05)",
+                                    borderLeft: `3px solid ${task.zona_colore || "#ccc"}`,
+                                  }}
+                                >
+                                  <div className="text-[10px] font-medium text-[#1d1d1f] truncate max-w-[120px]">
+                                    {task.tipologia
+                                      ? TIPOLOGIA_SHORT[task.tipologia] ||
+                                        task.tipologia.slice(0, 4).toUpperCase()
+                                      : ""}{" "}
+                                    {task.titolo}
+                                  </div>
+                                </button>
+                              </AppTooltip>
                             ))}
                           </div>
                         </td>
@@ -438,7 +442,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Pr
                   {dayTotals.map((total, i) => (
                     <td
                       key={i}
-                      className="bg-[#f5f5f7] text-center text-xs font-semibold text-[#1d1d1f] px-2 py-3 border-r border-[#e5e5e7] last:border-r-0"
+                      className={`text-center text-xs font-semibold text-[#1d1d1f] px-2 py-3 border-r border-[#e5e5e7] last:border-r-0 ${i === 6 ? "bg-[#F9F9F9]" : "bg-[#f5f5f7]"}`}
                     >
                       {Math.round(total)}h
                     </td>
