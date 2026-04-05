@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X, Plus, Search, ChevronDown, ChevronRight, Copy } from "lucide-react";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
-import { fetchDependencyGraph, analyzeImpact, type DepGraph, type ImpactedTask } from "@/lib/dependency-utils";
 import { ImpactDialog } from "@/components/impact-dialog";
+import { useImpactAnalysis } from "@/hooks/use-impact-analysis";
 import {
   Sheet,
   SheetContent,
@@ -149,25 +148,8 @@ interface Props {
 // ========== MAIN COMPONENT ==========
 
 export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazioni, luoghi, open, onClose, onSave }: Props) {
-  // Dependency impact analysis
-  const depGraphRef = useRef<DepGraph | null>(null);
-  const [, setDepGraphReady] = useState(false);
-  const [pendingDateImpact, setPendingDateImpact] = useState<{
-    field: string;
-    value: string;
-    newEnd: string;
-    impacted: ImpactedTask[];
-  } | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      fetchDependencyGraph(createBrowserClient()).then((g) => {
-        depGraphRef.current = g;
-        setDepGraphReady(true);
-      });
-    }
-    return () => { setDepGraphReady(false); };
-  }, [open]);
+  // Dependency impact analysis (shared hook)
+  const impact = useImpactAnalysis();
 
   const [showDuplicaSelect, setShowDuplicaSelect] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
@@ -479,17 +461,12 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
                       const val = e.target.value;
                       setForm({ ...form, data_fine: val });
                       if (!val || !task) { autoSave("data_fine", val || null); return; }
-                      // Check impact before saving
-                      const graph = depGraphRef.current;
-                      if (graph) {
-                        const impacted = analyzeImpact(task.id, val, graph);
-                        const hasChanges = impacted.some((t) => t.changed);
-                        if (hasChanges) {
-                          setPendingDateImpact({ field: "data_fine", value: val, newEnd: val, impacted });
-                          return; // Don't save yet — modal will handle it
-                        }
-                      }
-                      autoSave("data_fine", val || null);
+                      impact.checkDateChange(
+                        task.id,
+                        task.titolo,
+                        val,
+                        () => autoSave("data_fine", val || null)
+                      );
                     }}
                   />
                 </div>
@@ -604,37 +581,18 @@ export function TaskDetailSheet({ task, fornitori, tipologieDb, zone, lavorazion
       </SheetContent>
     </Sheet>
 
-    {/* Impact Dialog for date changes — outside Sheet to ensure it renders on top */}
+    {/* Impact Dialog for date changes */}
     <ImpactDialog
-      open={!!pendingDateImpact}
-      taskTitle={task?.titolo ?? ""}
-      newDate={pendingDateImpact?.newEnd ?? ""}
-      impactedTasks={pendingDateImpact?.impacted ?? []}
+      open={!!impact.pending}
+      taskTitle={impact.pending?.taskTitle ?? ""}
+      newDate={impact.pending?.newEnd ?? ""}
+      impactedTasks={impact.pending?.impacted ?? []}
       onCancel={() => {
         if (task) setForm((f) => ({ ...f, data_fine: task.data_fine ?? "" }));
-        setPendingDateImpact(null);
+        impact.handleCancel();
       }}
-      onSingleOnly={() => {
-        if (pendingDateImpact) {
-          autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
-        }
-        setPendingDateImpact(null);
-      }}
-      onCascade={async () => {
-        if (!pendingDateImpact) return;
-        autoSave(pendingDateImpact.field, pendingDateImpact.value || null);
-        const sb = createBrowserClient();
-        for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
-          await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
-        }
-        if (depGraphRef.current) {
-          for (const t of pendingDateImpact.impacted.filter((x) => x.changed)) {
-            const info = depGraphRef.current.taskInfo.get(t.id);
-            if (info) { info.data_inizio = t.newDataInizio; info.data_fine = t.newDataFine; }
-          }
-        }
-        setPendingDateImpact(null);
-      }}
+      onSingleOnly={impact.handleSingleOnly}
+      onCascade={impact.handleCascade}
     />
     </>
   );

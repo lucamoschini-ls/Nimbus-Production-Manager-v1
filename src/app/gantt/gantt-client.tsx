@@ -4,7 +4,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { AppTooltip } from "@/components/ui/app-tooltip";
 import { ImpactDialog } from "@/components/impact-dialog";
-import { fetchDependencyGraph, analyzeImpact, type DepGraph, type ImpactedTask } from "@/lib/dependency-utils";
+import { useImpactAnalysis } from "@/hooks/use-impact-analysis";
+import { analyzeImpact, type ImpactedTask } from "@/lib/dependency-utils";
 import {
   format,
   eachDayOfInterval,
@@ -171,14 +172,11 @@ export function GanttClient({
   } | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
-  /* ---- dependency graph (for impact analysis) ---- */
-  const depGraphRef = useRef<DepGraph | null>(null);
-  useEffect(() => {
-    fetchDependencyGraph(createClient()).then((g) => { depGraphRef.current = g; });
-  }, []);
+  /* ---- impact analysis (shared hook) ---- */
+  const impact = useImpactAnalysis();
 
-  /* ---- impact dialog state ---- */
-  const [pendingImpact, setPendingImpact] = useState<{
+  /* ---- impact dialog state for drag (needs start+end) ---- */
+  const [pendingDragImpact, setPendingDragImpact] = useState<{
     taskId: string;
     taskTitle: string;
     newStart: string;
@@ -459,30 +457,27 @@ export function GanttClient({
         }
 
         // Check for dependency impact before saving
-        const graph = depGraphRef.current;
         const taskTitle = tasks.find((t) => t.id === dragState.taskId)?.titolo || "";
-        if (graph) {
-          const impacted = analyzeImpact(dragState.taskId, newEnd, graph);
+        const capturedTaskId = dragState.taskId;
+        const capturedNewStart = newStart;
+        const capturedNewEnd = newEnd;
+
+        // Use async check — getGraph ensures graph is loaded
+        impact.getGraph().then((graph) => {
+          const impacted = analyzeImpact(capturedTaskId, capturedNewEnd, graph);
           const hasChanges = impacted.some((t) => t.changed);
           if (hasChanges) {
-            // Show impact dialog — don't save yet
-            setPendingImpact({ taskId: dragState.taskId, taskTitle, newStart, newEnd, impacted });
-            setDragState(null);
-            setDragDelta(0);
+            setPendingDragImpact({ taskId: capturedTaskId, taskTitle, newStart: capturedNewStart, newEnd: capturedNewEnd, impacted });
             return;
           }
-        }
-
-        // No impact — save directly
-        setLocalTaskOverrides((prev) => ({
-          ...prev,
-          [dragState.taskId]: { data_inizio: newStart, data_fine: newEnd },
-        }));
-        const sb = createClient();
-        sb.from("task")
-          .update({ data_inizio: newStart, data_fine: newEnd })
-          .eq("id", dragState.taskId)
-          .then();
+          // No impact — save directly
+          setLocalTaskOverrides((prev) => ({
+            ...prev,
+            [capturedTaskId]: { data_inizio: capturedNewStart, data_fine: capturedNewEnd },
+          }));
+          const sb = createClient();
+          sb.from("task").update({ data_inizio: capturedNewStart, data_fine: capturedNewEnd }).eq("id", capturedTaskId).then();
+        });
       }
 
       setDragState(null);
@@ -1134,48 +1129,35 @@ export function GanttClient({
         </div>
       </div>
 
-      {/* Impact Dialog */}
+      {/* Impact Dialog for drag */}
       <ImpactDialog
-        open={!!pendingImpact}
-        taskTitle={pendingImpact?.taskTitle ?? ""}
-        newDate={pendingImpact?.newEnd ?? ""}
-        impactedTasks={pendingImpact?.impacted ?? []}
-        onCancel={() => setPendingImpact(null)}
+        open={!!pendingDragImpact}
+        taskTitle={pendingDragImpact?.taskTitle ?? ""}
+        newDate={pendingDragImpact?.newEnd ?? ""}
+        impactedTasks={pendingDragImpact?.impacted ?? []}
+        onCancel={() => setPendingDragImpact(null)}
         onSingleOnly={() => {
-          if (!pendingImpact) return;
-          const { taskId, newStart, newEnd } = pendingImpact;
+          if (!pendingDragImpact) return;
+          const { taskId, newStart, newEnd } = pendingDragImpact;
           setLocalTaskOverrides((prev) => ({ ...prev, [taskId]: { data_inizio: newStart, data_fine: newEnd } }));
           const sb = createClient();
           sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId).then();
-          if (depGraphRef.current) {
-            const info = depGraphRef.current.taskInfo.get(taskId);
-            if (info) { info.data_inizio = newStart; info.data_fine = newEnd; }
-          }
-          setPendingImpact(null);
+          setPendingDragImpact(null);
         }}
         onCascade={async () => {
-          if (!pendingImpact) return;
-          const { taskId, newStart, newEnd, impacted } = pendingImpact;
+          if (!pendingDragImpact) return;
+          const { taskId, newStart, newEnd, impacted } = pendingDragImpact;
           const sb = createClient();
-          // Update the dragged task
           await sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId);
           const overrides: Record<string, { data_inizio: string; data_fine: string }> = {
             [taskId]: { data_inizio: newStart, data_fine: newEnd },
           };
-          // Update all impacted tasks
           for (const t of impacted.filter((x) => x.changed)) {
             await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
             overrides[t.id] = { data_inizio: t.newDataInizio, data_fine: t.newDataFine };
           }
           setLocalTaskOverrides((prev) => ({ ...prev, ...overrides }));
-          // Update dep graph cache
-          if (depGraphRef.current) {
-            for (const [id, dates] of Object.entries(overrides)) {
-              const info = depGraphRef.current.taskInfo.get(id);
-              if (info) { info.data_inizio = dates.data_inizio; info.data_fine = dates.data_fine; }
-            }
-          }
-          setPendingImpact(null);
+          setPendingDragImpact(null);
         }}
       />
 
