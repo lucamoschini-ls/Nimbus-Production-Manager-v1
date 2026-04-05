@@ -19,7 +19,9 @@
       "Bash(git commit:*)",
       "Bash(git remote:*)",
       "Bash(git push:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(find /Users/luca/Lavoro/Tech/Repos/production_tool -name schema.sql -o -name *v_task*)",
+      "Bash(xargs ls:*)"
     ]
   }
 }

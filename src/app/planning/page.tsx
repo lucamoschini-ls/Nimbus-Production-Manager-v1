@@ -4,7 +4,7 @@ import { PlanningClient } from "./planning-client";
 export default async function PlanningPage() {
   const supabase = await createClient();
 
-  const [{ data: tasks }, { data: zone }, { data: tipologie }] =
+  const [{ data: tasks }, { data: zone }, { data: tipologie }, { data: rawOps }, { data: allMats }] =
     await Promise.all([
       supabase
         .from("v_task_completa")
@@ -13,13 +13,45 @@ export default async function PlanningPage() {
         ),
       supabase.from("zone").select("id, nome").order("ordine"),
       supabase.from("tipologie").select("nome").order("ordine"),
+      supabase
+        .from("operazioni")
+        .select("id, materiale_id, titolo, tipologia, data_inizio, data_fine, fornitore:fornitori!operazioni_fornitore_id_fkey(nome), luogo:luoghi!operazioni_luogo_id_fkey(nome)")
+        .not("data_inizio", "is", null),
+      supabase.from("materiali").select("id, task_id, nome"),
     ]);
+
+  // Build transport ops for planning: fornitore_nome + date + label
+  type PlanningOp = { id: string; matNome: string; taskId: string; fornitoreNome: string; luogoNome: string | null; data_inizio: string; data_fine: string };
+  const matMap = new Map<string, { task_id: string; nome: string }>();
+  (allMats ?? []).forEach((m: { id: string; task_id: string; nome: string }) => matMap.set(m.id, m));
+
+  const transportOps: PlanningOp[] = [];
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  for (const op of (rawOps ?? []) as any[]) {
+    const tip = (op.tipologia || op.titolo || "").toLowerCase();
+    if (!tip.includes("trasporto")) continue;
+    const mat = matMap.get(op.materiale_id);
+    const fornNome = Array.isArray(op.fornitore) ? op.fornitore[0]?.nome : op.fornitore?.nome;
+    const luogoNome = Array.isArray(op.luogo) ? op.luogo[0]?.nome : op.luogo?.nome;
+    if (!mat || !fornNome) continue;
+    transportOps.push({
+      id: op.id,
+      matNome: mat.nome,
+      taskId: mat.task_id,
+      fornitoreNome: fornNome,
+      luogoNome: luogoNome ?? null,
+      data_inizio: op.data_inizio,
+      data_fine: op.data_fine || op.data_inizio,
+    });
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return (
     <PlanningClient
       tasks={tasks ?? []}
       zone={zone ?? []}
       tipologie={tipologie ?? []}
+      transportOps={transportOps}
     />
   );
 }

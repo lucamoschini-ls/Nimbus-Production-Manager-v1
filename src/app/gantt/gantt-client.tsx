@@ -65,6 +65,15 @@ interface OpInfo {
   fornitore_id: string | null;
   fornitore: { nome: string; stato: string } | null;
 }
+interface TransportOp {
+  id: string;
+  matNome: string;
+  taskId: string;
+  fornitoreNome: string | null;
+  luogoNome: string | null;
+  data_inizio: string;
+  data_fine: string;
+}
 
 interface Props {
   zone: Zona[];
@@ -72,6 +81,7 @@ interface Props {
   tasks: Task[];
   materiali: Materiale[];
   opsByMat: Record<string, OpInfo[]>;
+  transportOpsByTask: Record<string, TransportOp[]>;
   tipColorMap: Record<string, string>;
   conflictDescriptions?: Record<string, string>;
 }
@@ -110,7 +120,8 @@ const LEFT_WIDTH = 280;
 type Row =
   | { type: "zona"; zona: Zona; startDay: number; endDay: number }
   | { type: "lav"; lav: Lavorazione; zona: Zona; startDay: number; endDay: number }
-  | { type: "task"; task: Task; startDay: number; endDay: number };
+  | { type: "task"; task: Task; startDay: number; endDay: number }
+  | { type: "op"; op: TransportOp; startDay: number; endDay: number };
 
 /* ------------------------------------------------------------------ */
 /*  Drag state                                                         */
@@ -134,10 +145,10 @@ export function GanttClient({
   tasks,
   materiali: _materiali,
   opsByMat: _opsByMat,
+  transportOpsByTask,
   tipColorMap,
   conflictDescriptions = {},
 }: Props) {
-  // Suppress unused-var warnings for props we keep in the interface but don't use
   void _materiali;
   void _opsByMat;
 
@@ -340,6 +351,13 @@ export function GanttClient({
 
           if (expandedLav.has(lav.id)) {
             for (const task of lavTasks) {
+              // Transport op rows BEFORE the task
+              const tOps = transportOpsByTask[task.id] || [];
+              for (const op of tOps) {
+                const oStart = dayOffset(op.data_inizio);
+                const oEnd = dayOffset(op.data_fine);
+                result.push({ type: "op", op, startDay: oStart, endDay: oEnd });
+              }
               const eff = getEffectiveDates(task);
               const tStart = eff.data_inizio ? dayOffset(eff.data_inizio) : -1;
               const tEnd = eff.data_fine ? dayOffset(eff.data_fine) : -1;
@@ -363,6 +381,7 @@ export function GanttClient({
     filterTipologia,
     startDate,
     localTaskOverrides,
+    transportOpsByTask,
   ]);
 
   /* ---- scroll sync ---- */
@@ -557,6 +576,28 @@ export function GanttClient({
       );
     }
 
+    // op row
+    if (row.type === "op") {
+      return (
+        <div
+          key={`l-${i}`}
+          className="absolute flex items-center border-b border-[#e5e5e7]/30 bg-[#fafafa]"
+          style={{ top, height: ROW_HEIGHT, width: LEFT_WIDTH }}
+        >
+          <div className="flex items-center gap-1 px-3 pl-14 h-full w-full">
+            <span className="text-[10px] text-[#0ea5e9] font-medium truncate">
+              Trasporto: {row.op.matNome}
+            </span>
+            {row.op.luogoNome && (
+              <span className="text-[9px] text-[#86868b] truncate flex-shrink-0">
+                da {row.op.luogoNome}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     // task
     return (
       <div
@@ -639,6 +680,48 @@ export function GanttClient({
               }}
             />
           )}
+        </div>
+      );
+    }
+
+    /* ---- Op row (transport bar) ---- */
+    if (row.type === "op") {
+      if (row.startDay < 0) {
+        return (
+          <div
+            key={`r-${i}`}
+            className="absolute border-b border-[#e5e5e7]/30 bg-[#fafafa]/50"
+            style={{ top, height: ROW_HEIGHT, width: totalWidth }}
+          />
+        );
+      }
+      const opLeft = row.startDay * dayWidth + 2;
+      const opWidth = Math.max((row.endDay - row.startDay + 1) * dayWidth - 4, 4);
+      return (
+        <div
+          key={`r-${i}`}
+          className="absolute border-b border-[#e5e5e7]/30 bg-[#fafafa]/50"
+          style={{ top, height: ROW_HEIGHT, width: totalWidth }}
+        >
+          <div
+            className="absolute flex items-center overflow-hidden"
+            style={{
+              left: opLeft,
+              width: opWidth,
+              top: 10,
+              height: 16,
+              borderRadius: 4,
+              backgroundColor: "#0ea5e9",
+              opacity: 0.7,
+            }}
+            title={`Trasporto: ${row.op.matNome}${row.op.fornitoreNome ? ` (${row.op.fornitoreNome})` : ""}${row.op.luogoNome ? ` da ${row.op.luogoNome}` : ""}`}
+          >
+            {opWidth > 50 && (
+              <span className="text-[9px] text-white font-medium px-1 truncate pointer-events-none">
+                {row.op.matNome}
+              </span>
+            )}
+          </div>
         </div>
       );
     }

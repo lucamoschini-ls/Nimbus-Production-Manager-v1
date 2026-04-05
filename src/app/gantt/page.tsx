@@ -4,7 +4,7 @@ import { GanttClient } from "./gantt-client";
 export default async function GanttPage() {
   const supabase = await createClient();
 
-  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: materiali }, { data: operazioni }, { data: tipologie }] = await Promise.all([
+  const [{ data: zone }, { data: lavorazioni }, { data: tasks }, { data: materiali }, { data: operazioni }, { data: tipologie }, { data: allMateriali }] = await Promise.all([
     supabase.from("zone").select("*").order("ordine"),
     supabase.from("lavorazioni").select("*").order("ordine"),
     supabase
@@ -17,9 +17,10 @@ export default async function GanttPage() {
       .not("data_necessaria", "is", null),
     supabase
       .from("operazioni")
-      .select("id, materiale_id, titolo, tipologia, stato, stato_calcolato, data_inizio, data_fine, fornitore_id, fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato)")
+      .select("id, materiale_id, titolo, tipologia, stato, stato_calcolato, data_inizio, data_fine, fornitore_id, fornitore:fornitori!operazioni_fornitore_id_fkey(nome, stato), luogo:luoghi!operazioni_luogo_id_fkey(nome)")
       .order("ordine"),
     supabase.from("tipologie").select("nome, colore").order("ordine"),
+    supabase.from("materiali").select("id, task_id, nome"),
   ]);
 
   // Build tipologia color map
@@ -27,13 +28,38 @@ export default async function GanttPage() {
   tipologie?.forEach((t: { nome: string; colore: string }) => { tipColorMap[t.nome] = t.colore; });
 
   // Group operazioni by materiale_id
-  type OpInfo = { id: string; materiale_id: string; titolo: string; tipologia: string | null; stato: string; stato_calcolato: string; data_inizio: string | null; data_fine: string | null; fornitore_id: string | null; fornitore: { nome: string; stato: string } | null };
+  type OpInfo = { id: string; materiale_id: string; titolo: string; tipologia: string | null; stato: string; stato_calcolato: string; data_inizio: string | null; data_fine: string | null; fornitore_id: string | null; fornitore: { nome: string; stato: string } | null; luogo: { nome: string } | null };
   const allOps = (operazioni ?? []) as unknown as OpInfo[];
   const opsByMat: Record<string, OpInfo[]> = {};
   allOps.forEach((op) => {
     if (!opsByMat[op.materiale_id]) opsByMat[op.materiale_id] = [];
     opsByMat[op.materiale_id].push(op);
   });
+
+  // Build transport ops by task_id (for Gantt bars)
+  const matLookup = new Map<string, { task_id: string; nome: string }>();
+  (allMateriali ?? []).forEach((m: { id: string; task_id: string; nome: string }) => matLookup.set(m.id, m));
+
+  type TransportOp = { id: string; matNome: string; taskId: string; fornitoreNome: string | null; luogoNome: string | null; data_inizio: string; data_fine: string };
+  const transportOpsByTask: Record<string, TransportOp[]> = {};
+  for (const op of allOps) {
+    if (!op.data_inizio) continue;
+    const tipLower = (op.tipologia || op.titolo || "").toLowerCase();
+    if (!tipLower.includes("trasporto")) continue;
+    const mat = matLookup.get(op.materiale_id);
+    if (!mat) continue;
+    const tOp: TransportOp = {
+      id: op.id,
+      matNome: mat.nome,
+      taskId: mat.task_id,
+      fornitoreNome: op.fornitore?.nome ?? null,
+      luogoNome: op.luogo?.nome ?? null,
+      data_inizio: op.data_inizio,
+      data_fine: op.data_fine || op.data_inizio,
+    };
+    if (!transportOpsByTask[mat.task_id]) transportOpsByTask[mat.task_id] = [];
+    transportOpsByTask[mat.task_id].push(tOp);
+  }
 
   // Calcola task con conflitti attrezzi
   const { data: attCat } = await supabase.from("catalogo_materiali").select("id").eq("tipologia_materiale", "attrezzo");
@@ -71,6 +97,7 @@ export default async function GanttPage() {
       tasks={tasks ?? []}
       materiali={materiali ?? []}
       opsByMat={opsByMat}
+      transportOpsByTask={transportOpsByTask}
       tipColorMap={tipColorMap}
       conflictDescriptions={conflictDescriptions}
     />

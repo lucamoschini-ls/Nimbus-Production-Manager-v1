@@ -32,10 +32,21 @@ interface PlanningTask {
   stato_calcolato: string | null;
 }
 
+interface TransportOp {
+  id: string;
+  matNome: string;
+  taskId: string;
+  fornitoreNome: string;
+  luogoNome: string | null;
+  data_inizio: string;
+  data_fine: string;
+}
+
 interface Props {
   tasks: PlanningTask[];
   zone: { id: string; nome: string }[];
   tipologie: { nome: string }[];
+  transportOps?: TransportOp[];
 }
 
 const TIPOLOGIA_SHORT: Record<string, string> = {
@@ -104,7 +115,7 @@ function getTaskDays(
   return days;
 }
 
-export function PlanningClient({ tasks, zone, tipologie }: Props) {
+export function PlanningClient({ tasks, zone, tipologie, transportOps = [] }: Props) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Default week: the Monday of the week containing April 14, 2026
@@ -133,17 +144,27 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
     });
   }, [tasks, filterZona, filterTipologia, weekStart, weekSaturday]);
 
+  // Filter transport ops for current week
+  const filteredOps = useMemo(() => {
+    return transportOps.filter((op) => {
+      const opDate = format(startOfDay(parseISO(op.data_inizio)), "yyyy-MM-dd");
+      const wStart = format(weekStart, "yyyy-MM-dd");
+      const wEnd = format(weekSaturday, "yyyy-MM-dd");
+      return opDate >= wStart && opDate <= wEnd;
+    });
+  }, [transportOps, weekStart, weekSaturday]);
+
   // Group by fornitore
   const fornitoreMap = useMemo(() => {
     const map = new Map<
       string,
-      { tasks: PlanningTask[]; totalHours: number }
+      { tasks: PlanningTask[]; ops: TransportOp[]; totalHours: number }
     >();
 
     for (const task of filteredTasks) {
       const name = task.fornitore_nome!;
       if (!map.has(name)) {
-        map.set(name, { tasks: [], totalHours: 0 });
+        map.set(name, { tasks: [], ops: [], totalHours: 0 });
       }
       const entry = map.get(name)!;
       entry.tasks.push(task);
@@ -155,7 +176,6 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
           task.durata_ore > HOURS_PER_DAY
             ? Math.ceil(task.durata_ore / HOURS_PER_DAY)
             : 1;
-        // Distribute hours across clamped days
         const hoursPerTaskDay = task.durata_ore / totalTaskDaysRaw;
         entry.totalHours += hoursPerTaskDay * daysCount;
       } else {
@@ -163,11 +183,20 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
       }
     }
 
+    // Add transport ops to their fornitore
+    for (const op of filteredOps) {
+      const name = op.fornitoreNome;
+      if (!map.has(name)) {
+        map.set(name, { tasks: [], ops: [], totalHours: 0 });
+      }
+      map.get(name)!.ops.push(op);
+    }
+
     // Sort by fornitore name
     return new Map(
       Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
     );
-  }, [filteredTasks, weekStart, weekSaturday]);
+  }, [filteredTasks, filteredOps, weekStart, weekSaturday]);
 
   // Compute day totals
   const dayTotals = useMemo(() => {
@@ -313,7 +342,7 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
                 </tr>
               )}
               {Array.from(fornitoreMap.entries()).map(
-                ([fornitoreName, { tasks: fTasks, totalHours }]) => {
+                ([fornitoreName, { tasks: fTasks, ops: fOps, totalHours }]) => {
                   // Build day -> tasks map
                   const dayTasksMap = weekDays.map((day) => {
                     const dayStr = format(day, "yyyy-MM-dd");
@@ -325,23 +354,47 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
                     });
                   });
 
+                  // Build day -> ops map
+                  const dayOpsMap = weekDays.map((day) => {
+                    const dayStr = format(day, "yyyy-MM-dd");
+                    return fOps.filter((op) => op.data_inizio === dayStr);
+                  });
+
                   return (
                     <tr key={fornitoreName} className="border-b border-[#e5e5e7] last:border-b-0">
                       <td className="sticky left-0 z-10 bg-white text-sm font-semibold text-[#1d1d1f] px-4 py-2 border-r border-[#e5e5e7] align-top" style={{ width: 180, minWidth: 180 }}>
                         {fornitoreName}
                       </td>
-                      {dayTasksMap.map((dayTasks, dayIdx) => (
+                      {dayTasksMap.map((dayTasks, dayIdx) => {
+                        const dayOps = dayOpsMap[dayIdx];
+                        const hasContent = dayTasks.length > 0 || dayOps.length > 0;
+                        return (
                         <td
                           key={dayIdx}
                           className="px-1 py-1 border-r border-[#e5e5e7] last:border-r-0 align-top"
                           style={{ minHeight: 60 }}
                         >
                           <div className="flex flex-col gap-1 min-h-[52px]">
-                            {dayTasks.length === 0 && (
+                            {!hasContent && (
                               <span className="text-[10px] text-[#d1d1d6] text-center leading-[52px]">
                                 -
                               </span>
                             )}
+                            {dayOps.map((op) => (
+                              <div
+                                key={op.id}
+                                className="rounded-md px-2 py-1"
+                                style={{
+                                  backgroundColor: "rgba(14, 165, 233, 0.15)",
+                                  borderLeft: "3px solid #0ea5e9",
+                                }}
+                                title={`Trasporto: ${op.matNome}${op.luogoNome ? ` da ${op.luogoNome}` : ""}`}
+                              >
+                                <div className="text-[10px] font-medium text-[#0ea5e9] truncate max-w-[120px]">
+                                  TRAS {op.matNome}
+                                </div>
+                              </div>
+                            ))}
                             {dayTasks.map((task) => (
                               <button
                                 key={task.id}
@@ -366,7 +419,8 @@ export function PlanningClient({ tasks, zone, tipologie }: Props) {
                             ))}
                           </div>
                         </td>
-                      ))}
+                        );
+                      })}
                       <td className="text-center text-xs font-medium text-[#1d1d1f] px-2 py-2 align-top">
                         {Math.round(totalHours)}h
                       </td>
