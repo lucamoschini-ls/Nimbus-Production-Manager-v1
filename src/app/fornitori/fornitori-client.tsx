@@ -433,6 +433,10 @@ export function FornitoriClient({ fornitori: fornitoriInitial, permessi, tasksBy
         onSave={async (data) => {
           if (selectedFornitore) {
             await updateFornitore(selectedFornitore.id, data);
+            // Update local state immediately so the name/fields reflect the change
+            setFornitoriList(prev => prev.map(f =>
+              f.id === selectedFornitore.id ? { ...f, ...data } as typeof f : f
+            ));
           } else {
             await createFornitore(data as Parameters<typeof createFornitore>[0]);
           }
