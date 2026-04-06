@@ -164,6 +164,15 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     router.refresh();
   };
 
+  // Clear all dates (local only) — moves everything to left panel
+  const handleClearAll = () => {
+    const next = new Map<string, string | null>();
+    for (const t of fornTasks) next.set(t.id, null);
+    setAssignments(next);
+    setConflicts(null);
+    setVerified(false);
+  };
+
   // Reset
   const handleReset = () => {
     setAssignments(new Map());
@@ -228,6 +237,11 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {selectedFornId && (
+            <button onClick={handleClearAll} className="text-xs text-[#86868b] hover:text-[#1d1d1f] px-3 py-2 rounded-[10px] border border-[#e5e5e7]">
+              Pulisci calendario
+            </button>
+          )}
           {dirty && (
             <button onClick={handleReset} className="text-xs text-[#86868b] hover:text-[#1d1d1f] px-3 py-2 rounded-[10px] border border-[#e5e5e7]">
               Reset
