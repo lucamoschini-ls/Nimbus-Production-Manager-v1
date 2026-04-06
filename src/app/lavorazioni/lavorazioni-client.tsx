@@ -422,28 +422,43 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                 </div>
               </div>
 
-              {/* Tasks grouped by zona */}
-              {zone.map((z) => {
-                const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
-                const zoneFornitTasks = fornitoreAllTasks.filter((t) => zoneLav.some((l) => l.id === t.lavorazione_id));
-                if (zoneFornitTasks.length === 0) return null;
-
-                // Sort by date if toggle is active
-                const sortedZoneTasks = fornitoreSortByDate
-                  ? [...zoneFornitTasks].sort((a, b) => (a.data_inizio ?? "9999").localeCompare(b.data_inizio ?? "9999"))
-                  : null;
-
-                return (
-                  <div key={z.id} className="mb-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: z.colore }} />
-                      <span className="text-sm font-semibold text-[#1d1d1f]">{z.nome}</span>
-                      <span className="text-xs text-[#86868b]">({zoneFornitTasks.length})</span>
+              {fornitoreSortByDate ? (
+                /* ---- Grouped by DATE, then zona badge ---- */
+                (() => {
+                  const sorted = [...fornitoreAllTasks].sort((a, b) => (a.data_inizio ?? "9999").localeCompare(b.data_inizio ?? "9999"));
+                  // Group by date
+                  const byDate = new Map<string, typeof sorted>();
+                  for (const t of sorted) {
+                    const key = t.data_inizio ?? "senza_data";
+                    if (!byDate.has(key)) byDate.set(key, []);
+                    byDate.get(key)!.push(t);
+                  }
+                  return Array.from(byDate.entries()).map(([dateKey, dateTasks]) => (
+                    <div key={dateKey} className="mb-5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold text-[#1d1d1f]">
+                          {dateKey === "senza_data" ? "Senza data" : new Date(dateKey + "T12:00:00Z").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })}
+                        </span>
+                        <span className="text-xs text-[#86868b]">({dateTasks.length})</span>
+                      </div>
+                      <div className="space-y-1.5">{dateTasks.map((task) => renderTaskCard(task))}</div>
                     </div>
-                    {fornitoreSortByDate ? (
-                      <div className="space-y-1.5">{sortedZoneTasks!.map((task) => renderTaskCard(task))}</div>
-                    ) : (
-                      zoneLav.map((lav) => {
+                  ));
+                })()
+              ) : (
+                /* ---- Grouped by ZONA > LAVORAZIONE (default) ---- */
+                zone.map((z) => {
+                  const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
+                  const zoneFornitTasks = fornitoreAllTasks.filter((t) => zoneLav.some((l) => l.id === t.lavorazione_id));
+                  if (zoneFornitTasks.length === 0) return null;
+                  return (
+                    <div key={z.id} className="mb-6">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: z.colore }} />
+                        <span className="text-sm font-semibold text-[#1d1d1f]">{z.nome}</span>
+                        <span className="text-xs text-[#86868b]">({zoneFornitTasks.length})</span>
+                      </div>
+                      {zoneLav.map((lav) => {
                         const lavFornitTasks = fornitoreAllTasks.filter((t) => t.lavorazione_id === lav.id);
                         if (lavFornitTasks.length === 0) return null;
                         return (
@@ -457,11 +472,11 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                             <div className="space-y-1.5">{lavFornitTasks.map((task) => renderTaskCard(task))}</div>
                           </div>
                         );
-                      })
-                    )}
-                  </div>
-                );
-              })}
+                      })}
+                    </div>
+                  );
+                })
+              )}
 
               {fornitoreAllTasks.length === 0 && (
                 <div className="flex items-center justify-center h-32 text-[#86868b] text-sm">Nessuna task per questo fornitore</div>
