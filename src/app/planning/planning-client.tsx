@@ -57,18 +57,18 @@ interface Props {
 
 const TIPOLOGIA_SHORT: Record<string, string> = {
   carpenteria: "CARP",
+  allestimento: "ALLES",
   verniciatura: "VERN",
   elettrico: "ELET",
   idraulico: "IDRA",
-  trasporto: "TRAS",
-  acquisto: "ACQ",
-  montaggio: "MONT",
+  manutenzione: "MAN",
   audio_luci: "A/L",
   giardinaggio: "GIAR",
-  pulizia_manutenzione: "PUL",
-  decisione: "DEC",
+  pianificazione: "PLAN",
   amministrativo: "AMM",
-  misure_rilievo: "MIS",
+  trasporto: "TRAS",
+  acquisto: "ACQ",
+  acquisto_e_trasporto: "A+T",
 };
 
 function hexToRgba(hex: string, alpha: number): string {

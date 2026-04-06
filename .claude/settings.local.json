@@ -21,7 +21,10 @@
       "Bash(git push:*)",
       "Bash(gh auth:*)",
       "Bash(find /Users/luca/Lavoro/Tech/Repos/production_tool -name schema.sql -o -name *v_task*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(git -C /Users/luca/Lavoro/Tech/Repos/production_tool remote -v)",
+      "Bash(git -C /Users/luca/Lavoro/Tech/Repos/production_tool log --oneline -3)",
+      "Bash(git -C /Users/luca/Lavoro/Tech/Repos/production_tool branch)"
     ]
   }
 }
