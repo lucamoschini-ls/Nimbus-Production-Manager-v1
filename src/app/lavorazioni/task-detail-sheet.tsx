@@ -607,6 +607,8 @@ interface DepTask {
     titolo: string;
     stato: string;
     stato_calcolato: string;
+    data_inizio: string | null;
+    data_fine: string | null;
     lavorazione: {
       nome: string;
       zona: { nome: string };
@@ -738,6 +740,11 @@ function DipendenzeSection({ taskId }: { taskId: string }) {
               <p className="text-xs text-[#1d1d1f] truncate">{d.task.titolo}</p>
               <p className="text-[10px] text-[#86868b]">
                 {d.task.lavorazione?.zona?.nome} &gt; {d.task.lavorazione?.nome}
+                {d.task.data_inizio && (
+                  <span className="ml-1.5">
+                    · {d.task.data_inizio.slice(5).replace("-", "/")}{d.task.data_fine && d.task.data_fine !== d.task.data_inizio ? `–${d.task.data_fine.slice(5).replace("-", "/")}` : ""}
+                  </span>
+                )}
               </p>
             </div>
             <span

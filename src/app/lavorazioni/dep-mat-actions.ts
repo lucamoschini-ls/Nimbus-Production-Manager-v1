@@ -35,7 +35,7 @@ export async function getDipendenze(taskId: string) {
     .select(`
       dipende_da_id,
       task:task!task_dipendenze_dipende_da_id_fkey (
-        id, titolo, stato, stato_calcolato,
+        id, titolo, stato, stato_calcolato, data_inizio, data_fine,
         lavorazione:lavorazioni!task_lavorazione_id_fkey (
           nome,
           zona:zone!lavorazioni_zona_id_fkey ( nome )
