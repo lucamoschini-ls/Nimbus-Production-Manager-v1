@@ -129,6 +129,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   const [selectedTask, setSelectedTask] = useState<TaskCompleta | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [filterFornitore, setFilterFornitore] = useState<string>("");
+  const [fornitoreSortByDate, setFornitoreSortByDate] = useState(false);
   const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
   const [newLavName, setNewLavName] = useState("");
 
@@ -412,14 +413,26 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                   <span className="text-xs text-[#86868b]">
                     {fornitoreAllTasks.filter((t) => t.stato_calcolato === "completata").length}/{fornitoreAllTasks.length} completate
                   </span>
+                  <button
+                    onClick={() => setFornitoreSortByDate((v) => !v)}
+                    className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors ${fornitoreSortByDate ? "bg-[#1d1d1f] text-white border-[#1d1d1f]" : "text-[#86868b] border-[#e5e5e7] hover:text-[#1d1d1f]"}`}
+                  >
+                    Per data
+                  </button>
                 </div>
               </div>
 
-              {/* Tasks grouped by zona > lavorazione */}
+              {/* Tasks grouped by zona */}
               {zone.map((z) => {
                 const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
                 const zoneFornitTasks = fornitoreAllTasks.filter((t) => zoneLav.some((l) => l.id === t.lavorazione_id));
                 if (zoneFornitTasks.length === 0) return null;
+
+                // Sort by date if toggle is active
+                const sortedZoneTasks = fornitoreSortByDate
+                  ? [...zoneFornitTasks].sort((a, b) => (a.data_inizio ?? "9999").localeCompare(b.data_inizio ?? "9999"))
+                  : null;
+
                 return (
                   <div key={z.id} className="mb-6">
                     <div className="flex items-center gap-2 mb-2">
@@ -427,21 +440,25 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
                       <span className="text-sm font-semibold text-[#1d1d1f]">{z.nome}</span>
                       <span className="text-xs text-[#86868b]">({zoneFornitTasks.length})</span>
                     </div>
-                    {zoneLav.map((lav) => {
-                      const lavFornitTasks = fornitoreAllTasks.filter((t) => t.lavorazione_id === lav.id);
-                      if (lavFornitTasks.length === 0) return null;
-                      return (
-                        <div key={lav.id} className="mb-3">
-                          <button
-                            onClick={() => { setFilterFornitore(""); selectLav(lav.id); }}
-                            className="text-xs text-[#86868b] font-medium mb-1 ml-5 hover:text-[#1d1d1f] transition-colors"
-                          >
-                            {lav.nome}
-                          </button>
-                          <div className="space-y-1.5">{lavFornitTasks.map((task) => renderTaskCard(task))}</div>
-                        </div>
-                      );
-                    })}
+                    {fornitoreSortByDate ? (
+                      <div className="space-y-1.5">{sortedZoneTasks!.map((task) => renderTaskCard(task))}</div>
+                    ) : (
+                      zoneLav.map((lav) => {
+                        const lavFornitTasks = fornitoreAllTasks.filter((t) => t.lavorazione_id === lav.id);
+                        if (lavFornitTasks.length === 0) return null;
+                        return (
+                          <div key={lav.id} className="mb-3">
+                            <button
+                              onClick={() => { setFilterFornitore(""); selectLav(lav.id); }}
+                              className="text-xs text-[#86868b] font-medium mb-1 ml-5 hover:text-[#1d1d1f] transition-colors"
+                            >
+                              {lav.nome}
+                            </button>
+                            <div className="space-y-1.5">{lavFornitTasks.map((task) => renderTaskCard(task))}</div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 );
               })}
