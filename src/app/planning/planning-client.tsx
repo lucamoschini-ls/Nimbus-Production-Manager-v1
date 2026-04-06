@@ -14,6 +14,7 @@ import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
 import { useRouter } from "next/navigation";
+import { SchedulingTab } from "./scheduling-tab";
 import { AppTooltip } from "@/components/ui/app-tooltip";
 
 const HOURS_PER_DAY = 11;
@@ -28,6 +29,7 @@ interface PlanningTask {
   data_inizio: string | null;
   data_fine: string | null;
   durata_ore: number | null;
+  numero_persone: number | null;
   zona_nome: string | null;
   zona_colore: string | null;
   lavorazione_nome: string | null;
@@ -53,6 +55,7 @@ interface Props {
   tipologie: { nome: string }[];
   transportOps?: TransportOp[];
   tipColorMap?: Record<string, string>;
+  fornitori?: { id: string; nome: string }[];
 }
 
 const TIPOLOGIA_SHORT: Record<string, string> = {
@@ -121,8 +124,9 @@ function getTaskDays(
   return days;
 }
 
-export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipColorMap = {} }: Props) {
+export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipColorMap = {}, fornitori = [] }: Props) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"planning" | "scheduling">("planning");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Default week: the Monday of the week containing April 14, 2026
@@ -242,11 +246,23 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header + Tab toggle */}
+      <div className="flex items-center gap-4">
         <h1 className="text-xl font-bold text-[#1d1d1f]">Planning</h1>
+        <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
+          <button onClick={() => setActiveTab("planning")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${activeTab === "planning" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Settimanale</button>
+          <button onClick={() => setActiveTab("scheduling")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${activeTab === "scheduling" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Scheduling</button>
+        </div>
       </div>
 
+      {activeTab === "scheduling" ? (
+        <SchedulingTab
+          tasks={tasks}
+          fornitori={fornitori}
+          tipColorMap={tipColorMap}
+        />
+      ) : (
+      <>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Week navigation */}
@@ -486,6 +502,8 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
         onClose={() => setSelectedTaskId(null)}
         onTaskUpdated={() => router.refresh()}
       />
+      </>
+      )}
     </div>
   );
 }

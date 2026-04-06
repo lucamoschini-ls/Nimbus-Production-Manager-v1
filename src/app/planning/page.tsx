@@ -4,12 +4,12 @@ import { PlanningClient } from "./planning-client";
 export default async function PlanningPage() {
   const supabase = await createClient();
 
-  const [{ data: tasks }, { data: zone }, { data: tipologie }, { data: rawOps }, { data: allMats }] =
+  const [{ data: tasks }, { data: zone }, { data: tipologie }, { data: rawOps }, { data: allMats }, { data: fornitori }] =
     await Promise.all([
       supabase
         .from("v_task_completa")
         .select(
-          "id, titolo, tipologia, fornitore_nome, fornitore_id, data_inizio, data_fine, durata_ore, zona_nome, zona_colore, lavorazione_nome, stato_calcolato"
+          "id, titolo, tipologia, fornitore_nome, fornitore_id, data_inizio, data_fine, durata_ore, numero_persone, zona_nome, zona_colore, lavorazione_nome, stato_calcolato"
         ),
       supabase.from("zone").select("id, nome").order("ordine"),
       supabase.from("tipologie").select("nome, colore").order("ordine"),
@@ -18,6 +18,7 @@ export default async function PlanningPage() {
         .select("id, materiale_id, titolo, tipologia, data_inizio, data_fine, fornitore:fornitori!operazioni_fornitore_id_fkey(nome), luogo:luoghi!operazioni_luogo_id_fkey(nome)")
         .not("data_inizio", "is", null),
       supabase.from("materiali").select("id, task_id, nome"),
+      supabase.from("fornitori").select("id, nome").order("nome"),
     ]);
 
   // Build transport ops for planning: fornitore_nome + date + label
@@ -62,6 +63,7 @@ export default async function PlanningPage() {
       tipologie={tipologie ?? []}
       transportOps={transportOps}
       tipColorMap={tipColorMap}
+      fornitori={(fornitori ?? []) as { id: string; nome: string }[]}
     />
   );
 }
