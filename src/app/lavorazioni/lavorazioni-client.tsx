@@ -181,6 +181,12 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
     : selectedLavTasksAll;
   const selectedZona = selectedLavData ? zone.find((z) => z.id === selectedLavData.zona_id) : null;
 
+  // When filtering by fornitore: all tasks of that fornitore across all zones
+  const fornitoreAllTasks = filterFornitore
+    ? tasks.filter((t) => t.fornitore_id === filterFornitore || (t as unknown as Record<string, unknown>).fornitore_supporto_id === filterFornitore)
+    : [];
+  const fornitoreName = filterFornitore ? fornitori.find((f) => f.id === filterFornitore)?.nome : null;
+
   const handleDeleteLav = (lav: Lavorazione) => {
     const lavTasks = tasks.filter((t) => t.lavorazione_id === lav.id);
     if (lavTasks.length === 0) { deleteLavorazione(lav.id); if (selectedLav === lav.id) { _savedLavId = null; setSelectedLav(null); } }
@@ -240,6 +246,40 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
         className={`${cls} flex items-center gap-1.5 text-sm text-[#86868b] hover:text-[#1d1d1f] transition-colors disabled:opacity-50`}
       >
         <Plus size={16} /> {creatingTask ? "Creazione..." : "Aggiungi task"}
+      </button>
+    );
+  };
+
+  // Compact card for fornitore cross-zona view
+  const renderTaskCard = (task: TaskCompleta) => {
+    const statoColors: Record<string, string> = {
+      da_fare: "#d1d5db", in_corso: "#3b82f6", completata: "#22c55e",
+      in_attesa_fornitore: "#f59e0b", in_attesa_dipendenza: "#f59e0b",
+      in_attesa_materiali: "#f59e0b", in_attesa_permesso: "#f59e0b",
+    };
+    const sColor = statoColors[task.stato_calcolato] ?? "#d1d5db";
+    const tipColor = tipColorMap[task.tipologia ?? ""] ?? "#d1d5db";
+    return (
+      <button
+        key={task.id}
+        onClick={() => setSelectedTask(task)}
+        className="w-full text-left bg-white rounded-[10px] border border-[#e5e5e7] px-3 py-2 hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tipColor }} />
+          <span className="text-[13px] font-medium text-[#1d1d1f] truncate flex-1">{task.titolo}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0"
+            style={{ backgroundColor: sColor + "25", color: sColor }}>
+            {task.stato_calcolato.replace(/_/g, " ")}
+          </span>
+        </div>
+        {(task.data_inizio || task.tipologia) && (
+          <div className="flex items-center gap-2 mt-1 text-[11px] text-[#86868b]">
+            {task.tipologia && <span>{task.tipologia.replace(/_/g, " ")}</span>}
+            {task.data_inizio && <span>{task.data_inizio.slice(5).replace("-", "/")}{task.data_fine && task.data_fine !== task.data_inizio ? ` – ${task.data_fine.slice(5).replace("-", "/")}` : ""}</span>}
+            {task.durata_ore && <span>· {task.durata_ore}h</span>}
+          </div>
+        )}
       </button>
     );
   };
@@ -342,7 +382,76 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
 
         {/* FIX 1: this div now actually scrolls because parent is h-screen overflow-hidden */}
         <div className="flex-1 overflow-y-auto p-6" id="task-scroll-area">
-          {selectedLavData ? (
+          {/* Fornitore filter — shown in ALL modes */}
+          {filterFornitore ? (
+            /* ========== FORNITORE CROSS-ZONA VIEW ========== */
+            <>
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-xl font-semibold text-[#1d1d1f]">
+                    {fornitoreName}
+                  </h1>
+                  <div className="flex items-center gap-1.5">
+                    <Filter size={12} className="text-[#86868b]" />
+                    <select
+                      value={filterFornitore}
+                      onChange={(e) => setFilterFornitore(e.target.value)}
+                      className="text-xs text-[#86868b] bg-transparent border border-[#e5e5e7] rounded-lg px-2 py-1 outline-none hover:text-[#1d1d1f] focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Tutti i fornitori</option>
+                      {fornitori.map((f) => (
+                        <option key={f.id} value={f.id}>{f.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 mt-2">
+                  <div className="flex-1 max-w-xs h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-[#34C759] transition-all" style={{ width: `${fornitoreAllTasks.length > 0 ? Math.round((fornitoreAllTasks.filter((t) => t.stato_calcolato === "completata").length / fornitoreAllTasks.length) * 100) : 0}%` }} />
+                  </div>
+                  <span className="text-xs text-[#86868b]">
+                    {fornitoreAllTasks.filter((t) => t.stato_calcolato === "completata").length}/{fornitoreAllTasks.length} completate
+                  </span>
+                </div>
+              </div>
+
+              {/* Tasks grouped by zona > lavorazione */}
+              {zone.map((z) => {
+                const zoneLav = lavorazioni.filter((l) => l.zona_id === z.id);
+                const zoneFornitTasks = fornitoreAllTasks.filter((t) => zoneLav.some((l) => l.id === t.lavorazione_id));
+                if (zoneFornitTasks.length === 0) return null;
+                return (
+                  <div key={z.id} className="mb-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: z.colore }} />
+                      <span className="text-sm font-semibold text-[#1d1d1f]">{z.nome}</span>
+                      <span className="text-xs text-[#86868b]">({zoneFornitTasks.length})</span>
+                    </div>
+                    {zoneLav.map((lav) => {
+                      const lavFornitTasks = fornitoreAllTasks.filter((t) => t.lavorazione_id === lav.id);
+                      if (lavFornitTasks.length === 0) return null;
+                      return (
+                        <div key={lav.id} className="mb-3">
+                          <button
+                            onClick={() => { setFilterFornitore(""); selectLav(lav.id); }}
+                            className="text-xs text-[#86868b] font-medium mb-1 ml-5 hover:text-[#1d1d1f] transition-colors"
+                          >
+                            {lav.nome}
+                          </button>
+                          <div className="space-y-1.5">{lavFornitTasks.map((task) => renderTaskCard(task))}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {fornitoreAllTasks.length === 0 && (
+                <div className="flex items-center justify-center h-32 text-[#86868b] text-sm">Nessuna task per questo fornitore</div>
+              )}
+            </>
+          ) : selectedLavData ? (
+            /* ========== SINGLE LAVORAZIONE VIEW (default) ========== */
             <>
               <div className="mb-6">
                 <div className="flex items-center gap-2 text-xs text-[#86868b] mb-1">
