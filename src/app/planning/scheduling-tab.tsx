@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { startOfWeek, addDays, format, parseISO } from "date-fns";
+import { startOfWeek, addDays, format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Check, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -26,6 +26,11 @@ interface Task {
   stato_calcolato: string | null;
 }
 
+interface DateRange {
+  start: string;
+  end: string;
+}
+
 interface Props {
   tasks: Task[];
   fornitori: { id: string; nome: string }[];
@@ -36,7 +41,8 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
   const router = useRouter();
   const [selectedFornId, setSelectedFornId] = useState("");
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date("2026-04-13"), { weekStartsOn: 1 }));
-  const [assignments, setAssignments] = useState<Map<string, string | null>>(new Map());
+  // Assignments: taskId → { start, end } or null (unassigned)
+  const [assignments, setAssignments] = useState<Map<string, DateRange | null>>(new Map());
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [dragOverLeft, setDragOverLeft] = useState(false);
   const [conflicts, setConflicts] = useState<ImpactedTask[] | null>(null);
@@ -46,29 +52,24 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const dayLabels = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
-  // Tasks for selected fornitore
   const fornTasks = useMemo(() =>
     selectedFornId ? tasks.filter(t => t.fornitore_id === selectedFornId) : [],
     [tasks, selectedFornId]
   );
 
-  // Effective date for a task (local assignment overrides DB)
-  const getDate = useCallback((t: Task): string | null => {
+  // Effective dates for a task (local assignment overrides DB)
+  const getDates = useCallback((t: Task): DateRange | null => {
     if (assignments.has(t.id)) return assignments.get(t.id) ?? null;
-    return t.data_inizio;
+    if (t.data_inizio) return { start: t.data_inizio, end: t.data_fine || t.data_inizio };
+    return null;
   }, [assignments]);
 
-  // LEFT panel: unassigned tasks (no date or date outside current week)
-  const unassigned = useMemo(() => {
-    const wStart = format(weekDays[0], "yyyy-MM-dd");
-    const wEnd = format(weekDays[6], "yyyy-MM-dd");
-    return fornTasks.filter(t => {
-      const d = getDate(t);
-      return !d || d < wStart || d > wEnd;
-    });
-  }, [fornTasks, getDate, weekDays]);
+  // LEFT panel: unassigned tasks
+  const unassigned = useMemo(() =>
+    fornTasks.filter(t => getDates(t) === null),
+    [fornTasks, getDates]
+  );
 
-  // Group unassigned by zona
   const unassignedByZona = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const t of unassigned) {
@@ -79,25 +80,45 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [unassigned]);
 
-  // RIGHT panel: tasks per day
+  // RIGHT panel: tasks that overlap each day
   const dayTasks = useMemo(() =>
     weekDays.map(day => {
       const dayStr = format(day, "yyyy-MM-dd");
-      return fornTasks.filter(t => getDate(t) === dayStr);
+      return fornTasks.filter(t => {
+        const d = getDates(t);
+        if (!d) return false;
+        return d.start <= dayStr && d.end >= dayStr;
+      });
     }),
-    [fornTasks, getDate, weekDays]
+    [fornTasks, getDates, weekDays]
   );
 
-  // Hours per day
+  // Hours per day (proportional for multi-day tasks)
   const dayHours = useMemo(() =>
-    dayTasks.map(dt => dt.reduce((s, t) => s + (t.durata_ore ?? 0), 0)),
-    [dayTasks]
+    dayTasks.map(dt => dt.reduce((s, t) => {
+      const d = getDates(t);
+      if (!d) return s;
+      const span = differenceInDays(parseISO(d.end), parseISO(d.start)) + 1;
+      const orePerDay = (t.durata_ore ?? 0) / Math.max(span, 1);
+      return s + orePerDay;
+    }, 0)),
+    [dayTasks, getDates]
   );
 
-  // Has changes?
+  // Count tasks assigned to other weeks (for indicator)
+  const otherWeekCount = useMemo(() => {
+    const wStart = format(weekDays[0], "yyyy-MM-dd");
+    const wEnd = format(weekDays[6], "yyyy-MM-dd");
+    return fornTasks.filter(t => {
+      const d = getDates(t);
+      if (!d) return false;
+      return d.end < wStart || d.start > wEnd;
+    }).length;
+  }, [fornTasks, getDates, weekDays]);
+
   const dirty = assignments.size > 0;
 
-  // Drag handlers
+  // Drag: drop on a day → set start=that day, end=that day (single day)
   const onDragStart = (e: React.DragEvent, taskId: string) => {
     e.dataTransfer.setData("text/plain", taskId);
     e.dataTransfer.effectAllowed = "move";
@@ -107,7 +128,12 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     e.preventDefault();
     const taskId = e.dataTransfer.getData("text/plain");
     const dayStr = format(weekDays[dayIdx], "yyyy-MM-dd");
-    setAssignments(prev => new Map(prev).set(taskId, dayStr));
+    // Preserve existing span if just moving, otherwise single day
+    const task = fornTasks.find(t => t.id === taskId);
+    const current = task ? getDates(task) : null;
+    const span = current ? differenceInDays(parseISO(current.end), parseISO(current.start)) : 0;
+    const end = format(addDays(weekDays[dayIdx], span), "yyyy-MM-dd");
+    setAssignments(prev => new Map(prev).set(taskId, { start: dayStr, end }));
     setDragOverDay(null);
     setConflicts(null);
     setVerified(false);
@@ -122,18 +148,26 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     setVerified(false);
   };
 
-  // Verify dependencies
+  // Extend/shrink a task's end date by 1 day
+  const extendTask = (taskId: string, delta: number) => {
+    const task = fornTasks.find(t => t.id === taskId);
+    if (!task) return;
+    const d = getDates(task);
+    if (!d) return;
+    const newEnd = format(addDays(parseISO(d.end), delta), "yyyy-MM-dd");
+    if (newEnd < d.start) return; // can't shrink past start
+    setAssignments(prev => new Map(prev).set(taskId, { start: d.start, end: newEnd }));
+    setConflicts(null);
+    setVerified(false);
+  };
+
+  // Verify
   const handleVerify = async () => {
     const graph = await fetchDependencyGraph(createClient());
     const allConflicts: ImpactedTask[] = [];
-    for (const [taskId, newDate] of Array.from(assignments.entries())) {
-      if (!newDate) continue;
-      const task = fornTasks.find(t => t.id === taskId);
-      if (!task) continue;
-      const ore = task.durata_ore ?? HPD;
-      const days = ore > HPD ? Math.ceil(ore / HPD) : 1;
-      const dataFine = format(addDays(parseISO(newDate), days - 1), "yyyy-MM-dd");
-      const impacts = analyzeImpact(taskId, dataFine, graph);
+    for (const [taskId, range] of Array.from(assignments.entries())) {
+      if (!range) continue;
+      const impacts = analyzeImpact(taskId, range.end, graph);
       for (const imp of impacts) {
         if (!allConflicts.some(c => c.id === imp.id)) allConflicts.push(imp);
       }
@@ -142,17 +176,13 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     setVerified(true);
   };
 
-  // Apply all changes
+  // Apply
   const handleApply = async () => {
     setSaving(true);
     const sb = createClient();
-    for (const [taskId, newDate] of Array.from(assignments.entries())) {
-      if (newDate) {
-        const task = fornTasks.find(t => t.id === taskId);
-        const ore = task?.durata_ore ?? HPD;
-        const days = ore > HPD ? Math.ceil(ore / HPD) : 1;
-        const dataFine = format(addDays(parseISO(newDate), days - 1), "yyyy-MM-dd");
-        await sb.from("task").update({ data_inizio: newDate, data_fine: dataFine }).eq("id", taskId);
+    for (const [taskId, range] of Array.from(assignments.entries())) {
+      if (range) {
+        await sb.from("task").update({ data_inizio: range.start, data_fine: range.end }).eq("id", taskId);
       } else {
         await sb.from("task").update({ data_inizio: null, data_fine: null }).eq("id", taskId);
       }
@@ -164,9 +194,9 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     router.refresh();
   };
 
-  // Clear all dates (local only) — moves everything to left panel
+  // Clear all
   const handleClearAll = () => {
-    const next = new Map<string, string | null>();
+    const next = new Map<string, DateRange | null>();
     for (const t of fornTasks) next.set(t.id, null);
     setAssignments(next);
     setConflicts(null);
@@ -187,6 +217,9 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     const isModified = assignments.has(task.id);
     const ore = task.durata_ore ?? 0;
     const pax = task.numero_persone ?? 1;
+    const dates = getDates(task);
+    const span = dates ? differenceInDays(parseISO(dates.end), parseISO(dates.start)) + 1 : 1;
+    const isMultiDay = span > 1;
 
     return (
       <div
@@ -197,14 +230,24 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
         style={{ borderLeftWidth: 3, borderLeftColor: tipColor || zonaColor }}
       >
         <div className="text-[12px] font-medium text-[#1d1d1f] leading-tight">{task.titolo}</div>
-        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-[#86868b]">
+        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-[#86868b]">
           {ore > 0 && <span>{ore}h</span>}
-          {pax > 1 && <span>{pax} pax</span>}
-          {!inCalendar && task.zona_nome && (
-            <span className="truncate">{task.zona_nome}</span>
-          )}
-          {inCalendar && task.data_inizio && !isModified && (
-            <span className="text-[#86868b]">originale</span>
+          {pax > 1 && <span>{pax}p</span>}
+          {isMultiDay && <span className="text-blue-500 font-medium">{span}gg</span>}
+          {!inCalendar && task.zona_nome && <span className="truncate">{task.zona_nome}</span>}
+          {inCalendar && (
+            <div className="ml-auto flex items-center gap-0.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); extendTask(task.id, -1); }}
+                className="w-4 h-4 flex items-center justify-center rounded text-[9px] font-bold text-[#86868b] hover:bg-[#e5e5e7] hover:text-[#1d1d1f]"
+                title="Riduci 1 giorno"
+              >-</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); extendTask(task.id, 1); }}
+                className="w-4 h-4 flex items-center justify-center rounded text-[9px] font-bold text-[#86868b] hover:bg-[#e5e5e7] hover:text-[#1d1d1f]"
+                title="Estendi 1 giorno"
+              >+</button>
+            </div>
           )}
         </div>
       </div>
@@ -235,6 +278,10 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
             <ChevronRight size={16} />
           </button>
         </div>
+
+        {otherWeekCount > 0 && (
+          <span className="text-[11px] text-[#86868b]">{otherWeekCount} task in altre settimane</span>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {selectedFornId && (
@@ -270,7 +317,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
         </div>
       ) : (
         <div className="flex gap-4" style={{ height: "calc(100vh - 220px)" }}>
-          {/* LEFT PANEL: Unassigned tasks */}
+          {/* LEFT PANEL */}
           <div
             className={`w-72 flex-shrink-0 rounded-[12px] border overflow-y-auto transition-colors ${dragOverLeft ? "border-blue-400 bg-blue-50/30" : "border-[#e5e5e7] bg-[#f5f5f7]"}`}
             onDragOver={(e) => { e.preventDefault(); setDragOverLeft(true); }}
@@ -290,24 +337,19 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
                     <span className="text-[11px] font-semibold text-[#86868b]">{zona}</span>
                     <span className="text-[10px] text-[#86868b]">({ztasks.length})</span>
                   </div>
-                  <div className="space-y-1.5">
-                    {ztasks.map(t => renderCard(t, false))}
-                  </div>
+                  <div className="space-y-1.5">{ztasks.map(t => renderCard(t, false))}</div>
                 </div>
               ))}
               {unassigned.length === 0 && (
-                <div className="text-center text-[11px] text-[#86868b] py-8">
-                  Tutte le task sono assegnate
-                </div>
+                <div className="text-center text-[11px] text-[#86868b] py-8">Tutte le task sono assegnate</div>
               )}
             </div>
           </div>
 
-          {/* RIGHT PANEL: Calendar */}
+          {/* RIGHT PANEL */}
           <div className="flex-1 overflow-x-auto">
             <div className="flex gap-2 min-w-[700px] h-full">
               {weekDays.map((day, di) => {
-                const dayStr = format(day, "yyyy-MM-dd");
                 const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                 const hours = dayHours[di];
                 const overLimit = hours > HPD;
@@ -315,13 +357,12 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
 
                 return (
                   <div
-                    key={dayStr}
+                    key={di}
                     className={`flex-1 rounded-[12px] border flex flex-col transition-colors min-w-[90px] ${dragOverDay === di ? "border-blue-400 bg-blue-50/30" : isWeekend ? "border-[#e5e5e7] bg-[#F9F9F9]" : "border-[#e5e5e7] bg-white"}`}
                     onDragOver={(e) => { e.preventDefault(); setDragOverDay(di); }}
                     onDragLeave={() => setDragOverDay(null)}
                     onDrop={(e) => onDropDay(e, di)}
                   >
-                    {/* Day header */}
                     <div className="px-3 py-2 border-b border-[#e5e5e7] flex-shrink-0">
                       <div className="text-[11px] font-semibold text-[#1d1d1f]">
                         {dayLabels[di]} {format(day, "dd/MM")}
@@ -336,13 +377,11 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
                             }}
                           />
                         </div>
-                        <span className={`text-[10px] font-medium ${overLimit ? "text-red-500" : "text-[#86868b]"}`}>
-                          {hours}h
+                        <span className={`text-[10px] font-medium whitespace-nowrap ${overLimit ? "text-red-500" : "text-[#86868b]"}`}>
+                          {Math.round(hours * 10) / 10}h
                         </span>
                       </div>
                     </div>
-
-                    {/* Tasks */}
                     <div className="flex-1 p-2 space-y-1.5 overflow-y-auto">
                       {dayTasks[di].map(t => renderCard(t, true))}
                     </div>
