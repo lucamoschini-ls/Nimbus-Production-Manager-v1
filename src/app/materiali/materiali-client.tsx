@@ -7,6 +7,8 @@ import {
 } from "@/components/ui/select";
 import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali, addCatalogoItem, updateCatalogoItem } from "./actions";
 import { createClient } from "@/lib/supabase/client";
+import { TaskDetailOverlay } from "@/components/task-detail-overlay";
+import { useRouter } from "next/navigation";
 
 const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
 const PROVENIENZA = [
@@ -287,6 +289,8 @@ const TIP_MAT_COLORS: Record<string, string> = {
 // ========== MAIN COMPONENT ==========
 
 export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, catalogo }: Props) {
+  const router = useRouter();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"materiali" | "catalogo" | "spesa">("materiali");
   const [viewMode, setViewMode] = useState<"materiale" | "area">("materiale");
   const [filterZona, setFilterZona] = useState("tutti");
@@ -377,8 +381,8 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
         <button onClick={() => setActiveTab("spesa")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "spesa" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Lista Spesa ({catalogo.filter(c => c.quantita_da_acquistare > 0).length})</button>
       </div>
 
-      {activeTab === "catalogo" && <CatalogoTab catalogo={catalogo} />}
-      {activeTab === "spesa" && <ListaSpesaTab catalogo={catalogo} />}
+      {activeTab === "catalogo" && <CatalogoTab catalogo={catalogo} fornitori={fornitori} onOpenTask={setSelectedTaskId} />}
+      {activeTab === "spesa" && <ListaSpesaTab catalogo={catalogo} fornitori={fornitori} onOpenTask={setSelectedTaskId} />}
 
       {activeTab === "materiali" && <>
       {/* Smart summary counters */}
@@ -707,6 +711,76 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
         </div>
       )}
       </>}
+      <TaskDetailOverlay
+        taskId={selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+        onTaskUpdated={() => router.refresh()}
+      />
+    </div>
+  );
+}
+
+// ========== FORNITORE COMBOBOX ==========
+
+function FornitoreCombobox({ value, fornitori, onChange }: {
+  value: string;
+  fornitori: { id: string; nome: string }[];
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState(value);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => { setSearch(value); }, [value]);
+
+  const filtered = search
+    ? fornitori.filter(f => f.nome.toLowerCase().includes(search.toLowerCase()))
+    : fornitori;
+  const exactMatch = fornitori.some(f => f.nome.toLowerCase() === search.toLowerCase());
+
+  const handleCreate = async () => {
+    if (!search.trim() || creating) return;
+    setCreating(true);
+    const sb = createClient();
+    await sb.from("fornitori").insert({ nome: search.trim(), tipo: "Negozio" });
+    onChange(search.trim());
+    setOpen(false);
+    setCreating(false);
+  };
+
+  return (
+    <div className="relative">
+      <input
+        value={search}
+        onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        className="w-full text-[13px] border border-[#e5e5e7] rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring"
+        placeholder="Cerca fornitore..."
+      />
+      {open && (search || filtered.length > 0) && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-[#e5e5e7] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtered.slice(0, 10).map(f => (
+            <button key={f.id}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onChange(f.nome); setSearch(f.nome); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#f5f5f7] border-b border-[#f0f0f0] last:border-0">
+              {f.nome}
+            </button>
+          ))}
+          {search.trim() && !exactMatch && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleCreate}
+              className="w-full text-left px-3 py-1.5 text-[12px] text-blue-600 font-medium hover:bg-blue-50">
+              + Crea: {search.trim()}
+            </button>
+          )}
+          {filtered.length === 0 && exactMatch && (
+            <div className="px-3 py-1.5 text-[11px] text-[#86868b]">Nessun risultato</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -715,7 +789,7 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
 
 const UNITA_LIST = ["pz", "mq", "ml", "kg", "lt", "mc", "set", "kit", "rotolo"];
 
-function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
+function CatalogoTab({ catalogo: catalogoInitial, fornitori, onOpenTask }: { catalogo: CatAgg[]; fornitori: { id: string; nome: string }[]; onOpenTask: (id: string) => void }) {
   const [catalogo, setCatalogo] = useState(catalogoInitial);
   const [filterTip, setFilterTip] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
@@ -845,9 +919,11 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
                   </div>
                   <div>
                     <label className="text-[10px] text-[#86868b] block mb-1">Fornitore preferito</label>
-                    <input defaultValue={c.fornitore_preferito ?? ""}
-                      onBlur={(e) => saveCatField(c.id, "fornitore_preferito", e.target.value || null)}
-                      className="w-full text-[13px] border border-[#e5e5e7] rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" placeholder="Es. Tecnomat" />
+                    <FornitoreCombobox
+                      value={c.fornitore_preferito ?? ""}
+                      fornitori={fornitori}
+                      onChange={(val) => saveCatField(c.id, "fornitore_preferito", val || null)}
+                    />
                   </div>
                 </div>
               </div>
@@ -899,11 +975,12 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
                   {isExpanded && (
                     <div className="mt-1.5 space-y-1">
                       {c.tasks.map(t => (
-                        <div key={t.id} className="text-[11px] text-[#86868b] flex items-center gap-1.5">
+                        <button key={t.id} onClick={() => onOpenTask(t.id)}
+                          className="w-full text-left text-[11px] text-[#86868b] flex items-center gap-1.5 hover:text-[#1d1d1f] hover:bg-[#f5f5f7] rounded px-1 -mx-1 py-0.5 transition-colors">
                           <span className="text-[#d2d2d7]">&#9656;</span>
                           <span className="truncate">{t.zona} &gt; {t.lav} &gt; <span className="text-[#1d1d1f]">{t.titolo}</span></span>
                           <span className="ml-auto flex-shrink-0 text-[#1d1d1f] font-medium">{t.quantita} {c.unita || ""}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -919,7 +996,8 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
 
 // ========== LISTA SPESA TAB ==========
 
-function ListaSpesaTab({ catalogo }: { catalogo: CatAgg[] }) {
+function ListaSpesaTab({ catalogo, fornitori, onOpenTask }: { catalogo: CatAgg[]; fornitori: { id: string; nome: string }[]; onOpenTask: (id: string) => void }) {
+  void fornitori; void onOpenTask; // available for future use
   const [viewMode, setViewMode] = useState<"fornitore" | "tipologia">("fornitore");
 
   const toBuy = catalogo.filter(c => c.quantita_da_acquistare > 0);
