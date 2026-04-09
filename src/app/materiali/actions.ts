@@ -34,7 +34,18 @@ export async function updateCatalogoItem(id: string, data: Record<string, unknow
   const supabase = await createClient();
   const { error } = await supabase.from("catalogo_materiali").update(data).eq("id", id);
   if (error) throw new Error(error.message);
+
+  // Propagate price and unit to ALL instances in materiali
+  const propagate: Record<string, unknown> = {};
+  if (data.prezzo_unitario_default !== undefined) propagate.prezzo_unitario = data.prezzo_unitario_default;
+  if (data.unita_default !== undefined) propagate.unita = data.unita_default;
+  if (Object.keys(propagate).length > 0) {
+    await supabase.from("materiali").update(propagate).eq("catalogo_id", id);
+  }
+
   revalidatePath("/materiali");
+  revalidatePath("/lavorazioni");
+  revalidatePath("/costi");
 }
 
 export async function addCatalogoItem(data: { nome: string; tipologia_materiale?: string; unita_default?: string; prezzo_unitario_default?: number; provenienza_default?: string }) {

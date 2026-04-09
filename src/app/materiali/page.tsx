@@ -4,13 +4,13 @@ import { MaterialiClient } from "./materiali-client";
 export default async function MaterialiPage() {
   const supabase = await createClient();
 
-  const [{ data: materiali }, { data: zone }, { data: operazioni }, { data: fornitori }, { data: luoghi }, { data: catalogo }] = await Promise.all([
+  const [{ data: materiali }, { data: zone }, { data: operazioni }, { data: fornitori }, { data: luoghi }, { data: catalogoView }] = await Promise.all([
     supabase.from("materiali").select(`*, task:task!materiali_task_id_fkey(id, titolo, lavorazione:lavorazioni!task_lavorazione_id_fkey(nome, zona:zone!lavorazioni_zona_id_fkey(id, nome, colore)))`).order("created_at", { ascending: false }),
     supabase.from("zone").select("id, nome").order("ordine"),
     supabase.from("operazioni").select("*, fornitore:fornitori!operazioni_fornitore_id_fkey(id, nome, stato), luogo:luoghi!operazioni_luogo_id_fkey(id, nome)").order("ordine"),
     supabase.from("fornitori").select("id, nome").order("nome"),
     supabase.from("luoghi").select("id, nome").order("ordine"),
-    supabase.from("catalogo_materiali").select("*").order("tipologia_materiale").order("nome"),
+    supabase.from("v_catalogo_acquisti").select("*").order("nome"),
   ]);
 
   type OpFull = {
@@ -24,21 +24,32 @@ export default async function MaterialiPage() {
   const opsByMat: Record<string, OpFull[]> = {};
   allOps.forEach((o) => { if (!opsByMat[o.materiale_id]) opsByMat[o.materiale_id] = []; opsByMat[o.materiale_id].push(o); });
 
-  // Aggregate per catalogo
-  type CatItem = { id: string; nome: string; tipologia_materiale: string; unita_default: string | null; prezzo_unitario_default: number | null; provenienza_default: string | null; note: string | null };
-  const allMats = (materiali ?? []) as unknown as { catalogo_id: string | null; quantita: number | null; quantita_disponibile: number | null; task: { id: string; titolo: string; data_inizio: string | null; data_fine: string | null } }[];
-  type CatAgg = CatItem & { task_count: number; qty_totale: number; qty_disponibile: number; tasks: { id: string; titolo: string; data_inizio: string | null; data_fine: string | null }[] };
-  const catAgg: CatAgg[] = ((catalogo ?? []) as CatItem[]).map(c => {
-    const linked = allMats.filter(m => m.catalogo_id === c.id);
-    const tasks = linked.map(m => m.task).filter(Boolean);
-    return {
-      ...c,
-      task_count: tasks.length,
-      qty_totale: linked.reduce((s, m) => s + (m.quantita ?? 0), 0),
-      qty_disponibile: linked.reduce((s, m) => s + (m.quantita_disponibile ?? 0), 0),
-      tasks,
-    };
-  });
+  // Build task list per catalogo item (for "Usato in" section)
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const allMats = (materiali ?? []) as any[];
+  const tasksByCatalogo: Record<string, { id: string; titolo: string; zona: string; lav: string; quantita: number }[]> = {};
+  for (const m of allMats) {
+    if (!m.catalogo_id || !m.task) continue;
+    if (!tasksByCatalogo[m.catalogo_id]) tasksByCatalogo[m.catalogo_id] = [];
+    const t = m.task;
+    const lav = t.lavorazione;
+    const zona = lav?.zona;
+    tasksByCatalogo[m.catalogo_id].push({
+      id: t.id,
+      titolo: t.titolo,
+      zona: zona?.nome ?? "",
+      lav: lav?.nome ?? "",
+      quantita: m.quantita ?? 0,
+    });
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  // Merge view data with task lists
+  type CatView = { id: string; nome: string; tipologia_materiale: string; unita: string | null; prezzo_unitario: number | null; quantita_disponibile_globale: number; fornitore_preferito: string | null; provenienza_default: string | null; note: string | null; quantita_totale_necessaria: number; num_task: number; quantita_da_acquistare: number; costo_stimato: number | null };
+  const catAgg = ((catalogoView ?? []) as CatView[]).map(c => ({
+    ...c,
+    tasks: tasksByCatalogo[c.id] || [],
+  }));
 
   return (
     <MaterialiClient

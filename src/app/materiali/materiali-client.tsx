@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Package, Filter, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali, addCatalogoItem } from "./actions";
+import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFromMateriali, addOperazioneFromMateriali, addCatalogoItem, updateCatalogoItem } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 
 const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
@@ -59,10 +59,13 @@ const STATO_FORN_CLS: Record<string, string> = {
 };
 
 interface CatAgg {
-  id: string; nome: string; tipologia_materiale: string; unita_default: string | null;
-  prezzo_unitario_default: number | null; provenienza_default: string | null; note: string | null;
-  task_count: number; qty_totale: number; qty_disponibile: number;
-  tasks: { id: string; titolo: string; data_inizio: string | null; data_fine: string | null }[];
+  id: string; nome: string; tipologia_materiale: string;
+  unita: string | null; prezzo_unitario: number | null;
+  quantita_disponibile_globale: number; fornitore_preferito: string | null;
+  provenienza_default: string | null; note: string | null;
+  quantita_totale_necessaria: number; num_task: number;
+  quantita_da_acquistare: number; costo_stimato: number | null;
+  tasks: { id: string; titolo: string; zona: string; lav: string; quantita: number }[];
 }
 
 interface Props {
@@ -284,7 +287,7 @@ const TIP_MAT_COLORS: Record<string, string> = {
 // ========== MAIN COMPONENT ==========
 
 export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, catalogo }: Props) {
-  const [activeTab, setActiveTab] = useState<"materiali" | "catalogo">("materiali");
+  const [activeTab, setActiveTab] = useState<"materiali" | "catalogo" | "spesa">("materiali");
   const [viewMode, setViewMode] = useState<"materiale" | "area">("materiale");
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
@@ -371,9 +374,11 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
       <div className="flex gap-1 mb-6 bg-[#f5f5f7] rounded-lg p-1 w-fit">
         <button onClick={() => setActiveTab("materiali")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "materiali" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Materiali ({totale})</button>
         <button onClick={() => setActiveTab("catalogo")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "catalogo" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Catalogo ({catalogo.length})</button>
+        <button onClick={() => setActiveTab("spesa")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "spesa" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Lista Spesa ({catalogo.filter(c => c.quantita_da_acquistare > 0).length})</button>
       </div>
 
       {activeTab === "catalogo" && <CatalogoTab catalogo={catalogo} />}
+      {activeTab === "spesa" && <ListaSpesaTab catalogo={catalogo} />}
 
       {activeTab === "materiali" && <>
       {/* Smart summary counters */}
@@ -706,181 +711,200 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
   );
 }
 
-// ========== CATALOGO TAB ==========
+// ========== CATALOGO TAB (RIPENSATA) ==========
+
+const UNITA_LIST = ["pz", "mq", "ml", "kg", "lt", "mc", "set", "kit", "rotolo"];
 
 function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
   const [catalogo, setCatalogo] = useState(catalogoInitial);
   const [filterTip, setFilterTip] = useState("tutti");
+  const [filterStato, setFilterStato] = useState("tutti");
+  const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
   const [newNome, setNewNome] = useState("");
+  const [expandedUsato, setExpandedUsato] = useState<Set<string>>(new Set());
 
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleteStep, setDeleteStep] = useState<"confirm" | "replace">("confirm");
-  const [replaceId, setReplaceId] = useState<string>("");
-
-  // Sync with server data on re-render
   useEffect(() => { setCatalogo(catalogoInitial); }, [catalogoInitial]);
 
-  const handleTrashClick = async (c: CatAgg) => {
-    if (c.task_count === 0) {
-      const ok = window.confirm("Eliminare " + c.nome + " dal catalogo?");
-      if (!ok) return;
-      const sb = createClient();
-      const { error: e1 } = await sb.from("materiali").update({ catalogo_id: null }).eq("catalogo_id", c.id);
-      if (e1) { console.error("scollega:", e1); return; }
-      const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", c.id);
-      if (e2) { console.error("delete:", e2); return; }
-      setCatalogo(prev => prev.filter(x => x.id !== c.id));
-    } else {
-      setDeleteId(c.id);
-      setDeleteStep("confirm");
-      setReplaceId("");
-    }
-  };
-
-  const handleDeleteAll = async (id: string) => {
-    const sb = createClient();
-    const { error: e1 } = await sb.from("materiali").delete().eq("catalogo_id", id);
-    if (e1) { console.error("delete materiali:", e1); return; }
-    const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", id);
-    if (e2) { console.error("delete catalogo:", e2); return; }
-    setCatalogo(prev => prev.filter(c => c.id !== id));
-    setDeleteId(null);
-  };
-
-  const handleReplace = async (oldId: string) => {
-    if (!replaceId) return;
-    const sostituto = catalogo.find(c => c.id === replaceId);
-    if (!sostituto) return;
-    const sb = createClient();
-    const { error: e1 } = await sb.from("materiali").update({ catalogo_id: replaceId, nome: sostituto.nome }).eq("catalogo_id", oldId);
-    if (e1) { console.error("replace:", e1); return; }
-    const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", oldId);
-    if (e2) { console.error("delete old:", e2); return; }
-    setCatalogo(prev => prev.filter(c => c.id !== oldId));
-    setDeleteId(null);
-  };
-
-  const updateCatLocal = (id: string, field: string, value: string) => {
+  const saveCatField = async (id: string, field: string, value: unknown) => {
     setCatalogo(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
-    import("@/lib/supabase/client").then(({ createClient }) => {
-      createClient().from("catalogo_materiali").update({ [field]: value }).eq("id", id).then(({ error }) => {
-        if (error) console.error("Save error:", error);
-      });
-    });
+    await updateCatalogoItem(id, { [field]: value });
   };
 
+  const handleDelete = async (c: CatAgg) => {
+    const msg = c.num_task > 0 ? `"${c.nome}" usato in ${c.num_task} task. Eliminare tutto?` : `Eliminare "${c.nome}" dal catalogo?`;
+    if (!window.confirm(msg)) return;
+    const sb = createClient();
+    if (c.num_task > 0) await sb.from("materiali").delete().eq("catalogo_id", c.id);
+    else await sb.from("materiali").update({ catalogo_id: null }).eq("catalogo_id", c.id);
+    await sb.from("catalogo_materiali").delete().eq("id", c.id);
+    setCatalogo(prev => prev.filter(x => x.id !== c.id));
+  };
 
-  const filtered = filterTip === "tutti" ? catalogo : catalogo.filter(c => c.tipologia_materiale === filterTip);
+  // Filters
+  const filtered = catalogo.filter(c => {
+    if (filterTip !== "tutti" && c.tipologia_materiale !== filterTip) return false;
+    if (filterStato === "da_acquistare" && c.quantita_da_acquistare <= 0) return false;
+    if (filterStato === "completo" && c.quantita_da_acquistare > 0) return false;
+    if (filterStato === "prezzo_mancante" && c.prezzo_unitario != null) return false;
+    if (search && !c.nome.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  // Counters
+  const daAcqCount = catalogo.filter(c => c.quantita_da_acquistare > 0).length;
+  const completiCount = catalogo.filter(c => c.quantita_da_acquistare <= 0 && c.num_task > 0).length;
+  const costoTotale = catalogo.reduce((s, c) => s + (c.costo_stimato ?? 0), 0);
 
   return (
     <div>
-      <div className="flex flex-wrap gap-3 mb-4">
-        <Select value={filterTip} onValueChange={setFilterTip}>
-          <SelectTrigger className="w-[160px]"><Filter size={14} className="mr-1.5 text-[#86868b]" /><SelectValue placeholder="Tipologia" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutte</SelectItem>
-            <SelectItem value="strutturale">Strutturale</SelectItem>
-            <SelectItem value="consumo">Consumo</SelectItem>
-            <SelectItem value="attrezzo">Attrezzo</SelectItem>
-          </SelectContent>
-        </Select>
-        <button onClick={() => setAdding(true)} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1 ml-auto">+ Aggiungi al catalogo</button>
+      {/* Header counters */}
+      <div className="flex flex-wrap gap-4 mb-4">
+        <div className="bg-white rounded-[10px] border border-[#e5e5e7] px-4 py-2">
+          <div className="text-[10px] text-[#86868b] font-medium">Voci</div>
+          <div className="text-lg font-semibold text-[#1d1d1f]">{catalogo.length}</div>
+        </div>
+        <div className="bg-white rounded-[10px] border border-[#e5e5e7] px-4 py-2">
+          <div className="text-[10px] text-[#86868b] font-medium">Da acquistare</div>
+          <div className="text-lg font-semibold text-red-600">{daAcqCount}</div>
+        </div>
+        <div className="bg-white rounded-[10px] border border-[#e5e5e7] px-4 py-2">
+          <div className="text-[10px] text-[#86868b] font-medium">Completi</div>
+          <div className="text-lg font-semibold text-green-600">{completiCount}</div>
+        </div>
+        <div className="bg-white rounded-[10px] border border-[#e5e5e7] px-4 py-2">
+          <div className="text-[10px] text-[#86868b] font-medium">Costo totale stimato</div>
+          <div className="text-lg font-semibold text-[#1d1d1f]">{costoTotale.toLocaleString("it-IT", { minimumFractionDigits: 0 })} &euro;</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
+        <select value={filterTip} onChange={(e) => setFilterTip(e.target.value)} className="text-xs border border-[#e5e5e7] rounded-lg px-2.5 py-1.5 bg-white">
+          <option value="tutti">Tutte le tipologie</option>
+          <option value="strutturale">Strutturale</option>
+          <option value="consumo">Consumo</option>
+          <option value="attrezzo">Attrezzo</option>
+        </select>
+        <select value={filterStato} onChange={(e) => setFilterStato(e.target.value)} className="text-xs border border-[#e5e5e7] rounded-lg px-2.5 py-1.5 bg-white">
+          <option value="tutti">Tutti gli stati</option>
+          <option value="da_acquistare">Da acquistare</option>
+          <option value="completo">Completo</option>
+          <option value="prezzo_mancante">Prezzo mancante</option>
+        </select>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca..." className="text-xs border border-[#e5e5e7] rounded-lg px-2.5 py-1.5 bg-white w-48 outline-none focus:ring-1 focus:ring-ring" />
+        <button onClick={() => setAdding(true)} className="text-xs text-[#86868b] hover:text-[#1d1d1f] flex items-center gap-1 ml-auto">+ Aggiungi</button>
       </div>
 
       {adding && (
         <div className="flex gap-2 mb-4 items-center">
-          <input autoFocus value={newNome} onChange={(e) => setNewNome(e.target.value)} placeholder="Nome materiale" className="flex-1 text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+          <input autoFocus value={newNome} onChange={(e) => setNewNome(e.target.value)} placeholder="Nome materiale" className="flex-1 text-xs border border-[#e5e5e7] rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring"
+            onKeyDown={(e) => { if (e.key === "Enter" && newNome.trim()) { addCatalogoItem({ nome: newNome.trim() }); setNewNome(""); setAdding(false); } }} />
           <button onClick={async () => { if (newNome.trim()) { await addCatalogoItem({ nome: newNome.trim() }); setNewNome(""); setAdding(false); } }} className="text-xs bg-[#1d1d1f] text-white rounded px-3 py-1.5">Salva</button>
           <button onClick={() => setAdding(false)} className="text-xs text-[#86868b]">Annulla</button>
         </div>
       )}
 
-      <div className="space-y-2">
+      {/* Cards */}
+      <div className="space-y-3">
         {filtered.map((c) => {
-          const daAcq = Math.max(c.qty_totale - c.qty_disponibile, 0);
-          // Conflict check for attrezzi
-          let conflict = "";
-          if (c.tipologia_materiale === "attrezzo" && c.tasks.length > 1) {
-            for (let i = 0; i < c.tasks.length; i++) {
-              for (let j = i + 1; j < c.tasks.length; j++) {
-                const a = c.tasks[i], b = c.tasks[j];
-                if (a.data_inizio && a.data_fine && b.data_inizio && b.data_fine) {
-                  if (a.data_inizio <= b.data_fine && b.data_inizio <= a.data_fine) {
-                    conflict = `Conflitto: ${a.titolo} e ${b.titolo} si sovrappongono`;
-                    break;
-                  }
-                }
-              }
-              if (conflict) break;
-            }
-          }
-
+          const isExpanded = expandedUsato.has(c.id);
           return (
-            <div key={c.id} className={`relative bg-white rounded-[12px] border p-4 ${conflict ? "border-orange-300" : "border-[#e5e5e7]"}`}>
-              <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <input defaultValue={c.nome} onBlur={(e) => { if (e.target.value !== c.nome) updateCatLocal(c.id, "nome", e.target.value); }}
-                  className="text-sm font-medium text-[#1d1d1f] bg-transparent border-0 outline-none flex-1 min-w-[120px] focus:bg-white focus:border focus:border-[#e5e5e7] focus:rounded focus:px-2" />
-                <select value={c.tipologia_materiale} onChange={(e) => updateCatLocal(c.id, "tipologia_materiale", e.target.value)}
+            <div key={c.id} className="bg-white rounded-[12px] border border-[#e5e5e7] p-4">
+              {/* Header: nome + tipologia + delete */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[14px] font-semibold text-[#1d1d1f] flex-1">{c.nome}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${TIP_MAT_COLORS[c.tipologia_materiale] ?? "bg-gray-100"}`}>{c.tipologia_materiale}</span>
+                <select value={c.tipologia_materiale} onChange={(e) => saveCatField(c.id, "tipologia_materiale", e.target.value)}
                   className="text-[10px] border border-[#e5e5e7] rounded px-1.5 py-0.5 bg-white">
                   <option value="strutturale">strutturale</option><option value="consumo">consumo</option><option value="attrezzo">attrezzo</option>
                 </select>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TIP_MAT_COLORS[c.tipologia_materiale] ?? "bg-gray-100"}`}>{c.tipologia_materiale}</span>
+                <button onClick={() => handleDelete(c)} className="p-1 text-[#d2d2d7] hover:text-red-500"><Trash2 size={14} /></button>
               </div>
-              <div className="flex flex-wrap items-center gap-4 text-xs text-[#86868b]">
-                <span>{c.task_count} task</span>
-                <span>Totale: <span className="text-[#1d1d1f] font-medium">{c.qty_totale}{c.unita_default ? ` ${c.unita_default}` : ""}</span></span>
-                <span>Disponibile: <span className="text-[#1d1d1f] font-medium">{c.qty_disponibile}</span></span>
-                {daAcq > 0 && <span className="text-red-600 font-medium">Da acquistare: {daAcq}</span>}
+
+              {/* Dettagli */}
+              <div className="border-t border-[#f0f0f0] pt-3 mb-3">
+                <div className="text-[10px] text-[#86868b] font-medium mb-2">Dettagli</div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] text-[#86868b] block mb-1">Unita</label>
+                    <select value={c.unita ?? ""} onChange={(e) => saveCatField(c.id, "unita_default", e.target.value || null)}
+                      className="w-full text-[13px] border border-[#e5e5e7] rounded-lg px-2 py-1.5 bg-white">
+                      <option value="">—</option>
+                      {UNITA_LIST.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#86868b] block mb-1">Prezzo unitario</label>
+                    <div className="relative">
+                      <input type="number" step="0.01" defaultValue={c.prezzo_unitario ?? ""}
+                        onBlur={(e) => saveCatField(c.id, "prezzo_unitario_default", e.target.value ? parseFloat(e.target.value) : null)}
+                        className="w-full text-[13px] border border-[#e5e5e7] rounded-lg px-2 py-1.5 pr-12 outline-none focus:ring-1 focus:ring-ring" placeholder="0.00" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#86868b]">&euro;/{c.unita || "pz"}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#86868b] block mb-1">Fornitore preferito</label>
+                    <input defaultValue={c.fornitore_preferito ?? ""}
+                      onBlur={(e) => saveCatField(c.id, "fornitore_preferito", e.target.value || null)}
+                      className="w-full text-[13px] border border-[#e5e5e7] rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" placeholder="Es. Tecnomat" />
+                  </div>
+                </div>
               </div>
-              {c.tasks.length > 0 && (
-                <div className="mt-2 text-[10px] text-[#86868b]">
-                  {c.tasks.map((t, i) => <span key={t.id}>{i > 0 && ", "}{t.titolo}</span>)}
+
+              {/* Quantita */}
+              <div className="border-t border-[#f0f0f0] pt-3 mb-3">
+                <div className="text-[10px] text-[#86868b] font-medium mb-2">Quantita</div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] text-[#86868b] block mb-1">Necessario</label>
+                    <div className="text-[13px] text-[#1d1d1f] font-medium">{c.quantita_totale_necessaria} {c.unita || ""} <span className="text-[10px] text-[#86868b] font-normal">({c.num_task} task)</span></div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#86868b] block mb-1">Disponibile</label>
+                    <input type="number" step="0.1" defaultValue={c.quantita_disponibile_globale ?? 0}
+                      onBlur={(e) => saveCatField(c.id, "quantita_disponibile_globale", e.target.value ? parseFloat(e.target.value) : 0)}
+                      className="w-full text-[13px] border border-[#e5e5e7] rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#86868b] block mb-1">Da acquistare</label>
+                    <div className={`text-[13px] font-semibold ${c.quantita_da_acquistare > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {c.quantita_da_acquistare} {c.unita || ""}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Costo */}
+              {c.prezzo_unitario != null && c.quantita_da_acquistare > 0 && (
+                <div className="border-t border-[#f0f0f0] pt-3 mb-3">
+                  <div className="text-[10px] text-[#86868b] font-medium mb-1">Costo stimato acquisto</div>
+                  <div className="text-[15px] font-bold text-[#1d1d1f]">
+                    {(c.costo_stimato ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} &euro;
+                  </div>
+                  <div className="text-[10px] text-[#86868b]">
+                    ({c.quantita_da_acquistare} {c.unita || "pz"} &times; {c.prezzo_unitario?.toLocaleString("it-IT", { minimumFractionDigits: 2 })} &euro;/{c.unita || "pz"})
+                  </div>
                 </div>
               )}
-              {conflict && <p className="mt-2 text-xs text-orange-600 font-medium">{conflict}</p>}
-              </div>{/* close flex-1 */}
-              <button
-                onClick={(e) => { e.stopPropagation(); handleTrashClick(c); }}
-                className="p-1.5 text-[#d2d2d7] hover:text-red-500 transition-colors flex-shrink-0 mt-0.5"
-                title="Elimina dal catalogo"
-              >
-                <Trash2 size={14} />
-              </button>
-              </div>{/* close flex justify-between */}
 
-              {deleteId === c.id && (
-                <div className="mt-3 p-4 rounded-lg" style={{ backgroundColor: "#FFF5F5", border: "1px solid #FFD2D2" }}>
-                  <p className="text-sm text-[#1d1d1f] mb-3">
-                    <span className="font-semibold">{c.nome}</span> usato in {c.task_count} task.
-                  </p>
-                  {deleteStep === "confirm" && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button onClick={() => { setDeleteStep("replace"); setReplaceId(""); }}
-                        className="text-xs px-3 py-1.5 rounded-md border border-[#e5e5e7] bg-white hover:bg-[#f5f5f7] font-medium">Sostituisci</button>
-                      <button onClick={() => handleDeleteAll(c.id)}
-                        className="text-xs px-3 py-1.5 rounded-md bg-[#FF3B30] text-white hover:opacity-90 font-medium">Elimina tutto</button>
-                      <button onClick={() => setDeleteId(null)}
-                        className="text-xs px-3 py-1.5 text-[#86868b] hover:text-[#1d1d1f]">Annulla</button>
-                    </div>
-                  )}
-                  {deleteStep === "replace" && (
-                    <div className="space-y-2">
-                      <select value={replaceId} onChange={(e) => setReplaceId(e.target.value)}
-                        className="w-full text-sm border border-[#e5e5e7] rounded-md px-3 py-2 bg-white">
-                        <option value="">Scegli sostituto...</option>
-                        {catalogo.filter(x => x.id !== c.id).map(x => (
-                          <option key={x.id} value={x.id}>{x.nome} ({x.tipologia_materiale})</option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleReplace(c.id)} disabled={!replaceId}
-                          className="text-xs px-3 py-1.5 rounded-md bg-[#1d1d1f] text-white font-medium disabled:opacity-40">Conferma sostituzione</button>
-                        <button onClick={() => setDeleteStep("confirm")}
-                          className="text-xs px-3 py-1.5 text-[#86868b] hover:text-[#1d1d1f]">Indietro</button>
-                      </div>
+              {/* Usato in */}
+              {c.tasks.length > 0 && (
+                <div className="border-t border-[#f0f0f0] pt-2">
+                  <button onClick={() => setExpandedUsato(prev => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; })}
+                    className="text-[10px] text-[#86868b] font-medium hover:text-[#1d1d1f] flex items-center gap-1">
+                    {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                    Usato in ({c.tasks.length} task)
+                  </button>
+                  {isExpanded && (
+                    <div className="mt-1.5 space-y-1">
+                      {c.tasks.map(t => (
+                        <div key={t.id} className="text-[11px] text-[#86868b] flex items-center gap-1.5">
+                          <span className="text-[#d2d2d7]">&#9656;</span>
+                          <span className="truncate">{t.zona} &gt; {t.lav} &gt; <span className="text-[#1d1d1f]">{t.titolo}</span></span>
+                          <span className="ml-auto flex-shrink-0 text-[#1d1d1f] font-medium">{t.quantita} {c.unita || ""}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -889,7 +913,99 @@ function CatalogoTab({ catalogo: catalogoInitial }: { catalogo: CatAgg[] }) {
           );
         })}
       </div>
+    </div>
+  );
+}
 
+// ========== LISTA SPESA TAB ==========
+
+function ListaSpesaTab({ catalogo }: { catalogo: CatAgg[] }) {
+  const [viewMode, setViewMode] = useState<"fornitore" | "tipologia">("fornitore");
+
+  const toBuy = catalogo.filter(c => c.quantita_da_acquistare > 0);
+  const totalCosto = toBuy.reduce((s, c) => s + (c.costo_stimato ?? 0), 0);
+
+  // Group by fornitore or tipologia
+  const grouped = useMemo(() => {
+    const map = new Map<string, CatAgg[]>();
+    for (const c of toBuy) {
+      const key = viewMode === "fornitore"
+        ? (c.fornitore_preferito || "DA DEFINIRE")
+        : (c.tipologia_materiale || "altro");
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(c);
+    }
+    return Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === "DA DEFINIRE") return 1;
+      if (b[0] === "DA DEFINIRE") return -1;
+      return a[0].localeCompare(b[0]);
+    });
+  }, [toBuy, viewMode]);
+
+  const handleExportCSV = () => {
+    const rows = [["Nome", "Quantita", "Unita", "Prezzo unitario", "Costo stimato", "Fornitore"]];
+    for (const c of toBuy) {
+      rows.push([c.nome, String(c.quantita_da_acquistare), c.unita || "", String(c.prezzo_unitario ?? ""), String(c.costo_stimato ?? ""), c.fornitore_preferito || ""]);
+    }
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "lista_spesa_nimbus.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div>
+      {/* Toggle + actions */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
+          <button onClick={() => setViewMode("fornitore")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === "fornitore" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Per fornitore</button>
+          <button onClick={() => setViewMode("tipologia")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === "tipologia" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Per tipologia</button>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => window.print()} className="text-xs text-[#86868b] hover:text-[#1d1d1f] px-3 py-1.5 border border-[#e5e5e7] rounded-lg">Stampa lista</button>
+          <button onClick={handleExportCSV} className="text-xs text-[#86868b] hover:text-[#1d1d1f] px-3 py-1.5 border border-[#e5e5e7] rounded-lg">Esporta CSV</button>
+        </div>
+      </div>
+
+      {toBuy.length === 0 ? (
+        <div className="text-center text-sm text-[#86868b] py-12">Nessun materiale da acquistare</div>
+      ) : (
+        <div className="space-y-4">
+          {grouped.map(([groupName, items]) => {
+            const groupCosto = items.reduce((s, c) => s + (c.costo_stimato ?? 0), 0);
+            return (
+              <div key={groupName} className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-[#f5f5f7] border-b border-[#e5e5e7]">
+                  <span className="text-sm font-semibold text-[#1d1d1f] uppercase">{groupName}</span>
+                  <span className="text-xs text-[#86868b]">
+                    {items.length} voc{items.length === 1 ? "e" : "i"} · <span className="font-semibold text-[#1d1d1f]">{groupCosto.toLocaleString("it-IT", { minimumFractionDigits: 0 })} &euro;</span>
+                  </span>
+                </div>
+                <div className="divide-y divide-[#f0f0f0]">
+                  {items.map(c => (
+                    <div key={c.id} className="flex items-center gap-4 px-4 py-2.5 text-[13px]">
+                      <span className="flex-1 text-[#1d1d1f] truncate">{c.nome}</span>
+                      <span className="text-[#86868b] w-20 text-right">{c.quantita_da_acquistare} {c.unita || ""}</span>
+                      <span className="text-[#86868b] w-24 text-right">{c.prezzo_unitario != null ? `${c.prezzo_unitario.toLocaleString("it-IT")} \u20AC/${c.unita || "pz"}` : "—"}</span>
+                      <span className="font-semibold text-[#1d1d1f] w-20 text-right">{c.costo_stimato != null ? `${c.costo_stimato.toLocaleString("it-IT")} \u20AC` : "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Total */}
+          <div className="flex items-center justify-center py-4">
+            <div className="text-center">
+              <div className="text-[10px] text-[#86868b] font-medium mb-1">TOTALE ACQUISTI</div>
+              <div className="text-2xl font-bold text-[#1d1d1f]">{totalCosto.toLocaleString("it-IT", { minimumFractionDigits: 2 })} &euro;</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
