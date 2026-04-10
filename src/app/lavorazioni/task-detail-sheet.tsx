@@ -794,7 +794,7 @@ const STATO_FORN_COLORS: Record<string, string> = {
 interface OperazioneData {
   id: string; materiale_id: string; titolo: string; tipologia: string | null;
   fornitore_id: string | null; stato_fornitore_minimo: string; organizzato: boolean;
-  stato: string; stato_calcolato: string; durata_ore: number | null; note: string | null;
+  stato: string; stato_calcolato: string; durata_ore: number | null; persone_necessarie: number | null; note: string | null;
   luogo_id: string | null;
   fornitore: { id: string; nome: string; stato: string } | null;
 }
@@ -1066,10 +1066,17 @@ function OperazioniSubSection({ materialeId, fornitori, luoghi }: { materialeId:
             {/* Expandable: durata, costi, note */}
             {isExpanded && (
               <div className="ml-5 mt-1 pt-1 border-t border-[#e5e5e7]/50 space-y-1.5">
-                <div>
-                  <label className="text-[9px] text-[#86868b] block mb-0.5">Durata (ore)</label>
-                  <input type="number" defaultValue={op.durata_ore ?? ""} onBlur={(e) => saveField(op.id, "durata_ore", e.target.value ? parseFloat(e.target.value) : null)}
-                    className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Durata (ore)</label>
+                    <input type="number" defaultValue={op.durata_ore ?? ""} onBlur={(e) => saveField(op.id, "durata_ore", e.target.value ? parseFloat(e.target.value) : null)}
+                      className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#86868b] block mb-0.5">Persone</label>
+                    <input type="number" defaultValue={op.persone_necessarie ?? ""} onBlur={(e) => saveField(op.id, "persone_necessarie", e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full text-[11px] border border-[#e5e5e7] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring bg-white" />
+                  </div>
                 </div>
                 <div>
                   <label className="text-[9px] text-[#86868b] block mb-0.5">Note</label>

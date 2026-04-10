@@ -9,7 +9,7 @@ export interface TrasportoOp {
   id: string; titolo: string; organizzato: boolean; stato: string; tipologia: string | null;
   fornitore_id: string | null; luogo_id: string | null;
   data_inizio: string | null; data_fine: string | null; note: string | null;
-  durata_ore: number | null; numero_persone: number | null; costo_ora: number | null;
+  durata_ore: number | null; numero_persone: number | null; persone_necessarie: number | null; costo_ora: number | null;
   luogo: { id: string; nome: string } | null;
   fornitore: { id: string; nome: string; stato: string } | null;
   materiale: { nome: string; quantita: number | null; unita: string | null; task: { titolo: string; lavorazione: { nome: string; zona: { id: string; nome: string; colore: string } } } };
@@ -71,6 +71,43 @@ export function TrasportiClient({ ops, fornitori, luoghi, zone }: Props) {
         <div className="bg-blue-50 border border-blue-200 rounded-[12px] p-4"><p className="text-xs text-blue-700 font-medium">Luoghi</p><p className="text-xl font-semibold text-blue-700 mt-1">{numLuoghi}</p></div>
         {costoTot > 0 && <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4"><p className="text-xs text-[#86868b] font-medium">Costo totale</p><p className="text-xl font-semibold text-[#1d1d1f] mt-1">{costoTot.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</p></div>}
       </div>
+
+      {/* Riepilogo per giorno */}
+      {(() => {
+        const byDay = new Map<string, { luogo: string; count: number; maxPax: number }[]>();
+        for (const op of ops) {
+          if (!op.data_inizio || !op.luogo) continue;
+          if (!byDay.has(op.data_inizio)) byDay.set(op.data_inizio, []);
+          const dayArr = byDay.get(op.data_inizio)!;
+          const existing = dayArr.find(d => d.luogo === op.luogo!.nome);
+          if (existing) {
+            existing.count++;
+            existing.maxPax = Math.max(existing.maxPax, op.persone_necessarie ?? op.numero_persone ?? 0);
+          } else {
+            dayArr.push({ luogo: op.luogo.nome, count: 1, maxPax: op.persone_necessarie ?? op.numero_persone ?? 0 });
+          }
+        }
+        const days = Array.from(byDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        if (days.length === 0) return null;
+        return (
+          <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-4 mb-6">
+            <p className="text-xs text-[#86868b] font-semibold mb-2">Calendario trasporti</p>
+            <div className="space-y-1.5">
+              {days.map(([day, groups]) => (
+                <div key={day} className="flex items-center gap-3 text-[13px]">
+                  <span className="font-semibold text-[#1d1d1f] w-16">{day.slice(5).replace("-", "/")}</span>
+                  {groups.map((g, i) => (
+                    <span key={i} className="text-[#86868b]">
+                      {g.luogo} — <span className="text-[#1d1d1f] font-medium">{g.count} materiali</span>
+                      {g.maxPax > 0 && <span>, {g.maxPax} persone</span>}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Filtri */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -178,8 +215,8 @@ export function TrasportiClient({ ops, fornitori, luoghi, zone }: Props) {
                         <div><label className="text-[9px] text-[#86868b] block mb-0.5">Durata ore</label>
                           <input type="number" defaultValue={op.durata_ore ?? ""} onBlur={(e) => sv(op.id, "durata_ore", e.target.value, "number")}
                             className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white w-[60px]" /></div>
-                        <div><label className="text-[9px] text-[#86868b] block mb-0.5">Persone</label>
-                          <input type="number" defaultValue={op.numero_persone ?? ""} onBlur={(e) => sv(op.id, "numero_persone", e.target.value, "number")}
+                        <div><label className="text-[9px] text-[#86868b] block mb-0.5">Persone nec.</label>
+                          <input type="number" defaultValue={op.persone_necessarie ?? ""} onBlur={(e) => sv(op.id, "persone_necessarie", e.target.value, "number")}
                             className="text-xs border border-[#e5e5e7] rounded px-2 py-1 bg-white w-[50px]" /></div>
                         <div><label className="text-[9px] text-[#86868b] block mb-0.5">Costo/ora</label>
                           <input type="number" defaultValue={op.costo_ora ?? ""} onBlur={(e) => sv(op.id, "costo_ora", e.target.value, "number")}

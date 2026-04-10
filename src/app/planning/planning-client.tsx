@@ -45,6 +45,7 @@ interface TransportOp {
   lavNome: string;
   fornitoreNome: string;
   luogoNome: string | null;
+  persone: number | null;
   data_inizio: string;
   data_fine: string;
 }
@@ -422,7 +423,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                                   }}
                                 >
                                   <div className="text-[10px] font-medium text-[#0ea5e9] truncate max-w-[120px]">
-                                    TRAS {op.matNome}
+                                    TRAS {op.matNome}{op.persone ? ` (${op.persone} pax)` : ""}
                                   </div>
                                 </button>
                               </AppTooltip>

@@ -72,6 +72,18 @@ const DATE_FISSE = {
   "riempimento vasi terra": { preferredStart: "2026-04-30", preferredEnd: "2026-04-30" },
   // Irrigazione
   "irrigazione": { preferredStart: "2026-04-28", preferredEnd: "2026-04-29" },
+  // FIX: Facchini riorganizzati
+  "scavo allaccio acqua": { preferredStart: "2026-04-13", preferredEnd: "2026-04-13", force: true },
+  "foderare cuscineria": { preferredStart: "2026-04-25", preferredEnd: "2026-04-25", force: true },
+  "rimuovere cisterna reflue": { preferredStart: "2026-04-11", preferredEnd: "2026-04-11", force: true },
+  // FIX: Carnaru non lavora il 12-13
+  "costruzione pedana banconi bar": { preferredStart: "2026-04-18", preferredEnd: "2026-04-18", force: true },
+  "costruzione rampa accesso disabili": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  "costruzione tettoia regia": { preferredStart: "2026-04-11", preferredEnd: "2026-04-11", force: true },
+  // FIX: Leonardo tester dal 12
+  "verifica quadri stripled nuvola grande": { preferredStart: "2026-04-12", preferredEnd: "2026-04-12", force: true },
+  // FIX: Sebach bagno chimico l'11
+  "scarico bagno chimico": { preferredStart: "2026-04-11", preferredEnd: "2026-04-11", force: true },
 };
 
 // ========== HELPERS ==========
@@ -110,6 +122,8 @@ function getWorkdays(start, end, exWE) {
 // ========== FORNITORE OVERRIDES (applicate nel calcolo, non nel DB) ==========
 const FORNITORE_OVERRIDE = {
   "set up luci su piante": "Leonardo Mikhail",
+  "posizionamento cisterna reflua": "Alessandro",
+  "posizionamento cisterne acqua potabile": "Alessandro",
 };
 
 // Task accettate fuori finestra (non segnalare come problema, escluse dal bin-packing)
@@ -575,7 +589,7 @@ async function main() {
     console.log("Applicando operazioni trasporto...");
     const LUOGHI_DATES = {
       "Casa Ale": "2026-04-12",
-      "Guidonia": "2026-04-12",
+      "Guidonia": "2026-04-13",
       "Monterosi": "2026-04-14",
     };
     const { data: ops } = await supabase.from("operazioni").select("id, luogo_id, materiale_id").not("luogo_id", "is", null);

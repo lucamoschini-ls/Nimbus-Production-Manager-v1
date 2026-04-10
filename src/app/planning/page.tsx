@@ -15,14 +15,14 @@ export default async function PlanningPage() {
       supabase.from("tipologie").select("nome, colore").order("ordine"),
       supabase
         .from("operazioni")
-        .select("id, materiale_id, titolo, tipologia, data_inizio, data_fine, fornitore:fornitori!operazioni_fornitore_id_fkey(nome), luogo:luoghi!operazioni_luogo_id_fkey(nome)")
+        .select("id, materiale_id, titolo, tipologia, data_inizio, data_fine, persone_necessarie, fornitore:fornitori!operazioni_fornitore_id_fkey(nome), luogo:luoghi!operazioni_luogo_id_fkey(nome)")
         .not("data_inizio", "is", null),
       supabase.from("materiali").select("id, task_id, nome"),
       supabase.from("fornitori").select("id, nome").order("nome"),
     ]);
 
   // Build transport ops for planning: fornitore_nome + date + label
-  type PlanningOp = { id: string; matNome: string; taskId: string; taskTitolo: string; zonaNome: string; lavNome: string; fornitoreNome: string; luogoNome: string | null; data_inizio: string; data_fine: string };
+  type PlanningOp = { id: string; matNome: string; taskId: string; taskTitolo: string; zonaNome: string; lavNome: string; fornitoreNome: string; luogoNome: string | null; persone: number | null; data_inizio: string; data_fine: string };
   const matMap = new Map<string, { task_id: string; nome: string }>();
   (allMats ?? []).forEach((m: { id: string; task_id: string; nome: string }) => matMap.set(m.id, m));
   const taskLookup = new Map<string, { titolo: string; zona_nome: string | null; lavorazione_nome: string | null }>();
@@ -47,6 +47,7 @@ export default async function PlanningPage() {
       lavNome: parentTask?.lavorazione_nome ?? "",
       fornitoreNome: fornNome,
       luogoNome: luogoNome ?? null,
+      persone: op.persone_necessarie ?? null,
       data_inizio: op.data_inizio,
       data_fine: op.data_fine || op.data_inizio,
     });
