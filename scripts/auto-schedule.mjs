@@ -6,55 +6,72 @@ const supabase = createClient(
 );
 
 const HPD = 11;
-const TODAY = "2026-04-05";
+const TODAY = "2026-04-10";
 const DEADLINE = "2026-04-30";
 
 const FINESTRE = {
-  // FINESTRE TASSATIVE — non modificabili
-  "All Service OR Carnaru": { start: "2026-04-10", end: "2026-04-17", persone: 1 },
-  "Squadra finiture": { start: "2026-04-15", end: "2026-04-28", excludeWeekends: true, persone: 2 },
-  "Leonardo Mikhail": { start: "2026-04-10", end: "2026-04-30", minimize: true, costoGiorno: 100 },
+  "Carnaru": { start: "2026-04-11", end: "2026-04-18" },
+  "Pasquale": { start: "2026-04-16", end: "2026-04-30" },
+  "Leonardo Mikhail": { start: "2026-04-11", end: "2026-04-30", minimize: true, costoGiorno: 100 },
   "Mastroianni": { start: "2026-04-20", end: "2026-04-22" },
-  "Rinalduzzi": { start: "2026-04-10", end: "2026-04-10" },
-  "Sebach": { windows: [{ start: "2026-04-10", end: "2026-04-10" }, { start: "2026-04-18", end: "2026-04-18" }] },
-  "Trasportiamo": { windows: [{ start: "2026-04-09", end: "2026-04-09" }, { start: "2026-04-13", end: "2026-04-13" }] },
-  "Facchini": { start: "2026-04-09", end: "2026-04-30" },
-  "Lumiroma": { start: "2026-04-27", end: "2026-04-27" },
-  "Giardiniere": { start: "2026-04-29", end: "2026-04-29" },
-  "Davino": { start: "2026-04-12", end: "2026-04-14" },
-  "Tecnoconference OR AMG OR Pierpaolo": { windows: [{ start: "2026-04-12", end: "2026-04-14" }, { start: "2026-04-30", end: "2026-04-30" }] },
-  "Costruzione Metalliche": { start: "2026-04-10", end: "2026-04-10" },
+  "Idraulico": { start: "2026-04-20", end: "2026-04-22" },
+  "Rinalduzzi": { start: "2026-04-11", end: "2026-04-11" },
+  "Idroserviziambientali": { start: "2026-04-11", end: "2026-04-13" },
+  "Sebach": { windows: [{ start: "2026-04-11", end: "2026-04-11" }, { start: "2026-04-17", end: "2026-04-17" }] },
+  "Trasportiamo": { windows: [{ start: "2026-04-12", end: "2026-04-12" }, { start: "2026-04-14", end: "2026-04-14" }] },
+  "Facchini": { start: "2026-04-12", end: "2026-04-30" },
+  "Costruzione Metalliche": { start: "2026-04-13", end: "2026-04-14" },
+  "FN": { start: "2026-04-20", end: "2026-04-30" },
+  "Lumiroma": { start: "2026-04-21", end: "2026-04-28" },
+  "Giardiniere": { start: "2026-04-28", end: "2026-04-29" },
+  "Davino": { start: "2026-04-25", end: "2026-04-30" },
+  "Tecnoconference OR AMG OR Pierpaolo": { start: "2026-04-25", end: "2026-04-30" },
+  "Alessandro": { start: "2026-04-11", end: "2026-04-30" },
+  "Luca": { start: "2026-04-11", end: "2026-04-30" },
   "Ingegnere": { start: "2026-04-01", end: "2026-04-30" },
-  "Luca": { start: "2026-03-20", end: "2026-04-30" },
-  "Alessandro": { start: "2026-03-20", end: "2026-04-30" },
-  "Chef (Danilo)": { start: "2026-04-25", end: "2026-04-30" },
-  "Teti Acque": { start: "2026-04-20", end: "2026-04-22" },
-  "Sater OR FN": { start: "2026-04-20", end: "2026-04-30" },
-  "Tecnico audio/luci stagione": { start: "2026-04-04", end: "2026-04-30" },
+  "Chef (Danilo)": { start: "2026-04-20", end: "2026-04-30" },
+  "Tecnico audio/luci stagione": { start: "2026-04-11", end: "2026-04-30" },
 };
 
 const DATE_FISSE = {
-  // PATTERN SPECIFICI PRIMA (evita che "verniciatura" generico matchi per primo)
-  "verniciatura pedana swing": { preferredStart: "2026-04-28", preferredEnd: "2026-04-28", force: true },
-  "verniciatura": { preferredStart: "2026-04-16", preferredEnd: "2026-04-17" },
-  "prato sintetico": { preferredStart: "2026-04-28", preferredEnd: "2026-04-28" },
-  "prato nero": { preferredStart: "2026-04-28", preferredEnd: "2026-04-28" },
-  "irrigazione": { preferredStart: "2026-04-29", preferredEnd: "2026-04-29" },
+  // Carnaru — date fisse
+  "smontaggio vialetti": { preferredStart: "2026-04-11", preferredEnd: "2026-04-11", force: true },
+  "smontaggio anfiteatri": { preferredStart: "2026-04-11", preferredEnd: "2026-04-11", force: true },
+  "costruzione nuovi anfiteatri": { preferredStart: "2026-04-14", preferredEnd: "2026-04-16", force: true },
+  "manutenzione tavole pedana": { preferredStart: "2026-04-14", preferredEnd: "2026-04-15", force: true },
+  "costruzione gradini": { preferredStart: "2026-04-14", preferredEnd: "2026-04-14", force: true },
+  "costruzione nuovo vialetto": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  "costruzione camminamento": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  "costruzione pedana swing": { preferredStart: "2026-04-18", preferredEnd: "2026-04-18", force: true },
+  "manutenzione pedana chiosco": { preferredStart: "2026-04-18", preferredEnd: "2026-04-18", force: true },
+  // Nuvola + gru Sebach il 17
+  "assemblaggio nuvola grande": { preferredStart: "2026-04-16", preferredEnd: "2026-04-16", force: true },
+  "posizionamento nuvola grande": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  "scarico e posizionamento container bagni": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  "scarico e posizionamento container ufficio": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  // Pasquale — verniciature specifiche PRIMA del generico
+  "verniciatura pedana swing": { preferredStart: "2026-04-19", preferredEnd: "2026-04-19", force: true },
+  "verniciatura pedana chiosco": { preferredStart: "2026-04-19", preferredEnd: "2026-04-19", force: true },
+  "riverniciatura completa pedana": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  "verniciatura vialetto": { preferredStart: "2026-04-18", preferredEnd: "2026-04-18", force: true },
+  // Prato il 20
+  "stesura e picchettamento prato sintetico": { preferredStart: "2026-04-20", preferredEnd: "2026-04-20", force: true },
+  "posizionamento prato nero": { preferredStart: "2026-04-20", preferredEnd: "2026-04-20", force: true },
+  "posizionamento e montaggio round + nuvola aperitivo": { preferredStart: "2026-04-20", preferredEnd: "2026-04-20", force: true },
+  "montaggio e posizionamento arredi aperitivo": { preferredStart: "2026-04-20", preferredEnd: "2026-04-20", force: true },
+  // Espiantare allori dopo trasporti del 12
+  "espiantare fila allori": { preferredStart: "2026-04-12", preferredEnd: "2026-04-12", force: true },
+  "espiantare due allori": { preferredStart: "2026-04-12", preferredEnd: "2026-04-12", force: true },
+  // Gazebi
+  "gazebi cucina": { preferredStart: "2026-04-13", preferredEnd: "2026-04-13", force: true },
+  // Cisterna Alessandro il 11
+  "cisterna": { preferredStart: "2026-04-11", preferredEnd: "2026-04-11" },
+  "autoclave": { preferredStart: "2026-04-11", preferredEnd: "2026-04-11" },
+  // Allori e terra fine aprile
   "messa a dimora allori": { preferredStart: "2026-04-30", preferredEnd: "2026-04-30" },
   "riempimento vasi terra": { preferredStart: "2026-04-30", preferredEnd: "2026-04-30" },
-  "assemblaggio nuvola grande": { preferredStart: "2026-04-15", preferredEnd: "2026-04-15" },
-  "scarico e posizionamento container bagni": { preferredStart: "2026-04-18", preferredEnd: "2026-04-18", force: true },
-  "scarico e posizionamento container ufficio": { preferredStart: "2026-04-18", preferredEnd: "2026-04-18", force: true },
-  "posizionamento nuvola grande": { preferredStart: "2026-04-18", preferredEnd: "2026-04-18", force: true },
-  "espiantare fila allori": { preferredStart: "2026-04-09", preferredEnd: "2026-04-09", force: true },
-  "espiantare due allori": { preferredStart: "2026-04-09", preferredEnd: "2026-04-09", force: true },
-  "gazebi cucina": { preferredStart: "2026-04-10", preferredEnd: "2026-04-10", force: true },
-  "passaggio nuovi cavi dmx": { preferredStart: "2026-04-10", preferredEnd: "2026-04-10" },
-  "posizionamento e montaggio round + nuvola aperitivo": { preferredStart: "2026-04-28", preferredEnd: "2026-04-28", force: true },
-  "montaggio e posizionamento arredi aperitivo": { preferredStart: "2026-04-28", preferredEnd: "2026-04-28", force: true },
-  "manutenzione struttura round aperitivo": { preferredStart: "2026-04-30", preferredEnd: "2026-04-30", force: true },
-  "rifacimento piano tavolo round": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
-  "costruzione nuovi anfiteatri": { preferredStart: "2026-04-17", preferredEnd: "2026-04-17", force: true },
+  // Irrigazione
+  "irrigazione": { preferredStart: "2026-04-28", preferredEnd: "2026-04-29" },
 };
 
 // ========== HELPERS ==========
@@ -93,7 +110,6 @@ function getWorkdays(start, end, exWE) {
 // ========== FORNITORE OVERRIDES (applicate nel calcolo, non nel DB) ==========
 const FORNITORE_OVERRIDE = {
   "set up luci su piante": "Leonardo Mikhail",
-  "manutenzione struttura round aperitivo": "Alessandro",
 };
 
 // Task accettate fuori finestra (non segnalare come problema, escluse dal bin-packing)
@@ -111,6 +127,9 @@ function getFornitore(task) {
 // ========== DURATA OVERRIDES (applicate nel calcolo, non nel DB) ==========
 function getDurata(task) {
   if (task.durata_ore) return task.durata_ore;
+  const tip = task.tipologia || "";
+  // Tipologia-based defaults per task senza durata
+  if (tip === "amministrativo" || tip === "pianificazione") return 1;
   // Leonardo Mikhail: pattern-based overrides
   if (task.fornitore_nome === "Leonardo Mikhail") {
     const lt = task.titolo.toLowerCase();
@@ -122,12 +141,12 @@ function getDurata(task) {
     if (lt.includes("messa a terra")) return 3;
     return 2; // default Leonardo NULL = 2h
   }
-  // Ingegnere: "Definizione illuminazione" → 2h
+  // Ingegnere
   if (task.fornitore_nome === "Ingegnere") {
     const lt = task.titolo.toLowerCase();
     if (lt.includes("definizione illuminazione")) return 2;
   }
-  return HPD; // default globale per NULL
+  return 4; // default globale per NULL = 4h (non 11h)
 }
 
 // ========== TOPOLOGICAL SORT (Kahn's algorithm) ==========
@@ -543,7 +562,7 @@ async function main() {
   console.log("\n=== FINE REPORT ===\n");
 
   if (apply) {
-    console.log("Applicando...");
+    console.log("Applicando task...");
     let upd = 0;
     for (const [id, r] of scheduled) {
       if (!r.start || taskMap.get(id)?.stato === "completata") continue;
@@ -551,6 +570,39 @@ async function main() {
       if (error) console.log(`  ERR: ${error.message}`); else upd++;
     }
     console.log(`  ${upd} task aggiornate.`);
+
+    // Schedule operazioni trasporto by luogo
+    console.log("Applicando operazioni trasporto...");
+    const LUOGHI_DATES = {
+      "Casa Ale": "2026-04-12",
+      "Guidonia": "2026-04-12",
+      "Monterosi": "2026-04-14",
+    };
+    const { data: ops } = await supabase.from("operazioni").select("id, luogo_id, materiale_id").not("luogo_id", "is", null);
+    const { data: luoghi } = await supabase.from("luoghi").select("id, nome");
+    const luogoMap = {};
+    (luoghi || []).forEach(l => { luogoMap[l.id] = l.nome; });
+    const { data: mats } = await supabase.from("materiali").select("id, task_id");
+    const matTaskMap = {};
+    (mats || []).forEach(m => { matTaskMap[m.id] = m.task_id; });
+
+    let opsUpd = 0;
+    for (const op of (ops || [])) {
+      const luogoNome = luogoMap[op.luogo_id];
+      if (!luogoNome) continue;
+      let opDate = LUOGHI_DATES[luogoNome] || null;
+      if (luogoNome === "Fornitore diretto") {
+        const taskId = matTaskMap[op.materiale_id];
+        const sch = scheduled.get(taskId);
+        opDate = sch?.start || null;
+      }
+      if (luogoNome === "In loco (cantiere)") continue;
+      if (opDate) {
+        await supabase.from("operazioni").update({ data_inizio: opDate, data_fine: opDate }).eq("id", op.id);
+        opsUpd++;
+      }
+    }
+    console.log(`  ${opsUpd} operazioni aggiornate.`);
   }
 }
 
