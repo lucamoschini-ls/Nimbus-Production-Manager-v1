@@ -296,6 +296,7 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterStato, setFilterStato] = useState("tutti");
   const [filterProvenienza, setFilterProvenienza] = useState("tutti");
+  const [filterTipMat, setFilterTipMat] = useState("tutti");
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [expandedMats, setExpandedMats] = useState<Set<string>>(new Set());
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -318,6 +319,10 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
     });
   };
 
+  // Lookup catalogo_id → tipologia_materiale
+  const catTipMap: Record<string, string> = {};
+  catalogo.forEach(c => { catTipMap[c.id] = c.tipologia_materiale; });
+
   const filtered = materiali.filter((m) => {
     // Quick filter overrides regular filters
     if (quickFilter) {
@@ -339,6 +344,7 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
       if (filterStato === "completo" && k !== "completo" && k !== "in_loco") return false;
     }
     if (filterProvenienza !== "tutti" && m.provenienza !== filterProvenienza) return false;
+    if (filterTipMat !== "tutti" && (m.catalogo_id ? catTipMap[m.catalogo_id] : null) !== filterTipMat) return false;
     return true;
   });
 
@@ -485,6 +491,20 @@ export function MaterialiClient({ materiali, zone, opsByMat, fornitori, luoghi, 
             <SelectContent>
               <SelectItem value="tutti">Tutte</SelectItem>
               {PROVENIENZA.map((p) => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <span className="text-[9px] text-[#86868b] block mb-0.5">Tipologia materiale</span>
+          <Select value={filterTipMat} onValueChange={setFilterTipMat}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Tipologia" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutte</SelectItem>
+              <SelectItem value="consumo">Consumo</SelectItem>
+              <SelectItem value="strutturale">Strutturale</SelectItem>
+              <SelectItem value="attrezzo">Attrezzo</SelectItem>
             </SelectContent>
           </Select>
         </div>
