@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { startOfWeek, addDays, format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Check, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { fetchDependencyGraph, analyzeImpact, type ImpactedTask } from "@/lib/dependency-utils";
+import { TaskDetailOverlay } from "@/components/task-detail-overlay";
 
 const HPD = 11;
 
@@ -48,6 +49,8 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
   const [conflicts, setConflicts] = useState<ImpactedTask[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const draggingRef = useRef(false);
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const dayLabels = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -120,6 +123,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
 
   // Drag: drop on a day → set start=that day, end=that day (single day)
   const onDragStart = (e: React.DragEvent, taskId: string) => {
+    draggingRef.current = true;
     e.dataTransfer.setData("text/plain", taskId);
     e.dataTransfer.effectAllowed = "move";
   };
@@ -226,6 +230,8 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
         key={task.id}
         draggable
         onDragStart={(e) => onDragStart(e, task.id)}
+        onDragEnd={() => { draggingRef.current = false; }}
+        onClick={() => { if (!draggingRef.current) setSelectedTaskId(task.id); }}
         className={`rounded-lg border px-2.5 py-1.5 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${isModified ? "border-blue-400 bg-blue-50/50" : "border-[#e5e5e7] bg-white"}`}
         style={{ borderLeftWidth: 3, borderLeftColor: tipColor || zonaColor }}
       >
@@ -418,6 +424,11 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
           )}
         </div>
       )}
+      <TaskDetailOverlay
+        taskId={selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+        onTaskUpdated={() => router.refresh()}
+      />
     </div>
   );
 }
