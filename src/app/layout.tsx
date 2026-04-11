@@ -3,6 +3,7 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { Toaster } from "sonner";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -43,6 +44,7 @@ export default function RootLayout({
           </main>
         </div>
         <MobileNav />
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   );

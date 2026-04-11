@@ -54,6 +54,16 @@ Trigger PostgreSQL `calcola_stato_task()` che ricalcola `stato_calcolato` quando
 
 Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica quale stato deve raggiungere il fornitore per sbloccare la task.
 
+## Pattern feedback errore — sonner (obbligatorio)
+
+Il pattern unico per feedback errore/successo è `sonner`. Niente banner inline, niente alert nativi, niente console.error visibili all'utente.
+
+Uso standard:
+- `toast.error("Messaggio breve")` per errori
+- `toast.error("Titolo", { description: "Dettaglio" })` per errori con dettaglio
+- `toast.success("Messaggio")` per conferme positive importanti
+- `console.error(originalError)` resta per debug, non come feedback utente
+
 ## Convenzioni codice
 - File componenti: `kebab-case.tsx`
 - Server Components di default, Client Components solo quando necessario

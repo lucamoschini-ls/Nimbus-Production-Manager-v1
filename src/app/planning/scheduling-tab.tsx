@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { fetchDependencyGraph, analyzeImpact, type ImpactedTask } from "@/lib/dependency-utils";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
+import { toast } from "sonner";
 
 const HPD = 11;
 
@@ -181,10 +182,8 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
   };
 
   // Apply
-  const [applyError, setApplyError] = useState<string | null>(null);
   const handleApply = async () => {
     setSaving(true);
-    setApplyError(null);
     const sb = createClient();
     let saved = 0;
     let failed = 0;
@@ -194,8 +193,9 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
       if (error) { console.error("Errore apply scheduling:", error); failed++; } else { saved++; }
     }
     if (failed > 0) {
-      setApplyError(`${failed} task non salvate su ${saved + failed}. Riprova.`);
+      toast.error("Errore salvataggio", { description: `${failed} task non salvate su ${saved + failed}. Riprova.` });
     } else {
+      toast.success(`${saved} task aggiornate`);
       setAssignments(new Map());
       setConflicts(null);
       setVerified(false);
@@ -402,13 +402,6 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
               })}
             </div>
           </div>
-        </div>
-      )}
-
-      {applyError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-2 flex items-center justify-between">
-          <span className="text-sm text-red-700">{applyError}</span>
-          <button onClick={() => setApplyError(null)} className="text-red-400 hover:text-red-600 text-xs font-medium ml-4">Chiudi</button>
         </div>
       )}
 

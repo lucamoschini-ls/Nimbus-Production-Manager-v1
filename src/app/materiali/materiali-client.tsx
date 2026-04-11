@@ -9,6 +9,7 @@ import { updateMaterialeField, updateOperazioneFromMateriali, deleteOperazioneFr
 import { createClient } from "@/lib/supabase/client";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const UNITA = ["pz", "mq", "ml", "kg", "kit", "lt", "set", "rotolo"];
 const PROVENIENZA = [
@@ -763,7 +764,7 @@ function FornitoreCombobox({ value, fornitori, onChange }: {
     setCreating(true);
     const sb = createClient();
     const { error } = await sb.from("fornitori").insert({ nome: search.trim(), tipo: "Negozio" });
-    if (error) { console.error("Errore creazione fornitore:", error); alert("Errore creazione fornitore. Riprova."); setCreating(false); return; }
+    if (error) { console.error("Errore creazione fornitore:", error); toast.error("Errore creazione fornitore. Riprova."); setCreating(false); return; }
     onChange(search.trim());
     setOpen(false);
     setCreating(false);
@@ -832,13 +833,14 @@ function CatalogoTab({ catalogo: catalogoInitial, fornitori, onOpenTask }: { cat
     const sb = createClient();
     if (c.num_task > 0) {
       const { error } = await sb.from("materiali").delete().eq("catalogo_id", c.id);
-      if (error) { console.error("Errore eliminazione materiali:", error); alert("Errore eliminazione materiali collegati."); return; }
+      if (error) { console.error("Errore eliminazione materiali:", error); toast.error("Errore eliminazione materiali collegati."); return; }
     } else {
       const { error } = await sb.from("materiali").update({ catalogo_id: null }).eq("catalogo_id", c.id);
-      if (error) { console.error("Errore scollega materiali:", error); alert("Errore scollega materiali."); return; }
+      if (error) { console.error("Errore scollega materiali:", error); toast.error("Errore scollega materiali."); return; }
     }
     const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", c.id);
-    if (e2) { console.error("Errore eliminazione catalogo:", e2); alert("Errore eliminazione dal catalogo."); return; }
+    if (e2) { console.error("Errore eliminazione catalogo:", e2); toast.error("Errore eliminazione dal catalogo."); return; }
+    toast.success("Voce eliminata dal catalogo");
     setCatalogo(prev => prev.filter(x => x.id !== c.id));
   };
 

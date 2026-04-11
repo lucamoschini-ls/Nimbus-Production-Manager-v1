@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { AppTooltip } from "@/components/ui/app-tooltip";
+import { toast } from "sonner";
 import { ImpactDialog } from "@/components/impact-dialog";
 import { useImpactAnalysis } from "@/hooks/use-impact-analysis";
 import { analyzeImpact, type ImpactedTask } from "@/lib/dependency-utils";
@@ -171,7 +172,6 @@ export function GanttClient({
     y: number;
   } | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   /* ---- impact analysis (shared hook) ---- */
   const impact = useImpactAnalysis();
@@ -480,12 +480,12 @@ export function GanttClient({
           const { error } = await sb.from("task").update({ data_inizio: capturedNewStart, data_fine: capturedNewEnd }).eq("id", capturedTaskId);
           if (error) {
             console.error("Errore salvataggio drag:", error);
-            setSaveError("Errore salvataggio. La modifica non è stata salvata.");
+            toast.error("Errore salvataggio", { description: "La modifica non è stata salvata." });
             setLocalTaskOverrides((prev) => { const n = { ...prev }; delete n[capturedTaskId]; return n; });
           }
         }).catch((err) => {
           console.error("Errore caricamento grafo dipendenze:", err);
-          setSaveError("Impossibile caricare il grafo delle dipendenze. Riprova.");
+          toast.error("Errore grafo dipendenze", { description: "Impossibile caricare. Riprova." });
         });
       }
 
@@ -948,14 +948,6 @@ export function GanttClient({
         </div>
       </div>
 
-      {/* Error banner */}
-      {saveError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-2 flex items-center justify-between">
-          <span className="text-sm text-red-700">{saveError}</span>
-          <button onClick={() => setSaveError(null)} className="text-red-400 hover:text-red-600 text-xs font-medium ml-4">Chiudi</button>
-        </div>
-      )}
-
       {/* GANTT AREA — fills remaining height */}
       <div className="flex-1 relative overflow-hidden border border-[#e5e5e7] rounded-[12px]">
         {/* LEFT COLUMN — absolute positioned, own vertical scroll */}
@@ -1161,7 +1153,7 @@ export function GanttClient({
           const { error } = await sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId);
           if (error) {
             console.error("Errore salvataggio singolo:", error);
-            setSaveError("Errore salvataggio. La modifica non è stata salvata.");
+            toast.error("Errore salvataggio", { description: "La modifica non è stata salvata." });
             setLocalTaskOverrides((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
           }
           setPendingDragImpact(null);
@@ -1172,14 +1164,14 @@ export function GanttClient({
           const sb = createClient();
           let saved = 0;
           const { error: e0 } = await sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId);
-          if (e0) { console.error("Errore cascade task principale:", e0); setSaveError("Errore salvataggio task principale."); setPendingDragImpact(null); return; }
+          if (e0) { console.error("Errore cascade task principale:", e0); toast.error("Errore salvataggio task principale"); setPendingDragImpact(null); return; }
           saved++;
           const overrides: Record<string, { data_inizio: string; data_fine: string }> = {
             [taskId]: { data_inizio: newStart, data_fine: newEnd },
           };
           for (const t of impacted.filter((x) => x.changed)) {
             const { error } = await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
-            if (error) { console.error("Errore cascade dipendente:", error); setSaveError(`Cascade interrotto: ${saved} task salvate su ${impacted.filter(x=>x.changed).length + 1}.`); break; }
+            if (error) { console.error("Errore cascade dipendente:", error); toast.error("Cascade interrotto", { description: `${saved} task salvate su ${impacted.filter(x=>x.changed).length + 1}` }); break; }
             overrides[t.id] = { data_inizio: t.newDataInizio, data_fine: t.newDataFine };
             saved++;
           }

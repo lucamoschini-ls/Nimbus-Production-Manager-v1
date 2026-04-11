@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import {
   fetchDependencyGraph,
   analyzeImpact,
@@ -112,7 +113,9 @@ export function useImpactAnalysis() {
       }
     }
     if (failedCount > 0) {
-      alert(`Cascade interrotto: ${savedCount} task salvate su ${toSave.length}. Alcune date potrebbero non essere aggiornate.`);
+      toast.error("Cascade interrotto", { description: `${savedCount} task salvate su ${toSave.length}. Alcune date potrebbero non essere aggiornate.` });
+    } else if (savedCount > 0) {
+      toast.success(`${savedCount + 1} task aggiornate`);
     }
     // Update graph cache
     if (graphRef.current) {
