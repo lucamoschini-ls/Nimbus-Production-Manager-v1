@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import { ChevronDown, ChevronRight, RotateCcw, Plus, Trash2, HelpCircle, Copy, Check } from "lucide-react";
 import { updateDriver, updateCoefficiente, resetCoefficiente, upsertDisponibilita, addUnaTantum, updateUnaTantum, deleteUnaTantum } from "./actions";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { calcolaMateriali as calcolaMaterialiPuro } from "@/lib/calcolo-materiali";
 
 /* ------------------------------------------------------------------ */
@@ -158,6 +159,8 @@ export function CalcolatoreClient({ drivers: driversInit, coefficienti: coeffIni
                     <div key={d.id} className="flex items-center gap-2">
                       <label className="text-[12px] text-[#1d1d1f] flex-1 truncate flex items-center gap-1">
                         {d.label} <Tip text={d.tooltip} />
+                        {d.chiave === "n_rotoli_prato" && <InfoTooltip variant="warning" text="Il calcolo dei picchetti assume che ogni rotolo sia lungo 25 metri. Questo valore e fissato nel codice e non si puo modificare da qui. Se i rotoli sono di lunghezza diversa, il conteggio picchetti sara impreciso." />}
+                        {d.chiave === "n_pax_verniciatura_max" && <InfoTooltip variant="warning" text="Pennelli e rulli vengono moltiplicati per 4 (i quattro tipi di vernice: testa di moro, impregnante, nera, oro). Se aggiungi o togli tipi di vernice, questo numero non si aggiorna da solo." />}
                       </label>
                       <input type="number" step="any" value={d.valore || ""} placeholder="0"
                         onChange={(e) => setDriverVal(d.id, d.chiave, parseFloat(e.target.value) || 0)}
@@ -180,6 +183,8 @@ export function CalcolatoreClient({ drivers: driversInit, coefficienti: coeffIni
                     <div key={c.id} className="flex items-center gap-1">
                       <label className="text-[12px] text-[#1d1d1f] flex-1 truncate flex items-center gap-1">
                         {c.label} <Tip text={c.tooltip} />
+                        {c.chiave === "scarto_perc_default" && <InfoTooltip variant="warning" text="Questo scarto viene applicato solo alla vernice testa di moro. Per impregnante, nera e oro lo scarto e fissato al 10% nel codice e non cambia se modifichi questo valore." />}
+                        {c.chiave === "m_tavola_larghezza" && <InfoTooltip variant="warning" text="Se questo valore non viene letto correttamente, il calcolo usa 0.15m come valore di sicurezza senza avvisarti. I numeri sembreranno normali ma potrebbero essere imprecisi." />}
                       </label>
                       <input type="number" step="any" value={c.valore || ""} placeholder={String(c.valore_default)}
                         onChange={(e) => setCoeffVal(c.id, c.chiave, parseFloat(e.target.value) || 0)}

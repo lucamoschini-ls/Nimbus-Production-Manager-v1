@@ -4,6 +4,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Toaster } from "sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -37,14 +38,16 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.svg" />
       </head>
       <body className={`${outfit.variable} font-sans antialiased bg-page text-primary`}>
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 md:ml-[240px] p-6 pb-24 md:pb-6">
-            {children}
-          </main>
-        </div>
-        <MobileNav />
-        <Toaster position="top-right" richColors closeButton />
+        <TooltipProvider>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1 md:ml-[240px] p-6 pb-24 md:pb-6">
+              {children}
+            </main>
+          </div>
+          <MobileNav />
+          <Toaster position="top-right" richColors closeButton />
+        </TooltipProvider>
       </body>
     </html>
   );

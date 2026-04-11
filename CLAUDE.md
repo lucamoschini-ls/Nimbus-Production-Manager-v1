@@ -72,6 +72,16 @@ Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica qu
 - Pagina /materiali classica conservata per ora
 - DA FARE nei mattoni 4-9: dati veri, lista dinamica, drawer reali, calcoli, preset funzionanti
 
+## Convenzione UI — InfoTooltip
+
+Componente: `src/components/ui/info-tooltip.tsx`
+
+Due varianti:
+- `variant="info"` (icona ? grigia): per spiegazioni didattiche neutre
+- `variant="warning"` (icona triangolo arancione): per bug noti, valori fissati nel codice, debito tecnico visibile
+
+Regola: ogni compromesso, valore non parametrico o decisione non ovvia va marcato con un InfoTooltip. Non si nascondono i compromessi nei commenti — si dichiarano nell'interfaccia. Testo sempre in italiano semplice.
+
 ## Debito tecnico noto — formule calcolatore
 
 Vedi `MATTONE2_NOTE.md` per dettaglio. 4 costanti hardcoded da spostare nel DB:
