@@ -62,6 +62,24 @@ Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica qu
 - `materiali` (396 righe, legami task-materiale) NON e ancora stata rinominata in `materiali_task` — rinvio a mattone dedicato
 - Backup di sicurezza in `catalogo_materiali_backup_mattone1` e `materiali_una_tantum_backup_mattone1`
 
+## Superficie unica materiali — post mattone 3
+
+- Nuova rotta `/materiali-nuovo` ospita lo scheletro della superficie unica secondo FARO sezione 6
+- 4 contenitori: BussolaBar, PannelloControllo, ListaMateriali, DrawerStack
+- Stato in URL via hook `use-superficie-state.ts` (raggruppamento, filtri, finestra, drawer aperti)
+- Regola dei tre drawer implementata: max 3 affiancati, quarto scaccia il primo
+- Dati ancora FINTI: la lista e hard-coded, i drawer sono placeholder
+- Pagina /materiali classica conservata per ora
+- DA FARE nei mattoni 4-9: dati veri, lista dinamica, drawer reali, calcoli, preset funzionanti
+
+## Debito tecnico noto — formule calcolatore
+
+Vedi `MATTONE2_NOTE.md` per dettaglio. 4 costanti hardcoded da spostare nel DB:
+- Scarto verniciature non-tdm (1.1 fisso vs coefficiente reale)
+- Lunghezza rotolo prato (25m hardcoded)
+- Moltiplicatore pennelli/rulli (4 fisso)
+- Fallback larghezza tavola (0.15 ridondante)
+
 ## Funzione di calcolo materiali — post mattone 2
 
 Le formule del calcolatore sono in `src/lib/calcolo-materiali.ts` come funzione pura `calcolaMateriali(input): CalcoloResult[]`.
