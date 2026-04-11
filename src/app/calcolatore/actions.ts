@@ -38,18 +38,18 @@ export async function upsertDisponibilita(catalogoId: string, nomeMateriale: str
 
 export async function addUnaTantum(nome: string) {
   const supabase = await createClient();
-  await supabase.from("materiali_una_tantum").insert({ nome });
+  await supabase.from("catalogo_materiali").insert({ nome, tipo_voce: "una_tantum" });
   revalidatePath("/calcolatore");
 }
 
 export async function updateUnaTantum(id: string, data: Record<string, unknown>) {
   const supabase = await createClient();
-  await supabase.from("materiali_una_tantum").update(data).eq("id", id);
+  await supabase.from("catalogo_materiali").update(data).eq("id", id);
   revalidatePath("/calcolatore");
 }
 
 export async function deleteUnaTantum(id: string) {
   const supabase = await createClient();
-  await supabase.from("materiali_una_tantum").delete().eq("id", id);
+  await supabase.from("catalogo_materiali").delete().eq("id", id);
   revalidatePath("/calcolatore");
 }

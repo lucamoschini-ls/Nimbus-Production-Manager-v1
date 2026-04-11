@@ -54,6 +54,14 @@ Trigger PostgreSQL `calcola_stato_task()` che ricalcola `stato_calcolato` quando
 
 Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica quale stato deve raggiungere il fornitore per sbloccare la task.
 
+## Schema materiali — stato post-mattone 1
+
+- `catalogo_materiali` ha colonne `categoria_comportamentale` (text, 5 valori + NULL) e `tipo_voce` (text, standard/una_tantum, default standard)
+- `materiali_disponibilita` popolata 1:1 col catalogo, valori a zero
+- `materiali_una_tantum` non esiste piu — le voci una_tantum sono in `catalogo_materiali` con `tipo_voce='una_tantum'`
+- `materiali` (396 righe, legami task-materiale) NON e ancora stata rinominata in `materiali_task` — rinvio a mattone dedicato
+- Backup di sicurezza in `catalogo_materiali_backup_mattone1` e `materiali_una_tantum_backup_mattone1`
+
 ## Pattern feedback errore — sonner (obbligatorio)
 
 Il pattern unico per feedback errore/successo è `sonner`. Niente banner inline, niente alert nativi, niente console.error visibili all'utente.

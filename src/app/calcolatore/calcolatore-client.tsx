@@ -11,7 +11,7 @@ import { updateDriver, updateCoefficiente, resetCoefficiente, upsertDisponibilit
 interface Driver { id: string; chiave: string; label: string; valore: number; unita: string | null; gruppo: string | null; ordine: number; tooltip: string | null; }
 interface Coeff { id: string; chiave: string; label: string; valore: number; valore_default: number; unita: string | null; gruppo: string | null; ordine: number; tooltip: string | null; }
 interface Disp { id: string; catalogo_id: string | null; nome_materiale: string | null; qta_magazzino: number; qta_recupero: number; qta_ordinata: number; note: string | null; }
-interface UnaTantum { id: string; nome: string; quantita: number; unita: string | null; fornitore: string | null; costo_unitario: number | null; ordinato: boolean; note: string | null; }
+interface UnaTantum { id: string; nome: string; unita_default: string | null; prezzo_unitario_default: number | null; fornitore_preferito: string | null; note: string | null; quantita_disponibile_globale: number; }
 interface CatItem { id: string; nome: string; prezzo_unitario: number | null; unita: string | null; fornitore_preferito: string | null; quantita_disponibile_globale: number; }
 
 interface CalcResult { nome: string; quantita: number; unita: string; fornitore: string; prezzo: number | null; disponibile: number; ordinato: number; da_comprare: number; costo: number | null; }
@@ -175,15 +175,14 @@ export function CalcolatoreClient({ drivers: driversInit, coefficienti: coeffIni
   const allResults = useMemo(() => {
     const combined = [...finalResults];
     for (const u of ut) {
-      if (u.quantita > 0) {
-        combined.push({
-          nome: u.nome, quantita: u.quantita, unita: u.unita || "pz",
-          fornitore: u.fornitore || "Da assegnare", prezzo: u.costo_unitario,
-          disponibile: 0, ordinato: u.ordinato ? u.quantita : 0,
-          da_comprare: u.ordinato ? 0 : u.quantita,
-          costo: u.costo_unitario ? u.quantita * u.costo_unitario : null,
-        });
-      }
+      const qty = u.quantita_disponibile_globale || 1;
+      combined.push({
+        nome: u.nome, quantita: qty, unita: u.unita_default || "pz",
+        fornitore: u.fornitore_preferito || "Da assegnare", prezzo: u.prezzo_unitario_default,
+        disponibile: 0, ordinato: 0,
+        da_comprare: qty,
+        costo: u.prezzo_unitario_default ? qty * u.prezzo_unitario_default : null,
+      });
     }
     return combined;
   }, [finalResults, ut]);
@@ -308,17 +307,10 @@ export function CalcolatoreClient({ drivers: driversInit, coefficienti: coeffIni
                 <div key={u.id} className="flex items-center gap-2 text-[11px]">
                   <input defaultValue={u.nome} onBlur={e => updateUnaTantum(u.id, { nome: e.target.value })}
                     className="flex-1 border border-[#e5e5e7] rounded px-2 py-1 text-[#1d1d1f]" />
-                  <input type="number" defaultValue={u.quantita} onBlur={e => { setUt(prev => prev.map(x => x.id === u.id ? { ...x, quantita: parseFloat(e.target.value) || 0 } : x)); updateUnaTantum(u.id, { quantita: parseFloat(e.target.value) || 0 }); }}
-                    className="w-14 text-right border border-[#e5e5e7] rounded px-1 py-1" title="Qty" />
-                  <input defaultValue={u.fornitore ?? ""} onBlur={e => updateUnaTantum(u.id, { fornitore: e.target.value || null })}
+                  <input defaultValue={u.fornitore_preferito ?? ""} onBlur={e => updateUnaTantum(u.id, { fornitore_preferito: e.target.value || null })}
                     className="w-24 border border-[#e5e5e7] rounded px-2 py-1 text-[#86868b]" placeholder="Fornitore" />
-                  <input type="number" step="0.01" defaultValue={u.costo_unitario ?? ""} onBlur={e => updateUnaTantum(u.id, { costo_unitario: parseFloat(e.target.value) || null })}
+                  <input type="number" step="0.01" defaultValue={u.prezzo_unitario_default ?? ""} onBlur={e => updateUnaTantum(u.id, { prezzo_unitario_default: parseFloat(e.target.value) || null })}
                     className="w-16 text-right border border-[#e5e5e7] rounded px-1 py-1" placeholder="Prezzo" />
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={u.ordinato} onChange={e => { setUt(prev => prev.map(x => x.id === u.id ? { ...x, ordinato: e.target.checked } : x)); updateUnaTantum(u.id, { ordinato: e.target.checked }); }}
-                      className="rounded border-[#e5e5e7] w-3.5 h-3.5" />
-                    <span className="text-[#86868b]">Ord</span>
-                  </label>
                   <button onClick={() => { setUt(prev => prev.filter(x => x.id !== u.id)); deleteUnaTantum(u.id); }}
                     className="text-[#d2d2d7] hover:text-red-500"><Trash2 size={12} /></button>
                 </div>

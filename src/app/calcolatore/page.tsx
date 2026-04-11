@@ -9,7 +9,7 @@ export default async function CalcolatorePage() {
       supabase.from("calcolatore_driver").select("*").order("ordine"),
       supabase.from("calcolatore_coefficienti").select("*").order("ordine"),
       supabase.from("materiali_disponibilita").select("*"),
-      supabase.from("materiali_una_tantum").select("*").order("ordine"),
+      supabase.from("catalogo_materiali").select("*").eq("tipo_voce", "una_tantum").order("nome"),
       supabase.from("v_catalogo_acquisti").select("id, nome, prezzo_unitario, unita, fornitore_preferito, quantita_disponibile_globale"),
     ]);
 
