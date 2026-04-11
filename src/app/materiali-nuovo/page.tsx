@@ -14,9 +14,7 @@ async function MaterialiData() {
     , // fornitori — fetched, reserved for future mattoni
     { data: tasks },
   ] = await Promise.all([
-    supabase
-      .from("catalogo_materiali")
-      .select("id, nome, categoria_comportamentale, tipologia_materiale, tipo_voce, unita, unita_default, prezzo_unitario, prezzo_unitario_default, fornitore_preferito"),
+    supabase.from("catalogo_materiali").select("*"),
     supabase.from("materiali").select("id, task_id, catalogo_id, quantita"),
     supabase
       .from("materiali_disponibilita")
