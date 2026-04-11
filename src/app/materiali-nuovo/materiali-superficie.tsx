@@ -16,9 +16,7 @@ interface CatalogoRow {
   categoria_comportamentale: string | null;
   tipologia_materiale: string | null;
   tipo_voce: string;
-  unita: string | null;
   unita_default: string | null;
-  prezzo_unitario: number | null;
   prezzo_unitario_default: number | null;
   fornitore_preferito: string | null;
 }
@@ -28,6 +26,7 @@ interface MaterialeTaskRow {
   task_id: string;
   catalogo_id: string | null;
   quantita: number | null;
+  unita: string | null;
 }
 
 interface DisponibilitaRow {
@@ -135,15 +134,37 @@ export function MaterialiSuperficie({
       if (d.catalogo_id) dispMap.set(d.catalogo_id, d);
     }
 
-    // Sum materiali quantities by catalogo_id (fabbisogno from task links)
+    // Sum materiali quantities + determine unit per catalogo_id
     const fabbisognoMap = new Map<string, number>();
+    const unitaCounts = new Map<string, Map<string, number>>();
     for (const m of materialiTask) {
-      if (!m.catalogo_id || m.quantita == null) continue;
-      fabbisognoMap.set(
-        m.catalogo_id,
-        (fabbisognoMap.get(m.catalogo_id) || 0) + m.quantita
-      );
+      if (!m.catalogo_id) continue;
+      if (m.quantita != null) {
+        fabbisognoMap.set(
+          m.catalogo_id,
+          (fabbisognoMap.get(m.catalogo_id) || 0) + m.quantita
+        );
+      }
+      if (m.unita) {
+        if (!unitaCounts.has(m.catalogo_id))
+          unitaCounts.set(m.catalogo_id, new Map());
+        const counts = unitaCounts.get(m.catalogo_id)!;
+        counts.set(m.unita, (counts.get(m.unita) || 0) + 1);
+      }
     }
+    // Pick most frequent unita per catalog item
+    const unitaMap = new Map<string, string>();
+    unitaCounts.forEach((counts, catId) => {
+      let best = "";
+      let bestN = 0;
+      counts.forEach((n, u) => {
+        if (n > bestN) {
+          bestN = n;
+          best = u;
+        }
+      });
+      if (best) unitaMap.set(catId, best);
+    });
 
     return catalogo.map((c): MaterialeArricchito => {
       const fabbisogno = fabbisognoMap.get(c.id) || 0;
@@ -153,7 +174,7 @@ export function MaterialiSuperficie({
       const ordinato = disp?.qta_ordinata ?? 0;
       const disponibile = magazzino + recupero + ordinato;
       const da_comprare = Math.max(0, fabbisogno - disponibile);
-      const prezzo = c.prezzo_unitario ?? c.prezzo_unitario_default ?? 0;
+      const prezzo = c.prezzo_unitario_default ?? 0;
       const costo = da_comprare * prezzo;
 
       let semaforo: "verde" | "giallo" | "rosso" = "verde";
@@ -168,7 +189,7 @@ export function MaterialiSuperficie({
         categoria_comp: c.categoria_comportamentale,
         tipologia: c.tipologia_materiale ?? null,
         tipo_voce: c.tipo_voce || "standard",
-        unita: c.unita || c.unita_default || "pz",
+        unita: unitaMap.get(c.id) || c.unita_default || "pz",
         prezzo_unitario: prezzo,
         fabbisogno_calcolato: fabbisogno,
         qta_magazzino: magazzino,

@@ -15,7 +15,7 @@ async function MaterialiData() {
     { data: tasks },
   ] = await Promise.all([
     supabase.from("catalogo_materiali").select("*"),
-    supabase.from("materiali").select("id, task_id, catalogo_id, quantita"),
+    supabase.from("materiali").select("id, task_id, catalogo_id, quantita, unita"),
     supabase
       .from("materiali_disponibilita")
       .select("catalogo_id, qta_magazzino, qta_recupero, qta_ordinata"),
