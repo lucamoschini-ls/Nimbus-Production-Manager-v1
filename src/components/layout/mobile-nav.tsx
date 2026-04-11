@@ -21,6 +21,7 @@ const navItems = [
   { href: "/planning", label: "Planning", icon: CalendarDays },
   { href: "/fornitori", label: "Fornitori", icon: Truck },
   { href: "/materiali", label: "Materiali", icon: Package },
+  { href: "/calcolatore", label: "Calc", icon: Package },
   { href: "/trasporti", label: "Trasporti", icon: Truck },
   { href: "/presenze", label: "Presenze", icon: ClipboardList },
   { href: "/costi", label: "Costi", icon: DollarSign },
