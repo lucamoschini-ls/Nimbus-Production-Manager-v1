@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import { ChevronDown, ChevronRight, RotateCcw, Plus, Trash2, HelpCircle, Copy, Check } from "lucide-react";
 import { updateDriver, updateCoefficiente, resetCoefficiente, upsertDisponibilita, addUnaTantum, updateUnaTantum, deleteUnaTantum } from "./actions";
+import { calcolaMateriali as calcolaMaterialiPuro } from "@/lib/calcolo-materiali";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -48,87 +49,6 @@ function Tip({ text }: { text: string | null }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Calculation engine                                                  */
-/* ------------------------------------------------------------------ */
-
-function calcolaMateriali(driverMap: Record<string, number>, coeffMap: Record<string, number>): CalcResult[] {
-  const d = (k: string) => driverMap[k] ?? 0;
-  const c = (k: string) => coeffMap[k] ?? 0;
-  const scarto = 1 + c("scarto_perc_default") / 100;
-  const results: CalcResult[] = [];
-
-  const add = (nome: string, qty: number, unita: string, fornitore = "Da assegnare", prezzo: number | null = null) => {
-    if (qty > 0) results.push({ nome, quantita: Math.ceil(qty), unita, fornitore, prezzo, disponibile: 0, ordinato: 0, da_comprare: Math.ceil(qty), costo: prezzo ? Math.ceil(qty) * prezzo : null });
-  };
-
-  // CARPENTERIA
-  const mq_tavola = c("m_tavola_lunghezza") * c("m_tavola_larghezza");
-  const mq_pedane = d("mq_pedana_centrale") + d("mq_pedana_chiosco") + d("mq_pedana_banconi") + d("mq_pedana_swing") + d("mq_anfiteatri");
-  if (mq_tavola > 0 && mq_pedane > 0) {
-    const n_tavole = Math.ceil((mq_pedane / mq_tavola) * scarto);
-    add("Tavole legno pedane", n_tavole, "pz", "Da assegnare");
-    add("Viti 5x50", n_tavole * c("viti_5x50_per_tavola"), "pz", "Da assegnare");
-    add("Viti 6x120", n_tavole * c("viti_6x120_per_tavola"), "pz", "Da assegnare");
-    const ml_ped = mq_pedane / (c("m_tavola_larghezza") || 0.15);
-    add("Morali", Math.ceil(ml_ped * c("morali_per_ml_pedana")), "pz", "Da assegnare");
-  }
-  const ml_vasi_tot = d("ml_vasi_4m") + d("ml_vasi_2m");
-  if (ml_vasi_tot > 0 && c("legno_per_ml_vaso") > 0) {
-    add("Legno sottomisure vasi", Math.ceil(ml_vasi_tot * c("legno_per_ml_vaso")), "m", "Da assegnare");
-  }
-  if (ml_vasi_tot > 0 && c("viti_per_ml_vaso") > 0) {
-    add("Viti vasi", Math.ceil(ml_vasi_tot * c("viti_per_ml_vaso")), "pz", "Da assegnare");
-  }
-
-  // VERNICIATURA
-  const L_tdm = d("mq_vern_testa_di_moro") > 0 && c("resa_testa_di_moro") > 0 ? Math.ceil(d("mq_vern_testa_di_moro") / c("resa_testa_di_moro") * scarto) : 0;
-  const L_imp = d("mq_vern_impregnante") > 0 && c("resa_impregnante") > 0 ? Math.ceil(d("mq_vern_impregnante") / c("resa_impregnante") * 1.1) : 0;
-  const L_nera = d("mq_vern_nera") > 0 && c("resa_vernice_nera") > 0 ? Math.ceil(d("mq_vern_nera") / c("resa_vernice_nera") * 1.1) : 0;
-  const L_oro = d("mq_vern_oro") > 0 && c("resa_vernice_oro") > 0 ? Math.ceil(d("mq_vern_oro") / c("resa_vernice_oro") * 1.1) : 0;
-
-  if (L_tdm > 0) add("Vernice testa di moro", L_tdm, "lt", "Da assegnare");
-  if (L_imp > 0) add("Impregnante", L_imp, "lt", "Da assegnare");
-  if (L_nera > 0) add("Vernice nera", L_nera, "lt", "Da assegnare");
-  if (L_oro > 0) add("Vernice oro", L_oro, "lt", "Da assegnare");
-
-  const L_totale_vern = L_tdm + L_imp + L_nera + L_oro;
-  if (L_totale_vern > 0) {
-    add("Acquaragia", Math.ceil(L_totale_vern * c("perc_acquaragia") / 100), "lt", "Da assegnare");
-  }
-  const n_pax = d("n_pax_verniciatura_max");
-  if (n_pax > 0) {
-    add("Pennelli (set)", n_pax * 4, "pz", "Da assegnare");
-    add("Rulli (set)", n_pax * 4, "pz", "Da assegnare");
-  }
-
-  // STRIPLED
-  const ml_strip = d("ml_stripled_lineari");
-  if (ml_strip > 0) {
-    add("Profilo alluminio stripled", Math.ceil(ml_strip), "ml", "Da assegnare");
-    add("Viti fissaggio profilo", Math.ceil(ml_strip * c("viti_per_ml_profilo")), "pz", "Da assegnare");
-    if (c("ml_stripled_per_box") > 0) add("Box controllo stripled", Math.ceil(ml_strip / c("ml_stripled_per_box")), "pz", "Da assegnare");
-  }
-
-  // ELETTRICO NUVOLE
-  const n_tot_nuvole = d("n_nuvole_pedana") + d("n_round_totali") + d("n_nuvole_altre");
-  if (n_tot_nuvole > 0) {
-    const dist = d("m_distanza_nuvola_regia") + c("m_cavo_citofonico_per_nuvola");
-    add("Cavo citofonico", Math.ceil(n_tot_nuvole * dist), "m", "Da assegnare");
-    add("Corrugato", Math.ceil(n_tot_nuvole * dist), "m", "Da assegnare");
-    add("Strip RGBW nuvole", Math.ceil(n_tot_nuvole * c("m_strip_rgbw_per_nuvola")), "m", "Da assegnare");
-    add("Wago connettori", Math.ceil(n_tot_nuvole * c("wago_per_nuvola")), "pz", "Da assegnare");
-  }
-
-  // PRATO
-  const n_rotoli = d("n_rotoli_prato");
-  if (n_rotoli > 1) {
-    add("Picchetti prato", Math.ceil((n_rotoli - 1) * 25 * c("picchetti_per_ml_giunzione")), "pz", "Da assegnare");
-  }
-
-  return results;
-}
-
-/* ------------------------------------------------------------------ */
 /* Main Component                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -153,7 +73,7 @@ export function CalcolatoreClient({ drivers: driversInit, coefficienti: coeffIni
   const dispMap = useMemo(() => { const m: Record<string, Disp> = {}; disponibilita.forEach(d => { if (d.catalogo_id) m[d.catalogo_id] = d; }); return m; }, [disponibilita]);
 
   // Calculate
-  const calcResults = useMemo(() => calcolaMateriali(driverMap, coeffMap), [driverMap, coeffMap]);
+  const calcResults = useMemo(() => calcolaMaterialiPuro({ driverMap, coeffMap }), [driverMap, coeffMap]);
 
   // Apply disponibilita to results
   const finalResults = useMemo(() => {

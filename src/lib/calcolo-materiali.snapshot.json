@@ -1,0 +1,17 @@
+{
+  "data_snapshot": "2026-04-11",
+  "note": "Calcolato con driver DB reali. Solo mq_pedana_centrale=350, nuvole=14, rotoli=9, pax_vern=4 sono non-zero.",
+  "output_atteso": [
+    { "nome": "Tavole legno pedane", "quantita": 642, "unita": "pz" },
+    { "nome": "Viti 5x50", "quantita": 9630, "unita": "pz" },
+    { "nome": "Viti 6x120", "quantita": 3210, "unita": "pz" },
+    { "nome": "Morali", "quantita": 3967, "unita": "pz" },
+    { "nome": "Pennelli (set)", "quantita": 16, "unita": "pz" },
+    { "nome": "Rulli (set)", "quantita": 16, "unita": "pz" },
+    { "nome": "Cavo citofonico", "quantita": 70, "unita": "m" },
+    { "nome": "Corrugato", "quantita": 70, "unita": "m" },
+    { "nome": "Strip RGBW nuvole", "quantita": 28, "unita": "m" },
+    { "nome": "Wago connettori", "quantita": 56, "unita": "pz" },
+    { "nome": "Picchetti prato", "quantita": 1000, "unita": "pz" }
+  ]
+}

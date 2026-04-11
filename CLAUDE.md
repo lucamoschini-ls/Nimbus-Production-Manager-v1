@@ -62,6 +62,18 @@ Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica qu
 - `materiali` (396 righe, legami task-materiale) NON e ancora stata rinominata in `materiali_task` — rinvio a mattone dedicato
 - Backup di sicurezza in `catalogo_materiali_backup_mattone1` e `materiali_una_tantum_backup_mattone1`
 
+## Funzione di calcolo materiali — post mattone 2
+
+Le formule del calcolatore sono in `src/lib/calcolo-materiali.ts` come funzione pura `calcolaMateriali(input): CalcoloResult[]`.
+- Input: driverMap, coeffMap (Record<string, number>)
+- Output: array di {nome, quantita, unita, fornitore, prezzo}
+- Nessuna dipendenza React, nessuna chiamata Supabase
+- Chiamabile da qualsiasi pagina/componente dell'app
+- Snapshot di verita in `src/lib/calcolo-materiali.snapshot.json`
+- 5 funzioni interne: calcolaCarpenteria, calcolaVerniciatura, calcolaStripled, calcolaElettricoNuvole, calcolaPrato
+
+`calcolatore-client.tsx` ora importa e usa questa funzione invece di formule inline.
+
 ## Pattern feedback errore — sonner (obbligatorio)
 
 Il pattern unico per feedback errore/successo è `sonner`. Niente banner inline, niente alert nativi, niente console.error visibili all'utente.
