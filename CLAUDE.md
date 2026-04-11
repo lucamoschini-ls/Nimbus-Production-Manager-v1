@@ -75,15 +75,16 @@ Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica qu
 
 ## Superficie con dati reali — post mattone 4
 
-- Server component (`page.tsx`) fetcha 7 tabelle: catalogo_materiali, materiali, materiali_disponibilita, calcolatore_driver, calcolatore_coefficienti, fornitori, task
-- `select("*")` per catalogo_materiali perche le colonne `unita` e `prezzo_unitario` (da migration CATALOGO_ACQUISTI) non esistono nella tabella reale. Fallback a `unita_default` e `prezzo_unitario_default`
-- Client component chiama `calcolaMateriali()` in useMemo (risultato conservato per mattoni futuri)
-- Fabbisogno = SUM(materiali.quantita) raggruppato per catalogo_id (quantita reali assegnate alle task)
-- Semaforo: verde se fabbisogno <= disponibile, giallo se ordinato > 0, rosso altrimenti
-- Disponibilita tutta a zero per ora → 82 item in rosso su 192
+- Fonte primaria: vista `v_catalogo_acquisti` (unita, prezzo, fabbisogno, da_acquistare, costo gia aggregati)
+- Colonne extra da `catalogo_materiali`: `categoria_comportamentale`, `tipo_voce` (non nella vista)
+- Tabella `materiali` fetchata solo per `task_id, catalogo_id` (filtro temporale)
+- `materiali_disponibilita` per breakdown 3-way (magazzino/recupero/ordinato) e semaforo
+- `calcolatore_driver` + `calcolatore_coefficienti` per `calcolaMateriali()` in useMemo (uso futuro)
+- La vista aliasa `unita_default` come `unita` e `prezzo_unitario_default` come `prezzo_unitario`
+- Semaforo: verde se da_comprare = 0, giallo se ordinato > 0, rosso altrimenti
 - Contatori bussola reattivi (voci, rossi, costo) ricalcolati sulla lista filtrata
 - Raggruppamento per fornitore e categoria_comp funzionante con header cliccabili
-- Filtro fornitore multi-select (4 fornitori distinti nel catalogo)
+- Filtro fornitore multi-select (4 fornitori distinti: Da assegnare, Tecnomat, Vivai Acciarri, lumiroma)
 - Filtro categoria comportamentale (5 toggle). NULL = mostrato solo se nessun toggle attivo
 - Ricerca testuale case-insensitive su nome materiale
 - Filtro finestra temporale (oggi/settimana/stagione) basato su data_inizio delle task collegate
