@@ -72,6 +72,17 @@ Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica qu
 - Pagina /materiali classica conservata per ora
 - DA FARE nei mattoni 4-9: dati veri, lista dinamica, drawer reali, calcoli, preset funzionanti
 
+## Browser testing — Playwright MCP
+
+Claude Code ha accesso a un browser headless via `@playwright/mcp` per testare l'app deployata su Vercel.
+
+- URL produzione: `https://nimbus-production-manager-v1.vercel.app`
+- Configurato in `.mcp.json` nella root del progetto
+- Modalita di default: headless
+- Per debug visivo: modificare `--headless` in `--headed` nel `.mcp.json` e riavviare Claude Code
+
+Pattern d'uso: dopo aver completato il lavoro, Claude Code esegue test browser sull'URL Vercel e riporta l'esito nelle note. Niente mattone si chiude se i test browser falliscono senza spiegazione.
+
 ## Convenzione UI — InfoTooltip
 
 Componente: `src/components/ui/info-tooltip.tsx`
