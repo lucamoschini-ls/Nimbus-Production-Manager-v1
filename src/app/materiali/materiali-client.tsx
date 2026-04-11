@@ -762,7 +762,8 @@ function FornitoreCombobox({ value, fornitori, onChange }: {
     if (!search.trim() || creating) return;
     setCreating(true);
     const sb = createClient();
-    await sb.from("fornitori").insert({ nome: search.trim(), tipo: "Negozio" });
+    const { error } = await sb.from("fornitori").insert({ nome: search.trim(), tipo: "Negozio" });
+    if (error) { console.error("Errore creazione fornitore:", error); alert("Errore creazione fornitore. Riprova."); setCreating(false); return; }
     onChange(search.trim());
     setOpen(false);
     setCreating(false);
@@ -829,9 +830,15 @@ function CatalogoTab({ catalogo: catalogoInitial, fornitori, onOpenTask }: { cat
     const msg = c.num_task > 0 ? `"${c.nome}" usato in ${c.num_task} task. Eliminare tutto?` : `Eliminare "${c.nome}" dal catalogo?`;
     if (!window.confirm(msg)) return;
     const sb = createClient();
-    if (c.num_task > 0) await sb.from("materiali").delete().eq("catalogo_id", c.id);
-    else await sb.from("materiali").update({ catalogo_id: null }).eq("catalogo_id", c.id);
-    await sb.from("catalogo_materiali").delete().eq("id", c.id);
+    if (c.num_task > 0) {
+      const { error } = await sb.from("materiali").delete().eq("catalogo_id", c.id);
+      if (error) { console.error("Errore eliminazione materiali:", error); alert("Errore eliminazione materiali collegati."); return; }
+    } else {
+      const { error } = await sb.from("materiali").update({ catalogo_id: null }).eq("catalogo_id", c.id);
+      if (error) { console.error("Errore scollega materiali:", error); alert("Errore scollega materiali."); return; }
+    }
+    const { error: e2 } = await sb.from("catalogo_materiali").delete().eq("id", c.id);
+    if (e2) { console.error("Errore eliminazione catalogo:", e2); alert("Errore eliminazione dal catalogo."); return; }
     setCatalogo(prev => prev.filter(x => x.id !== c.id));
   };
 

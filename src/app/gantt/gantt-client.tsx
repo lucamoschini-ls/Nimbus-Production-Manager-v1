@@ -171,6 +171,7 @@ export function GanttClient({
     y: number;
   } | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   /* ---- impact analysis (shared hook) ---- */
   const impact = useImpactAnalysis();
@@ -463,7 +464,7 @@ export function GanttClient({
         const capturedNewEnd = newEnd;
 
         // Use async check — getGraph ensures graph is loaded
-        impact.getGraph().then((graph) => {
+        impact.getGraph().then(async (graph) => {
           const impacted = analyzeImpact(capturedTaskId, capturedNewEnd, graph);
           const hasChanges = impacted.some((t) => t.changed);
           if (hasChanges) {
@@ -476,7 +477,12 @@ export function GanttClient({
             [capturedTaskId]: { data_inizio: capturedNewStart, data_fine: capturedNewEnd },
           }));
           const sb = createClient();
-          sb.from("task").update({ data_inizio: capturedNewStart, data_fine: capturedNewEnd }).eq("id", capturedTaskId).then();
+          const { error } = await sb.from("task").update({ data_inizio: capturedNewStart, data_fine: capturedNewEnd }).eq("id", capturedTaskId);
+          if (error) {
+            console.error("Errore salvataggio drag:", error);
+            setSaveError("Errore salvataggio. La modifica non è stata salvata.");
+            setLocalTaskOverrides((prev) => { const n = { ...prev }; delete n[capturedTaskId]; return n; });
+          }
         });
       }
 
@@ -939,6 +945,14 @@ export function GanttClient({
         </div>
       </div>
 
+      {/* Error banner */}
+      {saveError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-2 flex items-center justify-between">
+          <span className="text-sm text-red-700">{saveError}</span>
+          <button onClick={() => setSaveError(null)} className="text-red-400 hover:text-red-600 text-xs font-medium ml-4">Chiudi</button>
+        </div>
+      )}
+
       {/* GANTT AREA — fills remaining height */}
       <div className="flex-1 relative overflow-hidden border border-[#e5e5e7] rounded-[12px]">
         {/* LEFT COLUMN — absolute positioned, own vertical scroll */}
@@ -1136,25 +1150,35 @@ export function GanttClient({
         newDate={pendingDragImpact?.newEnd ?? ""}
         impactedTasks={pendingDragImpact?.impacted ?? []}
         onCancel={() => setPendingDragImpact(null)}
-        onSingleOnly={() => {
+        onSingleOnly={async () => {
           if (!pendingDragImpact) return;
           const { taskId, newStart, newEnd } = pendingDragImpact;
           setLocalTaskOverrides((prev) => ({ ...prev, [taskId]: { data_inizio: newStart, data_fine: newEnd } }));
           const sb = createClient();
-          sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId).then();
+          const { error } = await sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId);
+          if (error) {
+            console.error("Errore salvataggio singolo:", error);
+            setSaveError("Errore salvataggio. La modifica non è stata salvata.");
+            setLocalTaskOverrides((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+          }
           setPendingDragImpact(null);
         }}
         onCascade={async () => {
           if (!pendingDragImpact) return;
           const { taskId, newStart, newEnd, impacted } = pendingDragImpact;
           const sb = createClient();
-          await sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId);
+          let saved = 0;
+          const { error: e0 } = await sb.from("task").update({ data_inizio: newStart, data_fine: newEnd }).eq("id", taskId);
+          if (e0) { console.error("Errore cascade task principale:", e0); setSaveError("Errore salvataggio task principale."); setPendingDragImpact(null); return; }
+          saved++;
           const overrides: Record<string, { data_inizio: string; data_fine: string }> = {
             [taskId]: { data_inizio: newStart, data_fine: newEnd },
           };
           for (const t of impacted.filter((x) => x.changed)) {
-            await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
+            const { error } = await sb.from("task").update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine }).eq("id", t.id);
+            if (error) { console.error("Errore cascade dipendente:", error); setSaveError(`Cascade interrotto: ${saved} task salvate su ${impacted.filter(x=>x.changed).length + 1}.`); break; }
             overrides[t.id] = { data_inizio: t.newDataInizio, data_fine: t.newDataFine };
+            saved++;
           }
           setLocalTaskOverrides((prev) => ({ ...prev, ...overrides }));
           setPendingDragImpact(null);

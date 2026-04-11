@@ -89,18 +89,30 @@ export function useImpactAnalysis() {
     pending.onSave();
     const sb = createClient();
     // Save all impacted tasks + their operazioni
-    for (const t of pending.impacted.filter((x) => x.changed)) {
-      await sb
+    let savedCount = 0;
+    let failedCount = 0;
+    const toSave = pending.impacted.filter((x) => x.changed);
+    for (const t of toSave) {
+      const { error } = await sb
         .from("task")
         .update({ data_inizio: t.newDataInizio, data_fine: t.newDataFine })
         .eq("id", t.id);
-      // Save impacted operazioni
+      if (error) {
+        console.error("Errore cascade task:", t.titolo, error);
+        failedCount++;
+        break; // Stop cascade on first error
+      }
+      savedCount++;
       for (const op of t.ops) {
-        await sb
+        const { error: opErr } = await sb
           .from("operazioni")
           .update({ data_inizio: op.newDataInizio, data_fine: op.newDataFine })
           .eq("id", op.id);
+        if (opErr) { console.error("Errore cascade operazione:", opErr); }
       }
+    }
+    if (failedCount > 0) {
+      alert(`Cascade interrotto: ${savedCount} task salvate su ${toSave.length}. Alcune date potrebbero non essere aggiornate.`);
     }
     // Update graph cache
     if (graphRef.current) {

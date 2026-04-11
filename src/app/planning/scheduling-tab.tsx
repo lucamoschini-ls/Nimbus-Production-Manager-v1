@@ -181,19 +181,25 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
   };
 
   // Apply
+  const [applyError, setApplyError] = useState<string | null>(null);
   const handleApply = async () => {
     setSaving(true);
+    setApplyError(null);
     const sb = createClient();
+    let saved = 0;
+    let failed = 0;
     for (const [taskId, range] of Array.from(assignments.entries())) {
-      if (range) {
-        await sb.from("task").update({ data_inizio: range.start, data_fine: range.end }).eq("id", taskId);
-      } else {
-        await sb.from("task").update({ data_inizio: null, data_fine: null }).eq("id", taskId);
-      }
+      const payload = range ? { data_inizio: range.start, data_fine: range.end } : { data_inizio: null, data_fine: null };
+      const { error } = await sb.from("task").update(payload).eq("id", taskId);
+      if (error) { console.error("Errore apply scheduling:", error); failed++; } else { saved++; }
     }
-    setAssignments(new Map());
-    setConflicts(null);
-    setVerified(false);
+    if (failed > 0) {
+      setApplyError(`${failed} task non salvate su ${saved + failed}. Riprova.`);
+    } else {
+      setAssignments(new Map());
+      setConflicts(null);
+      setVerified(false);
+    }
     setSaving(false);
     router.refresh();
   };
@@ -396,6 +402,13 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {applyError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-2 flex items-center justify-between">
+          <span className="text-sm text-red-700">{applyError}</span>
+          <button onClick={() => setApplyError(null)} className="text-red-400 hover:text-red-600 text-xs font-medium ml-4">Chiudi</button>
         </div>
       )}
 
