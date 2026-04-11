@@ -56,3 +56,6 @@ Nessuna. Tutte le 11 mutazioni identificate dall'audit sono state riparate.
 4. **Catalogo elimina con offline**: Tab Catalogo, clicca cestino su una voce, conferma. Con offline deve apparire alert "Errore eliminazione."
 
 5. **Verifica che il caso normale funzioni ancora**: Con network online, tutti i flow sopra devono continuare a funzionare come prima senza banner di errore.
+
+## Passo 1-bis
+- OK gantt-client.tsx:467 — .catch() aggiunto al chain impact.getGraph()

@@ -483,6 +483,9 @@ export function GanttClient({
             setSaveError("Errore salvataggio. La modifica non è stata salvata.");
             setLocalTaskOverrides((prev) => { const n = { ...prev }; delete n[capturedTaskId]; return n; });
           }
+        }).catch((err) => {
+          console.error("Errore caricamento grafo dipendenze:", err);
+          setSaveError("Impossibile caricare il grafo delle dipendenze. Riprova.");
         });
       }
 
