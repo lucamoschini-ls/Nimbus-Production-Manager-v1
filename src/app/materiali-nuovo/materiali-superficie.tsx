@@ -212,8 +212,8 @@ export function MaterialiSuperficie({
       const ordinato = disp?.qta_ordinata ?? 0;
       const disponibile = magazzino + recupero + ordinato;
       const fabbisogno = c.quantita_totale_necessaria ?? 0;
-      const da_comprare = c.quantita_da_acquistare ?? 0;
-      const costo = c.costo_stimato ?? 0;
+      const da_comprare = Math.max(0, fabbisogno - disponibile);
+      const costo = da_comprare * (c.prezzo_unitario ?? 0);
 
       let semaforo: "verde" | "giallo" | "rosso" = "verde";
       if (fabbisogno > 0 && da_comprare > 0) {
