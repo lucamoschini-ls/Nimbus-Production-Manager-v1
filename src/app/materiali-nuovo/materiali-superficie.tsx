@@ -340,6 +340,24 @@ export function MaterialiSuperficie({
     return map;
   }, [materialiTask]);
 
+  // Earliest task date per catalog item (for raggruppa-per-data)
+  const materialeEarliestDate = useMemo(() => {
+    const map = new Map<string, string>();
+    taskLinksByCatalogo.forEach((links, catalogoId) => {
+      let earliest: string | null = null;
+      for (const link of links) {
+        const task = taskMap.get(link.task_id);
+        if (task?.data_inizio) {
+          if (!earliest || task.data_inizio < earliest) {
+            earliest = task.data_inizio;
+          }
+        }
+      }
+      if (earliest) map.set(catalogoId, earliest);
+    });
+    return map;
+  }, [taskLinksByCatalogo, taskMap]);
+
   const drawerData: DrawerData = useMemo(
     () => ({
       materialiMap,
@@ -467,6 +485,7 @@ export function MaterialiSuperficie({
         <ListaMateriali
           state={state}
           materiali={materialiFiltrati}
+          materialeEarliestDate={materialeEarliestDate}
           onOpenDrawer={aprireDrawer}
           onUpdateDisp={handleUpdateDisp}
         />

@@ -16,6 +16,7 @@ const SEMAFORO_COLORS = {
 interface Props {
   state: SuperficieState;
   materiali: MaterialeArricchito[];
+  materialeEarliestDate: Map<string, string>;
   onOpenDrawer: (tipo: "materiale" | "task" | "calcoli", id: string) => void;
   onUpdateDisp: (
     catalogoId: string,
@@ -109,9 +110,29 @@ function InlineEditor({
 
 // ---- Main component ----
 
+function formatDateGroup(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("it-IT", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function isToday(dateStr: string): boolean {
+  const d = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
 export function ListaMateriali({
   state,
   materiali,
+  materialeEarliestDate,
   onOpenDrawer,
   onUpdateDisp,
 }: Props) {
@@ -131,8 +152,7 @@ export function ListaMateriali({
     return () => window.removeEventListener("keydown", handler, true);
   }, [editingId]);
 
-  const isGrouped =
-    state.raggruppa !== "nessuno" && state.raggruppa !== "data";
+  const isGrouped = state.raggruppa !== "nessuno";
 
   const groups = useMemo(() => {
     if (!isGrouped) return null;
@@ -152,6 +172,9 @@ export function ListaMateriali({
         case "zona":
           k = "Tutte le zone";
           break;
+        case "data":
+          k = materialeEarliestDate.get(m.id) || "senza-data";
+          break;
         default:
           k = "—";
       }
@@ -159,7 +182,7 @@ export function ListaMateriali({
       map.get(k)!.push(m);
     }
     return map;
-  }, [materiali, state.raggruppa, isGrouped]);
+  }, [materiali, state.raggruppa, isGrouped, materialeEarliestDate]);
 
   const toggleGroup = (k: string) => {
     setCollapsed((prev) => {
@@ -250,15 +273,23 @@ export function ListaMateriali({
     );
   };
 
-  const sortedGroups = groups
-    ? Array.from(groups.entries()).sort((a, b) => {
-        if (a[0] === "Senza categoria" || a[0] === "Non classificato")
-          return 1;
-        if (b[0] === "Senza categoria" || b[0] === "Non classificato")
-          return -1;
+  const isDateGrouping = state.raggruppa === "data";
+
+  const sortedGroups = useMemo(() => {
+    if (!groups) return null;
+    return Array.from(groups.entries()).sort((a, b) => {
+      const tailKeys = ["Senza categoria", "Non classificato", "senza-data"];
+      const aIsTail = tailKeys.includes(a[0]);
+      const bIsTail = tailKeys.includes(b[0]);
+      if (aIsTail && !bIsTail) return 1;
+      if (!aIsTail && bIsTail) return -1;
+      if (isDateGrouping) {
+        // Chronological sort for dates
         return a[0].localeCompare(b[0]);
-      })
-    : null;
+      }
+      return a[0].localeCompare(b[0]);
+    });
+  }, [groups, isDateGrouping]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-white">
@@ -294,8 +325,19 @@ export function ListaMateriali({
                   <ChevronDown size={14} className="text-[#86868b]" />
                 )}
                 <span className="text-[12px] font-semibold text-[#1d1d1f] uppercase">
-                  {groupName}
+                  {isDateGrouping && groupName !== "senza-data"
+                    ? formatDateGroup(groupName)
+                    : groupName === "senza-data"
+                      ? "Senza data"
+                      : groupName}
                 </span>
+                {isDateGrouping &&
+                  groupName !== "senza-data" &&
+                  isToday(groupName) && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                      oggi
+                    </span>
+                  )}
                 <span className="text-[10px] text-[#86868b]">
                   ({items.length})
                 </span>
