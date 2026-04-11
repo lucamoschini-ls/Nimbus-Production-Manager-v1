@@ -68,9 +68,27 @@ Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica qu
 - 4 contenitori: BussolaBar, PannelloControllo, ListaMateriali, DrawerStack
 - Stato in URL via hook `use-superficie-state.ts` (raggruppamento, filtri, finestra, drawer aperti)
 - Regola dei tre drawer implementata: max 3 affiancati, quarto scaccia il primo
-- Dati ancora FINTI: la lista e hard-coded, i drawer sono placeholder
+- Dati REALI dal mattone 4 (vedi sotto)
+- Drawer ancora placeholder (mattoni 5-7)
 - Pagina /materiali classica conservata per ora
-- DA FARE nei mattoni 4-9: dati veri, lista dinamica, drawer reali, calcoli, preset funzionanti
+- DA FARE nei mattoni 5-9: drawer reali, editor disponibilita, calcoli, preset funzionanti
+
+## Superficie con dati reali — post mattone 4
+
+- Server component (`page.tsx`) fetcha 7 tabelle: catalogo_materiali, materiali, materiali_disponibilita, calcolatore_driver, calcolatore_coefficienti, fornitori, task
+- `select("*")` per catalogo_materiali perche le colonne `unita` e `prezzo_unitario` (da migration CATALOGO_ACQUISTI) non esistono nella tabella reale. Fallback a `unita_default` e `prezzo_unitario_default`
+- Client component chiama `calcolaMateriali()` in useMemo (risultato conservato per mattoni futuri)
+- Fabbisogno = SUM(materiali.quantita) raggruppato per catalogo_id (quantita reali assegnate alle task)
+- Semaforo: verde se fabbisogno <= disponibile, giallo se ordinato > 0, rosso altrimenti
+- Disponibilita tutta a zero per ora → 82 item in rosso su 192
+- Contatori bussola reattivi (voci, rossi, costo) ricalcolati sulla lista filtrata
+- Raggruppamento per fornitore e categoria_comp funzionante con header cliccabili
+- Filtro fornitore multi-select (4 fornitori distinti nel catalogo)
+- Filtro categoria comportamentale (5 toggle). NULL = mostrato solo se nessun toggle attivo
+- Ricerca testuale case-insensitive su nome materiale
+- Filtro finestra temporale (oggi/settimana/stagione) basato su data_inizio delle task collegate
+- Warning banner quando raggruppato per categoria: "I materiali non sono ancora classificati..."
+- Tipo `MaterialeArricchito` esportato da `materiali-superficie.tsx` per uso nei componenti figli
 
 ## Browser testing — Playwright MCP
 
