@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { Search } from "lucide-react";
 import type {
   Raggruppamento,
@@ -53,16 +54,35 @@ export function PannelloControllo({
   onCerca,
   onPreset,
 }: Props) {
+  const searchRef = useRef<HTMLInputElement>(null);
+
   const presetMatch = (p: string) => {
+    const noSearch = !state.cerca;
+    const noForn = state.filtriForn.length === 0;
     if (p === "acquisti")
-      return state.raggruppa === "fornitore" && state.finestra === "settimana";
+      return (
+        state.raggruppa === "fornitore" &&
+        state.finestra === "settimana" &&
+        state.filtriCat.length === 1 &&
+        state.filtriCat[0] === "consumo" &&
+        noForn &&
+        noSearch
+      );
     if (p === "cantiere")
-      return state.raggruppa === "zona" && state.finestra === "oggi";
+      return (
+        state.raggruppa === "zona" &&
+        state.finestra === "oggi" &&
+        state.filtriCat.length === 0 &&
+        noForn &&
+        noSearch
+      );
     if (p === "catalogo")
       return (
         state.raggruppa === "nessuno" &&
         state.finestra === "stagione" &&
-        state.filtriCat.length === 0
+        state.filtriCat.length === 0 &&
+        noForn &&
+        noSearch
       );
     return false;
   };
@@ -78,7 +98,12 @@ export function PannelloControllo({
           {(["acquisti", "cantiere", "catalogo"] as const).map((p) => (
             <button
               key={p}
-              onClick={() => onPreset(p)}
+              onClick={() => {
+                onPreset(p);
+                if (p === "catalogo") {
+                  setTimeout(() => searchRef.current?.focus(), 100);
+                }
+              }}
               className={`flex-1 text-[11px] font-medium px-2 py-1.5 rounded-lg border transition-colors capitalize ${presetMatch(p) ? "bg-[#1d1d1f] text-white border-[#1d1d1f]" : "bg-white text-[#86868b] border-[#e5e5e7] hover:text-[#1d1d1f]"}`}
             >
               {p === "cantiere"
@@ -199,6 +224,7 @@ export function PannelloControllo({
           <input
             value={state.cerca}
             onChange={(e) => onCerca(e.target.value)}
+            ref={searchRef}
             placeholder="Cerca materiale..."
             className="w-full text-[12px] border border-[#e5e5e7] rounded-lg pl-8 pr-3 py-1.5 outline-none focus:ring-1 focus:ring-ring bg-white"
           />
