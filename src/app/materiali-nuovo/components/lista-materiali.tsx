@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import type { SuperficieState } from "../hooks/use-superficie-state";
 import type { MaterialeArricchito } from "../materiali-superficie";
+import { aggiornaDisponibilita } from "../actions";
 
 const SEMAFORO_COLORS = {
   rosso: "bg-red-500",
@@ -15,10 +17,115 @@ interface Props {
   state: SuperficieState;
   materiali: MaterialeArricchito[];
   onOpenDrawer: (tipo: "materiale" | "task" | "calcoli", id: string) => void;
+  onUpdateDisp: (
+    catalogoId: string,
+    campo: "qta_magazzino" | "qta_recupero" | "qta_ordinata",
+    valore: number
+  ) => void;
 }
 
-export function ListaMateriali({ state, materiali, onOpenDrawer }: Props) {
+// ---- Inline editor ----
+
+function InlineEditor({
+  mat,
+  onUpdate,
+}: {
+  mat: MaterialeArricchito;
+  onUpdate: (
+    campo: "qta_magazzino" | "qta_recupero" | "qta_ordinata",
+    valore: number
+  ) => void;
+}) {
+  const [values, setValues] = useState({
+    qta_magazzino: mat.qta_magazzino,
+    qta_recupero: mat.qta_recupero,
+    qta_ordinata: mat.qta_ordinata,
+  });
+
+  const handleBlur = async (
+    campo: "qta_magazzino" | "qta_recupero" | "qta_ordinata"
+  ) => {
+    const val = Math.max(0, values[campo]);
+    if (val === mat[campo]) return; // no change
+    try {
+      await aggiornaDisponibilita(mat.id, campo, val);
+      onUpdate(campo, val);
+    } catch (e) {
+      toast.error("Errore salvataggio", {
+        description: (e as Error).message,
+      });
+      // Revert local value
+      setValues((prev) => ({ ...prev, [campo]: mat[campo] }));
+    }
+  };
+
+  const handleChange = (
+    campo: "qta_magazzino" | "qta_recupero" | "qta_ordinata",
+    raw: string
+  ) => {
+    setValues((prev) => ({
+      ...prev,
+      [campo]: raw === "" ? 0 : parseFloat(raw) || 0,
+    }));
+  };
+
+  return (
+    <div
+      className="flex gap-3 items-end px-4 pb-3 pt-2 bg-[#fafafa]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {(
+        [
+          ["qta_magazzino", "Magazzino"],
+          ["qta_recupero", "Recupero"],
+          ["qta_ordinata", "Ordinato"],
+        ] as const
+      ).map(([campo, label]) => (
+        <div key={campo} className="flex-1">
+          <label className="text-[9px] text-[#86868b] font-medium block mb-0.5">
+            {label}
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={values[campo]}
+            onChange={(e) => handleChange(campo, e.target.value)}
+            onBlur={() => handleBlur(campo)}
+            className="w-full text-[12px] border border-[#e5e5e7] rounded px-2 py-1 bg-white outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+      ))}
+      <div className="text-[10px] text-[#86868b] pb-1.5 flex-shrink-0">
+        {mat.unita}
+      </div>
+    </div>
+  );
+}
+
+// ---- Main component ----
+
+export function ListaMateriali({
+  state,
+  materiali,
+  onOpenDrawer,
+  onUpdateDisp,
+}: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Esc closes editor (capture phase, before DrawerStack handler)
+  useEffect(() => {
+    if (!editingId) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        setEditingId(null);
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [editingId]);
 
   const isGrouped =
     state.raggruppa !== "nessuno" && state.raggruppa !== "data";
@@ -59,42 +166,85 @@ export function ListaMateriali({ state, materiali, onOpenDrawer }: Props) {
     });
   };
 
+  const toggleEditor = (id: string) => {
+    setEditingId((prev) => (prev === id ? null : id));
+  };
+
   const showCategoriaWarning = state.raggruppa === "categoria_comp";
 
-  const renderItem = (m: MaterialeArricchito) => (
-    <button
-      key={m.id}
-      onClick={() => onOpenDrawer("materiale", m.id)}
-      className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-[#f5f5f7] transition-colors border-b border-[#f0f0f0] last:border-0"
-    >
-      <span
-        className={`w-2 h-2 rounded-full flex-shrink-0 ${SEMAFORO_COLORS[m.stato_semaforo]}`}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] text-[#1d1d1f] font-medium truncate">
-          {m.nome}
-        </div>
-        <div className="text-[10px] text-[#86868b]">
-          {m.fornitore} · {m.categoria_comp || "non classificato"}
-        </div>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <div className="text-[13px] font-medium text-[#1d1d1f]">
-          {m.fabbisogno_calcolato.toLocaleString("it-IT")} {m.unita}
-        </div>
-        {m.da_comprare > 0 && (
-          <div className="text-[10px] text-red-500 font-medium">
-            da comprare: {m.da_comprare.toLocaleString("it-IT")}
+  const renderItem = (m: MaterialeArricchito) => {
+    const isEditing = editingId === m.id;
+    const hasDisp =
+      m.qta_magazzino > 0 || m.qta_recupero > 0 || m.qta_ordinata > 0;
+
+    return (
+      <div key={m.id} className="border-b border-[#f0f0f0] last:border-0">
+        {/* Row */}
+        <div
+          onClick={() => onOpenDrawer("materiale", m.id)}
+          className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-[#f5f5f7] transition-colors cursor-pointer"
+        >
+          {/* Pallino cliccabile */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleEditor(m.id);
+            }}
+            className={`p-1 -m-1 rounded-full transition-colors ${isEditing ? "bg-gray-200" : "hover:bg-gray-200"}`}
+            title="Modifica disponibilita"
+          >
+            <span
+              className={`block w-2.5 h-2.5 rounded-full ${SEMAFORO_COLORS[m.stato_semaforo]}`}
+            />
+          </button>
+
+          {/* Name + info */}
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] text-[#1d1d1f] font-medium truncate">
+              {m.nome}
+            </div>
+            <div className="text-[10px] text-[#86868b]">
+              {m.fornitore} · {m.categoria_comp || "non classificato"}
+            </div>
+            {hasDisp && (
+              <div className="text-[9px] text-[#b0b0b5] mt-0.5">
+                mag {m.qta_magazzino} · rec {m.qta_recupero} · ord{" "}
+                {m.qta_ordinata}
+              </div>
+            )}
           </div>
+
+          {/* Quantity */}
+          <div className="text-right flex-shrink-0">
+            <div className="text-[13px] font-medium text-[#1d1d1f]">
+              {m.fabbisogno_calcolato.toLocaleString("it-IT")} {m.unita}
+            </div>
+            {m.da_comprare > 0 && (
+              <div className="text-[10px] text-red-500 font-medium">
+                da comprare: {m.da_comprare.toLocaleString("it-IT")}
+              </div>
+            )}
+          </div>
+
+          {/* Cost */}
+          <div className="text-[11px] text-[#86868b] w-16 text-right flex-shrink-0">
+            {m.costo_da_comprare > 0
+              ? `${m.costo_da_comprare.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €`
+              : "0 €"}
+          </div>
+        </div>
+
+        {/* Inline editor */}
+        {isEditing && (
+          <InlineEditor
+            key={m.id}
+            mat={m}
+            onUpdate={(campo, valore) => onUpdateDisp(m.id, campo, valore)}
+          />
         )}
       </div>
-      <div className="text-[11px] text-[#86868b] w-16 text-right flex-shrink-0">
-        {m.costo_da_comprare > 0
-          ? `${m.costo_da_comprare.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €`
-          : "0 €"}
-      </div>
-    </button>
-  );
+    );
+  };
 
   const sortedGroups = groups
     ? Array.from(groups.entries()).sort((a, b) => {

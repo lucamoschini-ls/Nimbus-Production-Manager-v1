@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { BussolaBar } from "./components/bussola-bar";
 import { PannelloControllo } from "./components/pannello-controllo";
 import { ListaMateriali } from "./components/lista-materiali";
@@ -161,6 +161,24 @@ export function MaterialiSuperficie({
     applicaPreset,
   } = useSuperficieState();
 
+  // Local availability state — updated by inline editor, drives recomputation
+  const [dispState, setDispState] = useState(disponibilita);
+
+  const handleUpdateDisp = useCallback(
+    (
+      catalogoId: string,
+      campo: "qta_magazzino" | "qta_recupero" | "qta_ordinata",
+      valore: number
+    ) => {
+      setDispState((prev) =>
+        prev.map((d) =>
+          d.catalogo_id === catalogoId ? { ...d, [campo]: valore } : d
+        )
+      );
+    },
+    []
+  );
+
   // Call calcolaMateriali (kept for future drawer use)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const calcoloResults = useMemo(() => {
@@ -182,7 +200,7 @@ export function MaterialiSuperficie({
     for (const e of catalogoExtra) extraMap.set(e.id, e);
 
     const dispMap = new Map<string, DisponibilitaRow>();
-    for (const d of disponibilita) {
+    for (const d of dispState) {
       if (d.catalogo_id) dispMap.set(d.catalogo_id, d);
     }
 
@@ -222,7 +240,7 @@ export function MaterialiSuperficie({
         stato_semaforo: semaforo,
       };
     });
-  }, [catalogoView, catalogoExtra, disponibilita]);
+  }, [catalogoView, catalogoExtra, dispState]);
 
   // ---- Drawer data lookups ----
 
@@ -399,6 +417,7 @@ export function MaterialiSuperficie({
           state={state}
           materiali={materialiFiltrati}
           onOpenDrawer={aprireDrawer}
+          onUpdateDisp={handleUpdateDisp}
         />
         <DrawerStack
           drawers={state.drawers}
