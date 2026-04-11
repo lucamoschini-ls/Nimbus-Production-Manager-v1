@@ -47,15 +47,19 @@ function InlineEditor({
   ) => {
     const val = Math.max(0, values[campo]);
     if (val === mat[campo]) return; // no change
+
+    // Optimistic update — UI reacts immediately, no wait for network
+    onUpdate(campo, val);
+
     try {
       await aggiornaDisponibilita(mat.id, campo, val);
-      onUpdate(campo, val);
     } catch (e) {
+      // Revert on failure
+      onUpdate(campo, mat[campo]);
+      setValues((prev) => ({ ...prev, [campo]: mat[campo] }));
       toast.error("Errore salvataggio", {
         description: (e as Error).message,
       });
-      // Revert local value
-      setValues((prev) => ({ ...prev, [campo]: mat[campo] }));
     }
   };
 
