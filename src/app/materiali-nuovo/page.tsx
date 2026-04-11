@@ -19,7 +19,7 @@ async function MaterialiData() {
     supabase
       .from("catalogo_materiali")
       .select("id, categoria_comportamentale, tipo_voce"),
-    supabase.from("materiali").select("task_id, catalogo_id"),
+    supabase.from("materiali").select("task_id, catalogo_id, quantita, unita"),
     supabase
       .from("materiali_disponibilita")
       .select("catalogo_id, qta_magazzino, qta_recupero, qta_ordinata"),
@@ -29,7 +29,11 @@ async function MaterialiData() {
       .select("chiave, valore")
       .order("ordine"),
     supabase.from("fornitori").select("id, nome"),
-    supabase.from("task").select("id, data_inizio"),
+    supabase
+      .from("task")
+      .select(
+        "id, titolo, tipologia, stato, stato_calcolato, data_inizio, data_fine, durata_ore, numero_persone, fornitore_id, lavorazione:lavorazioni(nome, zona:zone(nome))"
+      ),
   ]);
 
   return (

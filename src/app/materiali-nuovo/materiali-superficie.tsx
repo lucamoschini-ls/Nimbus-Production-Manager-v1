@@ -10,7 +10,6 @@ import { calcolaMateriali } from "@/lib/calcolo-materiali";
 
 // ---- Raw data types (from server) ----
 
-/** Row from v_catalogo_acquisti view — canonical source for unit, price, aggregates */
 interface CatalogoViewRow {
   id: string;
   nome: string;
@@ -27,17 +26,17 @@ interface CatalogoViewRow {
   costo_stimato: number | null;
 }
 
-/** Extra columns from catalogo_materiali not in the view */
 interface CatalogoExtraRow {
   id: string;
   categoria_comportamentale: string | null;
   tipo_voce: string;
 }
 
-/** Task link — only for time filtering */
 interface MaterialeTaskRow {
   task_id: string;
   catalogo_id: string | null;
+  quantita: number | null;
+  unita: string | null;
 }
 
 interface DisponibilitaRow {
@@ -57,10 +56,21 @@ interface CoefficienteRow {
 }
 interface TaskRow {
   id: string;
+  titolo: string;
+  tipologia: string | null;
+  stato: string;
+  stato_calcolato: string;
   data_inizio: string | null;
+  data_fine: string | null;
+  durata_ore: number | null;
+  numero_persone: number | null;
+  fornitore_id: string | null;
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  lavorazione: any; // PostgREST returns object or array depending on FK inference
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }
 
-// ---- Enriched material type (exported for child components) ----
+// ---- Exported types for child components ----
 
 export interface MaterialeArricchito {
   id: string;
@@ -71,6 +81,7 @@ export interface MaterialeArricchito {
   tipo_voce: string;
   unita: string;
   prezzo_unitario: number;
+  provenienza: string;
   fabbisogno_calcolato: number;
   qta_magazzino: number;
   qta_recupero: number;
@@ -79,6 +90,40 @@ export interface MaterialeArricchito {
   da_comprare: number;
   costo_da_comprare: number;
   stato_semaforo: "verde" | "giallo" | "rosso";
+}
+
+export interface TaskInfo {
+  id: string;
+  titolo: string;
+  tipologia: string | null;
+  stato: string;
+  stato_calcolato: string;
+  data_inizio: string | null;
+  data_fine: string | null;
+  durata_ore: number | null;
+  numero_persone: number | null;
+  fornitore_id: string | null;
+  lavorazione_nome: string;
+  zona_nome: string;
+}
+
+export interface TaskLink {
+  task_id: string;
+  quantita: number | null;
+  unita: string | null;
+}
+
+export interface MaterialLink {
+  catalogo_id: string;
+  quantita: number | null;
+  unita: string | null;
+}
+
+export interface DrawerData {
+  materialiMap: Map<string, MaterialeArricchito>;
+  taskMap: Map<string, TaskInfo>;
+  taskLinksByCatalogo: Map<string, TaskLink[]>;
+  matLinksByTask: Map<string, MaterialLink[]>;
 }
 
 // ---- Props ----
@@ -116,14 +161,7 @@ export function MaterialiSuperficie({
     applicaPreset,
   } = useSuperficieState();
 
-  // Task date lookup
-  const taskDateMap = useMemo(() => {
-    const map = new Map<string, string | null>();
-    for (const t of tasks) map.set(t.id, t.data_inizio);
-    return map;
-  }, [tasks]);
-
-  // Call calcolaMateriali (mattone 2 function — kept for future drawer use)
+  // Call calcolaMateriali (kept for future drawer use)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const calcoloResults = useMemo(() => {
     try {
@@ -140,11 +178,9 @@ export function MaterialiSuperficie({
 
   // Build enriched array from v_catalogo_acquisti + extras
   const tuttiMateriali = useMemo(() => {
-    // Index extra data (categoria, tipo_voce) by id
     const extraMap = new Map<string, CatalogoExtraRow>();
     for (const e of catalogoExtra) extraMap.set(e.id, e);
 
-    // Index disponibilita by catalogo_id
     const dispMap = new Map<string, DisponibilitaRow>();
     for (const d of disponibilita) {
       if (d.catalogo_id) dispMap.set(d.catalogo_id, d);
@@ -175,6 +211,7 @@ export function MaterialiSuperficie({
         tipo_voce: extra?.tipo_voce || "standard",
         unita: c.unita || "pz",
         prezzo_unitario: c.prezzo_unitario ?? 0,
+        provenienza: c.provenienza_default || "—",
         fabbisogno_calcolato: fabbisogno,
         qta_magazzino: magazzino,
         qta_recupero: recupero,
@@ -187,7 +224,85 @@ export function MaterialiSuperficie({
     });
   }, [catalogoView, catalogoExtra, disponibilita]);
 
-  // Catalog → task links for time filtering
+  // ---- Drawer data lookups ----
+
+  const taskMap = useMemo(() => {
+    const map = new Map<string, TaskInfo>();
+    for (const t of tasks) {
+      // PostgREST may return joins as object or array
+      const lav = Array.isArray(t.lavorazione)
+        ? t.lavorazione[0]
+        : t.lavorazione;
+      const zona = lav
+        ? Array.isArray(lav.zona)
+          ? lav.zona[0]
+          : lav.zona
+        : null;
+      map.set(t.id, {
+        id: t.id,
+        titolo: t.titolo,
+        tipologia: t.tipologia,
+        stato: t.stato,
+        stato_calcolato: t.stato_calcolato,
+        data_inizio: t.data_inizio,
+        data_fine: t.data_fine,
+        durata_ore: t.durata_ore,
+        numero_persone: t.numero_persone,
+        fornitore_id: t.fornitore_id,
+        lavorazione_nome: lav?.nome ?? "—",
+        zona_nome: zona?.nome ?? "—",
+      });
+    }
+    return map;
+  }, [tasks]);
+
+  const materialiMap = useMemo(() => {
+    const map = new Map<string, MaterialeArricchito>();
+    for (const m of tuttiMateriali) map.set(m.id, m);
+    return map;
+  }, [tuttiMateriali]);
+
+  const taskLinksByCatalogo = useMemo(() => {
+    const map = new Map<string, TaskLink[]>();
+    for (const m of materialiTask) {
+      if (!m.catalogo_id) continue;
+      if (!map.has(m.catalogo_id)) map.set(m.catalogo_id, []);
+      map.get(m.catalogo_id)!.push({
+        task_id: m.task_id,
+        quantita: m.quantita,
+        unita: m.unita,
+      });
+    }
+    return map;
+  }, [materialiTask]);
+
+  const matLinksByTask = useMemo(() => {
+    const map = new Map<string, MaterialLink[]>();
+    for (const m of materialiTask) {
+      if (!m.catalogo_id) continue;
+      if (!map.has(m.task_id)) map.set(m.task_id, []);
+      map.get(m.task_id)!.push({
+        catalogo_id: m.catalogo_id,
+        quantita: m.quantita,
+        unita: m.unita,
+      });
+    }
+    return map;
+  }, [materialiTask]);
+
+  const drawerData: DrawerData = useMemo(
+    () => ({ materialiMap, taskMap, taskLinksByCatalogo, matLinksByTask }),
+    [materialiMap, taskMap, taskLinksByCatalogo, matLinksByTask]
+  );
+
+  // ---- Time filtering ----
+
+  const taskDateMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const t of tasks) map.set(t.id, t.data_inizio);
+    return map;
+  }, [tasks]);
+
   const catalogoTaskIds = useMemo(() => {
     const map = new Map<string, Set<string>>();
     for (const m of materialiTask) {
@@ -198,17 +313,16 @@ export function MaterialiSuperficie({
     return map;
   }, [materialiTask]);
 
-  // Apply all filters
+  // ---- Filters ----
+
   const materialiFiltrati = useMemo(() => {
     let result = tuttiMateriali;
 
-    // Time window filter
     if (state.finestra !== "stagione") {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       let start: Date;
       let end: Date;
-
       if (state.finestra === "oggi") {
         start = today;
         end = new Date(today);
@@ -221,11 +335,10 @@ export function MaterialiSuperficie({
         end = new Date(start);
         end.setDate(start.getDate() + 7);
       }
-
       result = result.filter((m) => {
-        const taskIds = catalogoTaskIds.get(m.id);
-        if (!taskIds) return false;
-        return Array.from(taskIds).some((tid) => {
+        const tIds = catalogoTaskIds.get(m.id);
+        if (!tIds) return false;
+        return Array.from(tIds).some((tid) => {
           const ds = taskDateMap.get(tid);
           if (!ds) return false;
           const d = new Date(ds);
@@ -234,25 +347,19 @@ export function MaterialiSuperficie({
       });
     }
 
-    // Category filter
     if (state.filtriCat.length > 0) {
       result = result.filter(
         (m) =>
           m.categoria_comp != null && state.filtriCat.includes(m.categoria_comp)
       );
     }
-
-    // Fornitore filter
     if (state.filtriForn.length > 0) {
       result = result.filter((m) => state.filtriForn.includes(m.fornitore));
     }
-
-    // Search
     if (state.cerca) {
       const q = state.cerca.toLowerCase();
       result = result.filter((m) => m.nome.toLowerCase().includes(q));
     }
-
     return result;
   }, [
     tuttiMateriali,
@@ -264,7 +371,6 @@ export function MaterialiSuperficie({
     taskDateMap,
   ]);
 
-  // Distinct fornitore names from catalog data
   const fornitoriDistinti = useMemo(() => {
     const set = new Set<string>();
     for (const m of tuttiMateriali) set.add(m.fornitore);
@@ -296,6 +402,7 @@ export function MaterialiSuperficie({
         />
         <DrawerStack
           drawers={state.drawers}
+          drawerData={drawerData}
           onClose={chiudereDrawer}
           onCloseUltimo={chiudereUltimoDrawer}
           onOpenDrawer={aprireDrawer}
