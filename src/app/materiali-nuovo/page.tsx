@@ -6,16 +6,20 @@ async function MaterialiData() {
   const supabase = await createClient();
 
   const [
-    { data: catalogo },
+    { data: catalogoView },
+    { data: catalogoExtra },
     { data: materialiTask },
     { data: disponibilita },
     { data: driver },
     { data: coefficienti },
-    , // fornitori — fetched, reserved for future mattoni
+    , // fornitori — reserved for future mattoni
     { data: tasks },
   ] = await Promise.all([
-    supabase.from("catalogo_materiali").select("*"),
-    supabase.from("materiali").select("id, task_id, catalogo_id, quantita, unita"),
+    supabase.from("v_catalogo_acquisti").select("*").order("nome"),
+    supabase
+      .from("catalogo_materiali")
+      .select("id, categoria_comportamentale, tipo_voce"),
+    supabase.from("materiali").select("task_id, catalogo_id"),
     supabase
       .from("materiali_disponibilita")
       .select("catalogo_id, qta_magazzino, qta_recupero, qta_ordinata"),
@@ -30,7 +34,8 @@ async function MaterialiData() {
 
   return (
     <MaterialiSuperficie
-      catalogo={catalogo || []}
+      catalogoView={catalogoView || []}
+      catalogoExtra={catalogoExtra || []}
       materialiTask={materialiTask || []}
       disponibilita={disponibilita || []}
       driver={driver || []}

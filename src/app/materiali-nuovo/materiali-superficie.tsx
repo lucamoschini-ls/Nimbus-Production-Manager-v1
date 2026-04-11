@@ -10,23 +10,34 @@ import { calcolaMateriali } from "@/lib/calcolo-materiali";
 
 // ---- Raw data types (from server) ----
 
-interface CatalogoRow {
+/** Row from v_catalogo_acquisti view — canonical source for unit, price, aggregates */
+interface CatalogoViewRow {
   id: string;
   nome: string;
-  categoria_comportamentale: string | null;
-  tipologia_materiale: string | null;
-  tipo_voce: string;
-  unita_default: string | null;
-  prezzo_unitario_default: number | null;
+  tipologia_materiale: string;
+  unita: string | null;
+  prezzo_unitario: number | null;
+  quantita_disponibile_globale: number;
   fornitore_preferito: string | null;
+  provenienza_default: string | null;
+  note: string | null;
+  quantita_totale_necessaria: number;
+  num_task: number;
+  quantita_da_acquistare: number;
+  costo_stimato: number | null;
 }
 
-interface MaterialeTaskRow {
+/** Extra columns from catalogo_materiali not in the view */
+interface CatalogoExtraRow {
   id: string;
+  categoria_comportamentale: string | null;
+  tipo_voce: string;
+}
+
+/** Task link — only for time filtering */
+interface MaterialeTaskRow {
   task_id: string;
   catalogo_id: string | null;
-  quantita: number | null;
-  unita: string | null;
 }
 
 interface DisponibilitaRow {
@@ -73,7 +84,8 @@ export interface MaterialeArricchito {
 // ---- Props ----
 
 interface Props {
-  catalogo: CatalogoRow[];
+  catalogoView: CatalogoViewRow[];
+  catalogoExtra: CatalogoExtraRow[];
   materialiTask: MaterialeTaskRow[];
   disponibilita: DisponibilitaRow[];
   driver: DriverRow[];
@@ -82,7 +94,8 @@ interface Props {
 }
 
 export function MaterialiSuperficie({
-  catalogo,
+  catalogoView,
+  catalogoExtra,
   materialiTask,
   disponibilita,
   driver,
@@ -110,8 +123,7 @@ export function MaterialiSuperficie({
     return map;
   }, [tasks]);
 
-  // Call calcolaMateriali (mattone 2 function — required by architecture)
-  // Result used by future mattoni for formula-based fabbisogno
+  // Call calcolaMateriali (mattone 2 function — kept for future drawer use)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const calcoloResults = useMemo(() => {
     try {
@@ -126,59 +138,31 @@ export function MaterialiSuperficie({
     }
   }, [driver, coefficienti]);
 
-  // Build full enriched array from DB data
+  // Build enriched array from v_catalogo_acquisti + extras
   const tuttiMateriali = useMemo(() => {
+    // Index extra data (categoria, tipo_voce) by id
+    const extraMap = new Map<string, CatalogoExtraRow>();
+    for (const e of catalogoExtra) extraMap.set(e.id, e);
+
     // Index disponibilita by catalogo_id
     const dispMap = new Map<string, DisponibilitaRow>();
     for (const d of disponibilita) {
       if (d.catalogo_id) dispMap.set(d.catalogo_id, d);
     }
 
-    // Sum materiali quantities + determine unit per catalogo_id
-    const fabbisognoMap = new Map<string, number>();
-    const unitaCounts = new Map<string, Map<string, number>>();
-    for (const m of materialiTask) {
-      if (!m.catalogo_id) continue;
-      if (m.quantita != null) {
-        fabbisognoMap.set(
-          m.catalogo_id,
-          (fabbisognoMap.get(m.catalogo_id) || 0) + m.quantita
-        );
-      }
-      if (m.unita) {
-        if (!unitaCounts.has(m.catalogo_id))
-          unitaCounts.set(m.catalogo_id, new Map());
-        const counts = unitaCounts.get(m.catalogo_id)!;
-        counts.set(m.unita, (counts.get(m.unita) || 0) + 1);
-      }
-    }
-    // Pick most frequent unita per catalog item
-    const unitaMap = new Map<string, string>();
-    unitaCounts.forEach((counts, catId) => {
-      let best = "";
-      let bestN = 0;
-      counts.forEach((n, u) => {
-        if (n > bestN) {
-          bestN = n;
-          best = u;
-        }
-      });
-      if (best) unitaMap.set(catId, best);
-    });
-
-    return catalogo.map((c): MaterialeArricchito => {
-      const fabbisogno = fabbisognoMap.get(c.id) || 0;
+    return catalogoView.map((c): MaterialeArricchito => {
+      const extra = extraMap.get(c.id);
       const disp = dispMap.get(c.id);
       const magazzino = disp?.qta_magazzino ?? 0;
       const recupero = disp?.qta_recupero ?? 0;
       const ordinato = disp?.qta_ordinata ?? 0;
       const disponibile = magazzino + recupero + ordinato;
-      const da_comprare = Math.max(0, fabbisogno - disponibile);
-      const prezzo = c.prezzo_unitario_default ?? 0;
-      const costo = da_comprare * prezzo;
+      const fabbisogno = c.quantita_totale_necessaria ?? 0;
+      const da_comprare = c.quantita_da_acquistare ?? 0;
+      const costo = c.costo_stimato ?? 0;
 
       let semaforo: "verde" | "giallo" | "rosso" = "verde";
-      if (fabbisogno > 0 && fabbisogno > disponibile) {
+      if (fabbisogno > 0 && da_comprare > 0) {
         semaforo = ordinato > 0 ? "giallo" : "rosso";
       }
 
@@ -186,11 +170,11 @@ export function MaterialiSuperficie({
         id: c.id,
         nome: c.nome,
         fornitore: c.fornitore_preferito || "Da assegnare",
-        categoria_comp: c.categoria_comportamentale,
+        categoria_comp: extra?.categoria_comportamentale ?? null,
         tipologia: c.tipologia_materiale ?? null,
-        tipo_voce: c.tipo_voce || "standard",
-        unita: unitaMap.get(c.id) || c.unita_default || "pz",
-        prezzo_unitario: prezzo,
+        tipo_voce: extra?.tipo_voce || "standard",
+        unita: c.unita || "pz",
+        prezzo_unitario: c.prezzo_unitario ?? 0,
         fabbisogno_calcolato: fabbisogno,
         qta_magazzino: magazzino,
         qta_recupero: recupero,
@@ -201,7 +185,7 @@ export function MaterialiSuperficie({
         stato_semaforo: semaforo,
       };
     });
-  }, [catalogo, materialiTask, disponibilita]);
+  }, [catalogoView, catalogoExtra, disponibilita]);
 
   // Catalog → task links for time filtering
   const catalogoTaskIds = useMemo(() => {
@@ -230,7 +214,6 @@ export function MaterialiSuperficie({
         end = new Date(today);
         end.setDate(end.getDate() + 1);
       } else {
-        // settimana
         const day = now.getDay();
         const mondayOff = day === 0 ? -6 : 1 - day;
         start = new Date(today);
@@ -281,7 +264,7 @@ export function MaterialiSuperficie({
     taskDateMap,
   ]);
 
-  // Distinct fornitore names from actual catalog data
+  // Distinct fornitore names from catalog data
   const fornitoriDistinti = useMemo(() => {
     const set = new Set<string>();
     for (const m of tuttiMateriali) set.add(m.fornitore);
