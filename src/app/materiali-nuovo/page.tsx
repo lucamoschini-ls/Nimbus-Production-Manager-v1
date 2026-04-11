@@ -23,11 +23,8 @@ async function MaterialiData() {
     supabase
       .from("materiali_disponibilita")
       .select("catalogo_id, qta_magazzino, qta_recupero, qta_ordinata"),
-    supabase.from("calcolatore_driver").select("chiave, valore").order("ordine"),
-    supabase
-      .from("calcolatore_coefficienti")
-      .select("chiave, valore")
-      .order("ordine"),
+    supabase.from("calcolatore_driver").select("*").order("ordine"),
+    supabase.from("calcolatore_coefficienti").select("*").order("ordine"),
     supabase.from("fornitori").select("id, nome"),
     supabase
       .from("task")

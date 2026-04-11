@@ -46,13 +46,27 @@ interface DisponibilitaRow {
   qta_ordinata: number;
 }
 
-interface DriverRow {
+export interface DriverRow {
+  id: string;
   chiave: string;
+  label: string;
   valore: number;
+  valore_default: number | null;
+  unita: string | null;
+  gruppo: string | null;
+  ordine: number;
+  tooltip: string | null;
 }
-interface CoefficienteRow {
+export interface CoefficienteRow {
+  id: string;
   chiave: string;
+  label: string;
   valore: number;
+  valore_default: number | null;
+  unita: string | null;
+  gruppo: string | null;
+  ordine: number;
+  tooltip: string | null;
 }
 interface TaskRow {
   id: string;
@@ -124,6 +138,10 @@ export interface DrawerData {
   taskMap: Map<string, TaskInfo>;
   taskLinksByCatalogo: Map<string, TaskLink[]>;
   matLinksByTask: Map<string, MaterialLink[]>;
+  driverItems: DriverRow[];
+  coeffItems: CoefficienteRow[];
+  onUpdateDriver: (id: string, valore: number) => void;
+  onUpdateCoeff: (id: string, valore: number) => void;
 }
 
 // ---- Props ----
@@ -161,8 +179,10 @@ export function MaterialiSuperficie({
     applicaPreset,
   } = useSuperficieState();
 
-  // Local availability state — updated by inline editor, drives recomputation
+  // Local state — updated by inline editors, drives recomputation
   const [dispState, setDispState] = useState(disponibilita);
+  const [driverState, setDriverState] = useState(driver);
+  const [coeffState, setCoeffState] = useState(coefficienti);
 
   const handleUpdateDisp = useCallback(
     (
@@ -179,20 +199,32 @@ export function MaterialiSuperficie({
     []
   );
 
-  // Call calcolaMateriali (kept for future drawer use)
+  const handleUpdateDriver = useCallback((id: string, valore: number) => {
+    setDriverState((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, valore } : d))
+    );
+  }, []);
+
+  const handleUpdateCoeff = useCallback((id: string, valore: number) => {
+    setCoeffState((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, valore } : c))
+    );
+  }, []);
+
+  // Call calcolaMateriali with reactive driver/coeff state
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const calcoloResults = useMemo(() => {
     try {
       const driverMap: Record<string, number> = {};
-      for (const d of driver) driverMap[d.chiave] = d.valore ?? 0;
+      for (const d of driverState) driverMap[d.chiave] = d.valore ?? 0;
       const coeffMap: Record<string, number> = {};
-      for (const co of coefficienti) coeffMap[co.chiave] = co.valore ?? 0;
+      for (const co of coeffState) coeffMap[co.chiave] = co.valore ?? 0;
       return calcolaMateriali({ driverMap, coeffMap });
     } catch (e) {
       console.error("calcolaMateriali error:", e);
       return [];
     }
-  }, [driver, coefficienti]);
+  }, [driverState, coeffState]);
 
   // Build enriched array from v_catalogo_acquisti + extras
   const tuttiMateriali = useMemo(() => {
@@ -309,8 +341,26 @@ export function MaterialiSuperficie({
   }, [materialiTask]);
 
   const drawerData: DrawerData = useMemo(
-    () => ({ materialiMap, taskMap, taskLinksByCatalogo, matLinksByTask }),
-    [materialiMap, taskMap, taskLinksByCatalogo, matLinksByTask]
+    () => ({
+      materialiMap,
+      taskMap,
+      taskLinksByCatalogo,
+      matLinksByTask,
+      driverItems: driverState,
+      coeffItems: coeffState,
+      onUpdateDriver: handleUpdateDriver,
+      onUpdateCoeff: handleUpdateCoeff,
+    }),
+    [
+      materialiMap,
+      taskMap,
+      taskLinksByCatalogo,
+      matLinksByTask,
+      driverState,
+      coeffState,
+      handleUpdateDriver,
+      handleUpdateCoeff,
+    ]
   );
 
   // ---- Time filtering ----
@@ -401,6 +451,7 @@ export function MaterialiSuperficie({
         state={state}
         materiali={materialiFiltrati}
         onReset={resetSuperficie}
+        onOpenCalcoli={() => aprireDrawer("calcoli", "main")}
       />
       <div className="flex flex-1 overflow-hidden">
         <PannelloControllo

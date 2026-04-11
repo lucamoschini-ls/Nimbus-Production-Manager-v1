@@ -102,6 +102,7 @@ export function DrawerStack({
                 id={d.id}
                 drawerData={drawerData}
                 onOpenTask={(taskId) => onOpenDrawer("task", taskId)}
+                onOpenCalcoli={() => onOpenDrawer("calcoli", "main")}
               />
             )}
             {d.tipo === "task" && (
@@ -111,7 +112,9 @@ export function DrawerStack({
                 onOpenMateriale={(matId) => onOpenDrawer("materiale", matId)}
               />
             )}
-            {d.tipo === "calcoli" && <DrawerCalcoli id={d.id} />}
+            {d.tipo === "calcoli" && (
+              <DrawerCalcoli id={d.id} drawerData={drawerData} />
+            )}
           </div>
         </div>
       ))}

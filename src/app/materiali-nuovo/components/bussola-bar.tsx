@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Calculator } from "lucide-react";
 import type { SuperficieState } from "../hooks/use-superficie-state";
 import type { MaterialeArricchito } from "../materiali-superficie";
 
@@ -9,6 +9,7 @@ interface Props {
   state: SuperficieState;
   materiali: MaterialeArricchito[];
   onReset: () => void;
+  onOpenCalcoli: () => void;
 }
 
 const RAGGRUPPA_LABELS: Record<string, string> = {
@@ -20,7 +21,12 @@ const RAGGRUPPA_LABELS: Record<string, string> = {
   data: "Per data",
 };
 
-export function BussolaBar({ state, materiali, onReset }: Props) {
+export function BussolaBar({
+  state,
+  materiali,
+  onReset,
+  onOpenCalcoli,
+}: Props) {
   const segments: string[] = ["Materiali"];
   if (state.raggruppa !== "nessuno")
     segments.push(RAGGRUPPA_LABELS[state.raggruppa]);
@@ -72,6 +78,15 @@ export function BussolaBar({ state, materiali, onReset }: Props) {
           € da comprare
         </span>
       </div>
+
+      {/* Calcoli */}
+      <button
+        onClick={onOpenCalcoli}
+        className="flex items-center gap-1 text-[11px] text-[#86868b] hover:text-[#1d1d1f] px-2 py-1 rounded-md hover:bg-[#f5f5f7] flex-shrink-0"
+        title="Driver e coefficienti"
+      >
+        <Calculator size={13} />
+      </button>
 
       {/* Reset */}
       <button

@@ -1,5 +1,6 @@
 "use client";
 
+import { Calculator } from "lucide-react";
 import type { DrawerData } from "../materiali-superficie";
 
 const SEMAFORO_COLORS = {
@@ -19,9 +20,10 @@ interface Props {
   id: string;
   drawerData: DrawerData;
   onOpenTask: (taskId: string) => void;
+  onOpenCalcoli: () => void;
 }
 
-export function DrawerMateriale({ id, drawerData, onOpenTask }: Props) {
+export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: Props) {
   const mat = drawerData.materialiMap.get(id);
   if (!mat) {
     return (
@@ -104,8 +106,17 @@ export function DrawerMateriale({ id, drawerData, onOpenTask }: Props) {
           Quantita
         </h4>
         <div className="space-y-1.5 text-[12px]">
-          <div className="flex justify-between">
-            <span className="text-[#86868b]">Necessario</span>
+          <div className="flex justify-between items-center">
+            <span className="text-[#86868b] flex items-center gap-1">
+              Necessario
+              <button
+                onClick={onOpenCalcoli}
+                className="text-[#b0b0b5] hover:text-[#1d1d1f] p-0.5 rounded hover:bg-[#f0f0f0]"
+                title="Apri driver e coefficienti"
+              >
+                <Calculator size={11} />
+              </button>
+            </span>
             <span className="font-medium">
               {mat.fabbisogno_calcolato.toLocaleString("it-IT")} {mat.unita}
               <span className="text-[#86868b] font-normal ml-1">
