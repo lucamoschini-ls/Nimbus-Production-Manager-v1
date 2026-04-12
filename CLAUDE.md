@@ -91,6 +91,17 @@ Ogni task ha un campo `stato_fornitore_minimo` (default: `pronto`) che indica qu
 - Warning banner quando raggruppato per categoria: "I materiali non sono ancora classificati..."
 - Tipo `MaterialeArricchito` esportato da `materiali-superficie.tsx` per uso nei componenti figli
 
+## Backup prefase catalogo (12 aprile 2026)
+
+Snapshot preso prima del rifacimento catalogo in 4 fasi (unita, fornitori, quantita, gruppo merceologico).
+
+Tabelle backup:
+- catalogo_materiali_backup_prefase
+- materiali_backup_prefase
+- materiali_disponibilita_backup_prefase
+
+Rollback disponibile: vedi BACKUP_PREFASE_NOTE.md per la procedura SQL di ripristino.
+
 ## Browser testing — Playwright MCP
 
 Claude Code ha accesso a un browser headless via `@playwright/mcp` per testare l'app deployata su Vercel.
