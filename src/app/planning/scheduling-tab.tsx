@@ -31,6 +31,7 @@ interface Task {
 interface DateRange {
   start: string;
   end: string;
+  fornitore_id?: string;
 }
 
 interface Props {
@@ -51,12 +52,15 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
   const [saving, setSaving] = useState(false);
   const [verified, setVerified] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [autoSave, setAutoSave] = useState(false);
+  const [unassignedSearch, setUnassignedSearch] = useState("");
   const draggingRef = useRef(false);
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const dayLabels = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
   const fornTasks = useMemo(() =>
+    selectedFornId === "tutti" ? tasks :
     selectedFornId ? tasks.filter(t => t.fornitore_id === selectedFornId) : [],
     [tasks, selectedFornId]
   );
@@ -74,15 +78,21 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     [fornTasks, getDates]
   );
 
-  const unassignedByZona = useMemo(() => {
+  const filteredUnassigned = useMemo(() => {
+    if (!unassignedSearch) return unassigned;
+    const q = unassignedSearch.toLowerCase();
+    return unassigned.filter(t => t.titolo.toLowerCase().includes(q));
+  }, [unassigned, unassignedSearch]);
+
+  const unassignedByFornitore = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const t of unassigned) {
-      const z = t.zona_nome || "Altro";
-      if (!map.has(z)) map.set(z, []);
-      map.get(z)!.push(t);
+    for (const t of filteredUnassigned) {
+      const fname = t.fornitore_nome || "Senza fornitore";
+      if (!map.has(fname)) map.set(fname, []);
+      map.get(fname)!.push(t);
     }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [unassigned]);
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filteredUnassigned]);
 
   // RIGHT panel: tasks that overlap each day
   const dayTasks = useMemo(() =>
@@ -109,6 +119,20 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     [dayTasks, getDates]
   );
 
+  // Group scheduled tasks by fornitore for "tutti" mode
+  const tasksByFornitore = useMemo(() => {
+    if (selectedFornId !== "tutti") return null;
+    const map = new Map<string, Task[]>();
+    for (const t of fornTasks) {
+      const d = getDates(t);
+      if (!d) continue;
+      const fname = t.fornitore_nome || "Senza fornitore";
+      if (!map.has(fname)) map.set(fname, []);
+      map.get(fname)!.push(t);
+    }
+    return new Map(Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0])));
+  }, [selectedFornId, fornTasks, getDates]);
+
   // Count tasks assigned to other weeks (for indicator)
   const otherWeekCount = useMemo(() => {
     const wStart = format(weekDays[0], "yyyy-MM-dd");
@@ -129,7 +153,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const onDropDay = (e: React.DragEvent, dayIdx: number) => {
+  const onDropDay = (e: React.DragEvent, dayIdx: number, fornitoreId?: string) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData("text/plain");
     const dayStr = format(weekDays[dayIdx], "yyyy-MM-dd");
@@ -138,10 +162,13 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     const current = task ? getDates(task) : null;
     const span = current ? differenceInDays(parseISO(current.end), parseISO(current.start)) : 0;
     const end = format(addDays(weekDays[dayIdx], span), "yyyy-MM-dd");
-    setAssignments(prev => new Map(prev).set(taskId, { start: dayStr, end }));
+    const assignment: DateRange = { start: dayStr, end };
+    if (fornitoreId) assignment.fornitore_id = fornitoreId;
+    setAssignments(prev => new Map(prev).set(taskId, assignment));
     setDragOverDay(null);
     setConflicts(null);
     setVerified(false);
+    if (autoSave) setTimeout(() => handleApply(), 0);
   };
 
   const onDropLeft = (e: React.DragEvent) => {
@@ -151,6 +178,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     setDragOverLeft(false);
     setConflicts(null);
     setVerified(false);
+    if (autoSave) setTimeout(() => handleApply(), 0);
   };
 
   // Extend/shrink a task's end date by 1 day
@@ -164,6 +192,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     setAssignments(prev => new Map(prev).set(taskId, { start: d.start, end: newEnd }));
     setConflicts(null);
     setVerified(false);
+    if (autoSave) setTimeout(() => handleApply(), 0);
   };
 
   // Verify
@@ -188,7 +217,10 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     let saved = 0;
     let failed = 0;
     for (const [taskId, range] of Array.from(assignments.entries())) {
-      const payload = range ? { data_inizio: range.start, data_fine: range.end } : { data_inizio: null, data_fine: null };
+      const payload: Record<string, string | null> = range
+        ? { data_inizio: range.start, data_fine: range.end }
+        : { data_inizio: null, data_fine: null };
+      if (range?.fornitore_id) payload.fornitore_id = range.fornitore_id;
       const { error } = await sb.from("task").update(payload).eq("id", taskId);
       if (error) { console.error("Errore apply scheduling:", error); failed++; } else { saved++; }
     }
@@ -241,12 +273,14 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
         className={`rounded-lg border px-2.5 py-1.5 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${isModified ? "border-blue-400 bg-blue-50/50" : "border-[#e5e5e7] bg-white"}`}
         style={{ borderLeftWidth: 3, borderLeftColor: tipColor || zonaColor }}
       >
-        <div className="text-[12px] font-medium text-[#1d1d1f] leading-tight">{task.titolo}</div>
-        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-[#86868b]">
+        <div className={`text-[12px] font-medium text-[#1d1d1f] leading-tight ${!inCalendar ? "line-clamp-2" : ""}`}>{task.titolo}</div>
+        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-[#86868b] flex-wrap">
+          {!inCalendar && task.zona_nome && (
+            <span className="bg-[#f0f0f2] px-1.5 py-0.5 rounded text-[9px] font-medium">{task.zona_nome}</span>
+          )}
           {ore > 0 && <span>{ore}h</span>}
           {pax > 1 && <span>{pax}p</span>}
           {isMultiDay && <span className="text-blue-500 font-medium">{span}gg</span>}
-          {!inCalendar && task.zona_nome && <span className="truncate">{task.zona_nome}</span>}
           {inCalendar && (
             <div className="ml-auto flex items-center gap-0.5">
               <button
@@ -276,6 +310,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
           className="text-sm font-medium text-[#1d1d1f] bg-white border border-[#e5e5e7] rounded-[10px] px-3 py-2 outline-none"
         >
           <option value="">Seleziona fornitore...</option>
+          <option value="tutti">Tutti i fornitori</option>
           {fornitori.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
         </select>
 
@@ -320,12 +355,16 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
           >
             {saving ? "Salvataggio..." : "Applica"}
           </button>
+          <label className="flex items-center gap-1.5 text-[11px] text-[#86868b] cursor-pointer">
+            <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} className="w-3 h-3 rounded" />
+            Salva auto
+          </label>
         </div>
       </div>
 
       {!selectedFornId ? (
         <div className="flex items-center justify-center h-64 text-[#86868b] text-sm">
-          Seleziona un fornitore per iniziare lo scheduling
+          Seleziona un fornitore o &quot;Tutti i fornitori&quot; per iniziare lo scheduling
         </div>
       ) : (
         <div className="flex gap-4" style={{ height: "calc(100vh - 220px)" }}>
@@ -336,71 +375,142 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
             onDragLeave={() => setDragOverLeft(false)}
             onDrop={onDropLeft}
           >
-            <div className="sticky top-0 bg-[#f5f5f7] z-10 px-4 py-3 border-b border-[#e5e5e7]">
+            <div className="sticky top-0 bg-[#f5f5f7] z-10 px-4 py-3 border-b border-[#e5e5e7] space-y-2">
               <span className="text-xs font-semibold text-[#86868b]">
                 Da assegnare ({unassigned.length})
               </span>
+              <input
+                value={unassignedSearch}
+                onChange={e => setUnassignedSearch(e.target.value)}
+                placeholder="Cerca task..."
+                className="w-full text-[11px] border border-[#e5e5e7] rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-ring bg-white"
+              />
             </div>
             <div className="p-3 space-y-4">
-              {unassignedByZona.map(([zona, ztasks]) => (
-                <div key={zona}>
+              {unassignedByFornitore.map(([fname, ftasks]) => (
+                <div key={fname}>
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ztasks[0]?.zona_colore || "#ccc" }} />
-                    <span className="text-[11px] font-semibold text-[#86868b]">{zona}</span>
-                    <span className="text-[10px] text-[#86868b]">({ztasks.length})</span>
+                    <span className="text-[11px] font-semibold text-[#86868b]">{fname}</span>
+                    <span className="text-[10px] text-[#86868b]">({ftasks.length})</span>
                   </div>
-                  <div className="space-y-1.5">{ztasks.map(t => renderCard(t, false))}</div>
+                  <div className="space-y-1.5">{ftasks.map(t => renderCard(t, false))}</div>
                 </div>
               ))}
-              {unassigned.length === 0 && (
-                <div className="text-center text-[11px] text-[#86868b] py-8">Tutte le task sono assegnate</div>
+              {filteredUnassigned.length === 0 && (
+                <div className="text-center text-[11px] text-[#86868b] py-8">
+                  {unassignedSearch ? "Nessuna corrispondenza" : "Tutte le task sono assegnate"}
+                </div>
               )}
             </div>
           </div>
 
           {/* RIGHT PANEL */}
           <div className="flex-1 overflow-x-auto">
-            <div className="flex gap-2 min-w-[700px] h-full">
-              {weekDays.map((day, di) => {
-                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                const hours = dayHours[di];
-                const overLimit = hours > HPD;
-                const pct = Math.min((hours / HPD) * 100, 100);
+            {selectedFornId === "tutti" && tasksByFornitore ? (
+              /* TUTTI mode: table with rows=fornitori, cols=days */
+              <div className="bg-white border border-[#e5e5e7] rounded-[12px] overflow-hidden h-full overflow-y-auto">
+                <table className="w-full border-collapse" style={{ minWidth: 700 }}>
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-10 bg-[#f5f5f7] text-left text-[11px] font-medium text-[#86868b] px-3 py-2 border-b border-r border-[#e5e5e7]" style={{ width: 140, minWidth: 140 }}>
+                        Fornitore
+                      </th>
+                      {weekDays.map((day, di) => {
+                        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                        return (
+                          <th key={di} className={`text-center text-[11px] font-medium px-1 py-2 border-b border-r border-[#e5e5e7] last:border-r-0 ${isWeekend ? "bg-[#F9F9F9]" : "bg-[#f5f5f7]"} text-[#86868b]`}>
+                            {dayLabels[di]} {format(day, "dd/MM")}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tasksByFornitore.size === 0 && (
+                      <tr>
+                        <td colSpan={8} className="text-center text-sm text-[#86868b] py-12">
+                          Nessuna task assegnata in questa settimana
+                        </td>
+                      </tr>
+                    )}
+                    {Array.from(tasksByFornitore.entries()).map(([fname, fTasks]) => {
+                      const fId = fTasks[0]?.fornitore_id || undefined;
+                      return (
+                        <tr key={fname} className="border-b border-[#e5e5e7] last:border-b-0">
+                          <td className="sticky left-0 z-10 bg-white text-[12px] font-semibold text-[#1d1d1f] px-3 py-2 border-r border-[#e5e5e7] align-top" style={{ width: 140, minWidth: 140 }}>
+                            {fname}
+                          </td>
+                          {weekDays.map((day, di) => {
+                            const dayStr = format(day, "yyyy-MM-dd");
+                            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                            const cellTasks = fTasks.filter(t => {
+                              const d = getDates(t);
+                              return d && d.start <= dayStr && d.end >= dayStr;
+                            });
+                            return (
+                              <td
+                                key={di}
+                                className={`px-1 py-1 border-r border-[#e5e5e7] last:border-r-0 align-top ${isWeekend ? "bg-[#F9F9F9]" : ""} ${dragOverDay === di ? "bg-blue-50/30" : ""}`}
+                                onDragOver={(e) => { e.preventDefault(); setDragOverDay(di); }}
+                                onDragLeave={() => setDragOverDay(null)}
+                                onDrop={(e) => onDropDay(e, di, fId)}
+                              >
+                                <div className="flex flex-col gap-1 min-h-[40px]">
+                                  {cellTasks.map(t => renderCard(t, true))}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              /* Single fornitore mode: day columns */
+              <div className="flex gap-2 min-w-[700px] h-full">
+                {weekDays.map((day, di) => {
+                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                  const hours = dayHours[di];
+                  const overLimit = hours > HPD;
+                  const pct = Math.min((hours / HPD) * 100, 100);
 
-                return (
-                  <div
-                    key={di}
-                    className={`flex-1 rounded-[12px] border flex flex-col transition-colors min-w-[90px] ${dragOverDay === di ? "border-blue-400 bg-blue-50/30" : isWeekend ? "border-[#e5e5e7] bg-[#F9F9F9]" : "border-[#e5e5e7] bg-white"}`}
-                    onDragOver={(e) => { e.preventDefault(); setDragOverDay(di); }}
-                    onDragLeave={() => setDragOverDay(null)}
-                    onDrop={(e) => onDropDay(e, di)}
-                  >
-                    <div className="px-3 py-2 border-b border-[#e5e5e7] flex-shrink-0">
-                      <div className="text-[11px] font-semibold text-[#1d1d1f]">
-                        {dayLabels[di]} {format(day, "dd/MM")}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${pct}%`,
-                              backgroundColor: overLimit ? "#ef4444" : hours > HPD * 0.8 ? "#f59e0b" : "#34C759",
-                            }}
-                          />
+                  return (
+                    <div
+                      key={di}
+                      className={`flex-1 rounded-[12px] border flex flex-col transition-colors min-w-[90px] ${dragOverDay === di ? "border-blue-400 bg-blue-50/30" : isWeekend ? "border-[#e5e5e7] bg-[#F9F9F9]" : "border-[#e5e5e7] bg-white"}`}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverDay(di); }}
+                      onDragLeave={() => setDragOverDay(null)}
+                      onDrop={(e) => onDropDay(e, di)}
+                    >
+                      <div className="px-3 py-2 border-b border-[#e5e5e7] flex-shrink-0">
+                        <div className="text-[11px] font-semibold text-[#1d1d1f]">
+                          {dayLabels[di]} {format(day, "dd/MM")}
                         </div>
-                        <span className={`text-[10px] font-medium whitespace-nowrap ${overLimit ? "text-red-500" : "text-[#86868b]"}`}>
-                          {Math.round(hours * 10) / 10}h
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-1.5 bg-[#e5e5e7] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: overLimit ? "#ef4444" : hours > HPD * 0.8 ? "#f59e0b" : "#34C759",
+                              }}
+                            />
+                          </div>
+                          <span className={`text-[10px] font-medium whitespace-nowrap ${overLimit ? "text-red-500" : "text-[#86868b]"}`}>
+                            {Math.round(hours * 10) / 10}h
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-1 p-2 space-y-1.5 overflow-y-auto">
+                        {dayTasks[di].map(t => renderCard(t, true))}
                       </div>
                     </div>
-                    <div className="flex-1 p-2 space-y-1.5 overflow-y-auto">
-                      {dayTasks[di].map(t => renderCard(t, true))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

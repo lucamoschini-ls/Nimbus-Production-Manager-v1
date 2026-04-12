@@ -140,7 +140,8 @@ function getTaskDays(
 
 export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipColorMap = {}, fornitori = [] }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"planning" | "scheduling">("planning");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [activeTab, _setActiveTab] = useState<"planning" | "scheduling">("scheduling");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
   const [daAssegnareOpen, setDaAssegnareOpen] = useState(false);
@@ -287,13 +288,9 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
 
   return (
     <div className="space-y-4">
-      {/* Header + Tab toggle */}
+      {/* Header */}
       <div className="flex items-center gap-4">
         <h1 className="text-xl font-bold text-[#1d1d1f]">Planning</h1>
-        <div className="flex gap-1 bg-[#f5f5f7] rounded-lg p-1">
-          <button onClick={() => setActiveTab("planning")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${activeTab === "planning" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Settimanale</button>
-          <button onClick={() => setActiveTab("scheduling")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${activeTab === "scheduling" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#86868b]"}`}>Scheduling</button>
-        </div>
       </div>
 
       {activeTab === "scheduling" ? (
