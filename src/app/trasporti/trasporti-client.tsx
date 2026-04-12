@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Truck, Filter, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DrawerOperazione } from "@/app/materiali-nuovo/components/drawer-operazione";
@@ -61,6 +61,8 @@ export function TrasportiClient({ ops, fornitori, luoghi, zone }: Props) {
   const [filterZona, setFilterZona] = useState("tutti");
   const [filterTipologia, setFilterTipologia] = useState("tutti");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const filtered = useMemo(() => ops.filter((op) => {
     if (filterLuogo !== "tutti" && (op.luogo?.id ?? "none") !== filterLuogo) return false;
@@ -107,19 +109,19 @@ export function TrasportiClient({ ops, fornitori, luoghi, zone }: Props) {
         <div className="flex flex-wrap gap-3 mb-4">
           <div className="bg-white rounded-[12px] border border-[#e5e5e7] px-4 py-3">
             <p className="text-[10px] text-[#86868b] font-medium">Totale</p>
-            <p className="text-lg font-semibold text-[#1d1d1f] mt-0.5">{ops.length}</p>
+            <p className="text-lg font-semibold text-[#1d1d1f] mt-0.5" suppressHydrationWarning>{mounted ? ops.length : "\u2014"}</p>
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-3">
             <p className="text-[10px] text-amber-700 font-medium">Da organizzare</p>
-            <p className="text-lg font-semibold text-amber-700 mt-0.5">{daOrganizzare}</p>
+            <p className="text-lg font-semibold text-amber-700 mt-0.5" suppressHydrationWarning>{mounted ? daOrganizzare : "\u2014"}</p>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-[12px] px-4 py-3">
             <p className="text-[10px] text-green-700 font-medium">Organizzati</p>
-            <p className="text-lg font-semibold text-green-700 mt-0.5">{organizzati}</p>
+            <p className="text-lg font-semibold text-green-700 mt-0.5" suppressHydrationWarning>{mounted ? organizzati : "\u2014"}</p>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-[12px] px-4 py-3">
             <p className="text-[10px] text-blue-700 font-medium">Completate</p>
-            <p className="text-lg font-semibold text-blue-700 mt-0.5">{completate}</p>
+            <p className="text-lg font-semibold text-blue-700 mt-0.5" suppressHydrationWarning>{mounted ? completate : "\u2014"}</p>
           </div>
         </div>
 

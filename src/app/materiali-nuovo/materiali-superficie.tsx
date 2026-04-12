@@ -314,6 +314,17 @@ export function MaterialiSuperficie({
       if (d.catalogo_id) dispMap.set(d.catalogo_id, d);
     }
 
+    // Compute fabbisogno from local materialiTask state so that
+    // legame quantity edits immediately reflect in totals
+    const fabbisognoFromLinks = new Map<string, number>();
+    for (const m of materialiTaskState) {
+      if (!m.catalogo_id || m.quantita == null) continue;
+      fabbisognoFromLinks.set(
+        m.catalogo_id,
+        (fabbisognoFromLinks.get(m.catalogo_id) || 0) + m.quantita
+      );
+    }
+
     return catalogoViewState.map((c): MaterialeArricchito => {
       const extra = extraMap.get(c.id);
       const disp = dispMap.get(c.id);
@@ -321,7 +332,7 @@ export function MaterialiSuperficie({
       const recupero = disp?.qta_recupero ?? 0;
       const ordinato = disp?.qta_ordinata ?? 0;
       const disponibile = magazzino + recupero + ordinato;
-      const fabbisogno = c.quantita_totale_necessaria ?? 0;
+      const fabbisogno = fabbisognoFromLinks.get(c.id) ?? c.quantita_totale_necessaria ?? 0;
       const da_comprare = Math.max(0, fabbisogno - disponibile);
       const costo = da_comprare * (c.prezzo_unitario ?? 0);
 
@@ -351,7 +362,7 @@ export function MaterialiSuperficie({
         stato_semaforo: semaforo,
       };
     });
-  }, [catalogoViewState, catalogoExtraState, dispState]);
+  }, [catalogoViewState, catalogoExtraState, dispState, materialiTaskState]);
 
   // ---- Drawer data lookups ----
 

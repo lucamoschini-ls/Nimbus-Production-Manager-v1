@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { SuperficieState } from "../hooks/use-superficie-state";
@@ -125,6 +125,97 @@ function exportCSV(materiali: MaterialeArricchito[]) {
   URL.revokeObjectURL(url);
 }
 
+// ---- Memoized row ----
+
+const MaterialeRow = React.memo(function MaterialeRow({
+  m,
+  isEditing,
+  onToggleEditor,
+  onOpenDrawer,
+  onUpdateDisp,
+}: {
+  m: MaterialeArricchito;
+  isEditing: boolean;
+  onToggleEditor: (id: string) => void;
+  onOpenDrawer: (tipo: "materiale" | "task" | "calcoli", id: string) => void;
+  onUpdateDisp: (
+    catalogoId: string,
+    campo: "qta_magazzino" | "qta_recupero" | "qta_ordinata",
+    valore: number
+  ) => void;
+}) {
+  const hasDisp =
+    m.qta_magazzino > 0 || m.qta_recupero > 0 || m.qta_ordinata > 0;
+
+  return (
+    <div className="border-b border-[#f0f0f0] last:border-0">
+      {/* Row */}
+      <div
+        onClick={() => onOpenDrawer("materiale", m.id)}
+        className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-[#f5f5f7] transition-colors cursor-pointer"
+      >
+        {/* Pallino cliccabile */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleEditor(m.id);
+          }}
+          className={`p-1 -m-1 rounded-full transition-colors ${isEditing ? "bg-gray-200" : "hover:bg-gray-200"}`}
+          title="Modifica disponibilita"
+        >
+          <span
+            className={`block w-2.5 h-2.5 rounded-full ${SEMAFORO_COLORS[m.stato_semaforo]}`}
+          />
+        </button>
+
+        {/* Name + info */}
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] text-[#1d1d1f] font-medium truncate">
+            {m.nome}
+          </div>
+          <div className="text-[10px] text-[#86868b]">
+            {m.fornitore} · {m.categoria_comp || "non classificato"}
+          </div>
+          {hasDisp && (
+            <div className="text-[9px] text-[#b0b0b5] mt-0.5">
+              mag {m.qta_magazzino} · rec {m.qta_recupero} · ord{" "}
+              {m.qta_ordinata}
+            </div>
+          )}
+        </div>
+
+        {/* Quantity */}
+        <div className="text-right flex-shrink-0">
+          <div className="text-[13px] font-medium text-[#1d1d1f]">
+            {m.fabbisogno_calcolato.toLocaleString("it-IT")} {m.unita}
+          </div>
+          {m.da_comprare > 0 && (
+            <div className="text-[10px] text-red-500 font-medium">
+              da comprare: {m.da_comprare.toLocaleString("it-IT")}
+            </div>
+          )}
+        </div>
+
+        {/* Cost */}
+        <div className="text-[11px] text-[#86868b] w-16 text-right flex-shrink-0">
+          {m.costo_da_comprare > 0
+            ? `${m.costo_da_comprare.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €`
+            : "0 €"}
+        </div>
+      </div>
+
+      {/* Inline editor */}
+      {isEditing && (
+        <InlineEditor
+          key={m.id}
+          mat={m}
+          onUpdate={(campo, valore) => onUpdateDisp(m.id, campo, valore)}
+        />
+      )}
+    </div>
+  );
+});
+
 // ---- Main component ----
 
 function formatDateGroup(dateStr: string): string {
@@ -208,9 +299,9 @@ export function ListaMateriali({
     });
   };
 
-  const toggleEditor = (id: string) => {
+  const toggleEditor = useCallback((id: string) => {
     setEditingId((prev) => (prev === id ? null : id));
-  };
+  }, []);
 
   const showCategoriaWarning = state.raggruppa === "categoria_comp";
 
@@ -219,80 +310,6 @@ export function ListaMateriali({
     state.filtriCat.length === 1 &&
     state.filtriCat[0] === "consumo" &&
     state.finestra === "settimana";
-
-  const renderItem = (m: MaterialeArricchito) => {
-    const isEditing = editingId === m.id;
-    const hasDisp =
-      m.qta_magazzino > 0 || m.qta_recupero > 0 || m.qta_ordinata > 0;
-
-    return (
-      <div key={m.id} className="border-b border-[#f0f0f0] last:border-0">
-        {/* Row */}
-        <div
-          onClick={() => onOpenDrawer("materiale", m.id)}
-          className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-[#f5f5f7] transition-colors cursor-pointer"
-        >
-          {/* Pallino cliccabile */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleEditor(m.id);
-            }}
-            className={`p-1 -m-1 rounded-full transition-colors ${isEditing ? "bg-gray-200" : "hover:bg-gray-200"}`}
-            title="Modifica disponibilita"
-          >
-            <span
-              className={`block w-2.5 h-2.5 rounded-full ${SEMAFORO_COLORS[m.stato_semaforo]}`}
-            />
-          </button>
-
-          {/* Name + info */}
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] text-[#1d1d1f] font-medium truncate">
-              {m.nome}
-            </div>
-            <div className="text-[10px] text-[#86868b]">
-              {m.fornitore} · {m.categoria_comp || "non classificato"}
-            </div>
-            {hasDisp && (
-              <div className="text-[9px] text-[#b0b0b5] mt-0.5">
-                mag {m.qta_magazzino} · rec {m.qta_recupero} · ord{" "}
-                {m.qta_ordinata}
-              </div>
-            )}
-          </div>
-
-          {/* Quantity */}
-          <div className="text-right flex-shrink-0">
-            <div className="text-[13px] font-medium text-[#1d1d1f]">
-              {m.fabbisogno_calcolato.toLocaleString("it-IT")} {m.unita}
-            </div>
-            {m.da_comprare > 0 && (
-              <div className="text-[10px] text-red-500 font-medium">
-                da comprare: {m.da_comprare.toLocaleString("it-IT")}
-              </div>
-            )}
-          </div>
-
-          {/* Cost */}
-          <div className="text-[11px] text-[#86868b] w-16 text-right flex-shrink-0">
-            {m.costo_da_comprare > 0
-              ? `${m.costo_da_comprare.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €`
-              : "0 €"}
-          </div>
-        </div>
-
-        {/* Inline editor */}
-        {isEditing && (
-          <InlineEditor
-            key={m.id}
-            mat={m}
-            onUpdate={(campo, valore) => onUpdateDisp(m.id, campo, valore)}
-          />
-        )}
-      </div>
-    );
-  };
 
   const isDateGrouping = state.raggruppa === "data";
 
@@ -385,12 +402,30 @@ export function ListaMateriali({
                   </span>
                 )}
               </button>
-              {!collapsed.has(groupName) && items.map(renderItem)}
+              {!collapsed.has(groupName) && items.map((m) => (
+                <MaterialeRow
+                  key={m.id}
+                  m={m}
+                  isEditing={editingId === m.id}
+                  onToggleEditor={toggleEditor}
+                  onOpenDrawer={onOpenDrawer}
+                  onUpdateDisp={onUpdateDisp}
+                />
+              ))}
             </div>
           );
         })
       ) : (
-        materiali.map(renderItem)
+        materiali.map((m) => (
+          <MaterialeRow
+            key={m.id}
+            m={m}
+            isEditing={editingId === m.id}
+            onToggleEditor={toggleEditor}
+            onOpenDrawer={onOpenDrawer}
+            onUpdateDisp={onUpdateDisp}
+          />
+        ))
       )}
 
       {materiali.length === 0 && (

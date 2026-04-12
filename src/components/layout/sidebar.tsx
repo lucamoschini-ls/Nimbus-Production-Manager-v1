@@ -13,6 +13,7 @@ import {
   Settings,
   ClipboardList,
   Sun,
+  Search,
 } from "lucide-react";
 
 const navItems = [
@@ -39,6 +40,18 @@ export function Sidebar() {
         <h1 className="text-xl font-bold text-[#1d1d1f] tracking-tight">
           Nimbus 2026
         </h1>
+      </div>
+      <div className="px-3 mb-2">
+        <button
+          onClick={() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] text-[#86868b] bg-[#f5f5f7] hover:bg-[#ebebed] transition-colors"
+        >
+          <Search size={14} />
+          <span className="flex-1 text-left">Cerca...</span>
+          <kbd className="text-[9px] border border-[#e5e5e7] rounded px-1 py-0.5">&#8984;K</kbd>
+        </button>
       </div>
       <nav className="flex-1 px-3">
         {navItems.map((item) => {
