@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useDeferredValue, useRef } from "react";
 import { Search, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import type { MaterialeArricchito, CatalogoViewRow, CatalogoExtraRow } from "../materiali-superficie";
@@ -129,11 +129,13 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
     setNewGruppo("");
   };
 
+  const deferredCerca = useDeferredValue(cerca);
+
   const filtrati = useMemo(() => {
-    if (!cerca) return materiali;
-    const q = cerca.toLowerCase();
+    if (!deferredCerca) return materiali;
+    const q = deferredCerca.toLowerCase();
     return materiali.filter((m) => m.nome.toLowerCase().includes(q));
-  }, [materiali, cerca]);
+  }, [materiali, deferredCerca]);
 
   const handleFieldSave = async (id: string, campo: string, rawValue: string) => {
     let valore: string | number | null = rawValue || null;

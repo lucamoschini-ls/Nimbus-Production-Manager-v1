@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CommandPalette } from "@/components/layout/command-palette";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -46,6 +47,7 @@ export default function RootLayout({
             </main>
           </div>
           <MobileNav />
+          <CommandPalette />
           <Toaster position="top-right" richColors closeButton />
         </TooltipProvider>
       </body>

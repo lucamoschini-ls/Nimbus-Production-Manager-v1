@@ -130,8 +130,26 @@ export async function aggiornaTask(
   valore: string | number | null
 ) {
   const supabase = await createClient();
-  const { error } = await supabase
+
+  // Try task table first
+  const { data: taskExists } = await supabase
     .from("task")
+    .select("id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (taskExists) {
+    const { error } = await supabase
+      .from("task")
+      .update({ [campo]: valore })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  // Try operazioni table
+  const { error } = await supabase
+    .from("operazioni")
     .update({ [campo]: valore })
     .eq("id", id);
   if (error) throw new Error(error.message);
@@ -191,4 +209,84 @@ export async function aggiornaLegameByComposite(taskId: string, catalogoId: stri
     .eq("task_id", taskId)
     .eq("catalogo_id", catalogoId);
   if (error) throw new Error(error.message);
+}
+
+// ---- Ricerca Globale (Command Palette) ----
+
+export async function ricercaGlobale(query: string): Promise<{
+  tipo: "materiale" | "task" | "operazione" | "fornitore" | "zona";
+  id: string;
+  nome: string;
+  contesto: string;
+}[]> {
+  const supabase = await createClient();
+  const q = `%${query}%`;
+  const results: { tipo: "materiale" | "task" | "operazione" | "fornitore" | "zona"; id: string; nome: string; contesto: string }[] = [];
+
+  // Materiali
+  const { data: materiali } = await supabase
+    .from("catalogo_materiali")
+    .select("id, nome, tipologia_materiale, fornitore_preferito")
+    .ilike("nome", q)
+    .limit(5);
+  if (materiali) {
+    for (const m of materiali) {
+      results.push({
+        tipo: "materiale",
+        id: m.id,
+        nome: m.nome,
+        contesto: [m.tipologia_materiale, m.fornitore_preferito].filter(Boolean).join(" · "),
+      });
+    }
+  }
+
+  // Task
+  const { data: tasks } = await supabase
+    .from("task")
+    .select("id, titolo, tipologia")
+    .ilike("titolo", q)
+    .limit(5);
+  if (tasks) {
+    for (const t of tasks) {
+      results.push({ tipo: "task", id: t.id, nome: t.titolo, contesto: t.tipologia || "task" });
+    }
+  }
+
+  // Operazioni
+  const { data: ops } = await supabase
+    .from("operazioni")
+    .select("id, titolo, tipologia")
+    .ilike("titolo", q)
+    .limit(5);
+  if (ops) {
+    for (const o of ops) {
+      results.push({ tipo: "operazione", id: o.id, nome: o.titolo, contesto: o.tipologia || "operazione" });
+    }
+  }
+
+  // Fornitori
+  const { data: fornitori } = await supabase
+    .from("fornitori")
+    .select("id, nome, tipo")
+    .ilike("nome", q)
+    .limit(5);
+  if (fornitori) {
+    for (const f of fornitori) {
+      results.push({ tipo: "fornitore", id: f.id, nome: f.nome, contesto: f.tipo || "fornitore" });
+    }
+  }
+
+  // Zone
+  const { data: zone } = await supabase
+    .from("zone")
+    .select("id, nome")
+    .ilike("nome", q)
+    .limit(5);
+  if (zone) {
+    for (const z of zone) {
+      results.push({ tipo: "zona", id: z.id, nome: z.nome, contesto: "zona" });
+    }
+  }
+
+  return results;
 }
