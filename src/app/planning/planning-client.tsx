@@ -598,11 +598,13 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
 
                 {daAssegnareExpanded.has(tipo) && (
                   <div className="pl-4 space-y-1 mt-1">
-                    {grpTasks.map(task => (
+                    {grpTasks.map(task => {
+                      const isCompleted = task.stato_calcolato === "completata" || task.stato === "completata";
+                      return (
                       <button
                         key={task.id}
                         onClick={() => { setSelectedOpId(null); setSelectedTaskId(task.id); }}
-                        className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f5f5f7] transition-colors border-l-2"
+                        className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f5f5f7] transition-colors border-l-2 ${isCompleted ? "bg-green-50" : ""}`}
                         style={{ borderLeftColor: STATO_BORDER[task.stato_calcolato || task.stato || ""] || "#C7C7CC" }}
                       >
                         <div className="flex-1 min-w-0">
@@ -611,7 +613,8 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                         </div>
                         <span className="text-[9px] text-[#86868b]">Apri</span>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

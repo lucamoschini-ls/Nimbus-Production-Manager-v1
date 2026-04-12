@@ -514,12 +514,13 @@ function OpChip({
   const fornitore = normalizeOne(op.fornitore);
   const materiale = normalizeOne(op.materiale_ref);
   const borderColor = STATO_BORDER[op.stato] ?? "#C7C7CC";
+  const isCompleted = op.stato === "completata";
 
   return (
     <button
       onClick={onClick}
       className={`w-full text-left rounded px-2 py-1 mb-1 text-[11px] transition-colors ${
-        isSelected ? "bg-[#f0f4ff] ring-1 ring-blue-200" : "hover:bg-[#f5f5f7]"
+        isSelected ? "bg-[#f0f4ff] ring-1 ring-blue-200" : isCompleted ? "bg-green-50 hover:bg-green-100" : "hover:bg-[#f5f5f7]"
       }`}
       style={{ borderLeft: `3px solid ${borderColor}` }}
     >

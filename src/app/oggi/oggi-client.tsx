@@ -234,15 +234,17 @@ export function OggiClient({
 
               {/* Task chips */}
               <div className="flex flex-wrap gap-2">
-                {group.tasks.map((task) => (
+                {group.tasks.map((task) => {
+                  const isCompleted = task.stato_calcolato === "completata" || task.stato === "completata";
+                  return (
                   <Link
                     key={task.id}
                     href={`/lavorazioni?task=${task.id}`}
-                    className="text-left rounded-lg px-3 py-2 transition-opacity hover:opacity-80"
+                    className={`text-left rounded-lg px-3 py-2 transition-opacity hover:opacity-80 ${isCompleted ? "bg-green-50" : ""}`}
                     style={{
                       minHeight: "32px",
                       height: `${Math.max(32, (task.durata_ore || 1) * 12)}px`,
-                      backgroundColor: "rgba(0,0,0,0.03)",
+                      backgroundColor: isCompleted ? undefined : "rgba(0,0,0,0.03)",
                       borderLeft: `4px solid ${STATO_BORDER[task.stato_calcolato || task.stato] || "#C7C7CC"}`,
                     }}
                   >
@@ -259,7 +261,8 @@ export function OggiClient({
                       </div>
                     )}
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -276,14 +279,16 @@ export function OggiClient({
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {unassignedTasks.map((task) => (
+                {unassignedTasks.map((task) => {
+                  const isCompleted = task.stato_calcolato === "completata" || task.stato === "completata";
+                  return (
                   <Link
                     key={task.id}
                     href={`/lavorazioni?task=${task.id}`}
-                    className="text-left rounded-lg px-3 py-2 transition-opacity hover:opacity-80"
+                    className={`text-left rounded-lg px-3 py-2 transition-opacity hover:opacity-80 ${isCompleted ? "bg-green-50" : ""}`}
                     style={{
                       minHeight: "32px",
-                      backgroundColor: "rgba(0,0,0,0.03)",
+                      backgroundColor: isCompleted ? undefined : "rgba(0,0,0,0.03)",
                       borderLeft: `4px solid ${STATO_BORDER[task.stato_calcolato || task.stato] || "#C7C7CC"}`,
                     }}
                   >
@@ -295,7 +300,8 @@ export function OggiClient({
                       {task.titolo}
                     </div>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

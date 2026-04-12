@@ -42,7 +42,7 @@ interface Props {
 
 export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
   const router = useRouter();
-  const [selectedFornId, setSelectedFornId] = useState("");
+  const [selectedFornId, setSelectedFornId] = useState("tutti");
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date("2026-04-13"), { weekStartsOn: 1 }));
   // Assignments: taskId → { start, end } or null (unassigned)
   const [assignments, setAssignments] = useState<Map<string, DateRange | null>>(new Map());
@@ -257,6 +257,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     const tipColor = task.tipologia ? tipColorMap[task.tipologia] : null;
     const zonaColor = task.zona_colore || "#ccc";
     const isModified = assignments.has(task.id);
+    const isCompleted = task.stato_calcolato === "completata";
     const ore = task.durata_ore ?? 0;
     const pax = task.numero_persone ?? 1;
     const dates = getDates(task);
@@ -270,7 +271,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
         onDragStart={(e) => onDragStart(e, task.id)}
         onDragEnd={() => { draggingRef.current = false; }}
         onClick={() => { if (!draggingRef.current) setSelectedTaskId(task.id); }}
-        className={`rounded-lg border px-2.5 py-1.5 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${isModified ? "border-blue-400 bg-blue-50/50" : "border-[#e5e5e7] bg-white"}`}
+        className={`rounded-lg border px-2.5 py-1.5 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${isModified ? "border-blue-400 bg-blue-50/50" : isCompleted ? "border-[#e5e5e7] bg-green-50" : "border-[#e5e5e7] bg-white"}`}
         style={{ borderLeftWidth: 3, borderLeftColor: tipColor || zonaColor }}
       >
         <div className={`text-[12px] font-medium text-[#1d1d1f] leading-tight ${!inCalendar ? "line-clamp-2" : ""}`}>{task.titolo}</div>
@@ -309,7 +310,6 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
           onChange={(e) => { setSelectedFornId(e.target.value); handleReset(); }}
           className="text-sm font-medium text-[#1d1d1f] bg-white border border-[#e5e5e7] rounded-[10px] px-3 py-2 outline-none"
         >
-          <option value="">Seleziona fornitore...</option>
           <option value="tutti">Tutti i fornitori</option>
           {fornitori.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
         </select>
@@ -387,11 +387,10 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
               />
             </div>
             <div className="p-3 space-y-4">
-              {unassignedByFornitore.map(([fname, ftasks]) => (
-                <div key={fname}>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="text-[11px] font-semibold text-[#86868b]">{fname}</span>
-                    <span className="text-[10px] text-[#86868b]">({ftasks.length})</span>
+              {unassignedByFornitore.map(([fname, ftasks], idx) => (
+                <div key={fname} className={idx > 0 ? "border-t-2 border-[#e5e5e7]" : ""}>
+                  <div className="flex items-center gap-1.5 py-3">
+                    <span className="text-[16px] font-bold text-gray-900">{fname} · {ftasks.length}</span>
                   </div>
                   <div className="space-y-1.5">{ftasks.map(t => renderCard(t, false))}</div>
                 </div>
