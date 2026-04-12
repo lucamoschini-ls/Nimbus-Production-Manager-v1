@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { TrasportiClient } from "./trasporti-client";
 
+export const revalidate = 30;
+
 export default async function TrasportiPage() {
   const supabase = await createClient();
 

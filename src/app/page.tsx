@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { DashboardClient } from "./dashboard-client";
 
+export const revalidate = 30;
+
 export default async function Dashboard() {
   const supabase = await createClient();
 

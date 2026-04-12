@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { PlanningClient } from "./planning-client";
 
+export const revalidate = 30;
+
 export default async function PlanningPage() {
   const supabase = await createClient();
 

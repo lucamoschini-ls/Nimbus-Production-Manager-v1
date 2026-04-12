@@ -11,7 +11,7 @@ import {
   startOfDay,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
 import { DrawerOperazione } from "@/app/materiali-nuovo/components/drawer-operazione";
 import { useRouter } from "next/navigation";
@@ -143,6 +143,9 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
   const [activeTab, setActiveTab] = useState<"planning" | "scheduling">("planning");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
+  const [daAssegnareOpen, setDaAssegnareOpen] = useState(false);
+  const [daAssegnareExpanded, setDaAssegnareExpanded] = useState<Set<string>>(new Set());
+  const [daAssegnareSearch, setDaAssegnareSearch] = useState("");
 
   // Default week: current week's Monday (local timezone, consistent with parseISO)
   const [weekStart, setWeekStart] = useState<Date>(
@@ -250,6 +253,29 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
   }, [filteredTasks, weekDays, weekStart, weekSaturday]);
 
   const grandTotal = dayTotals.reduce((a, b) => a + b, 0);
+
+  // Unassigned tasks & ops
+  const unassignedTasks = useMemo(() => tasks.filter(t => !t.fornitore_id || !t.data_inizio), [tasks]);
+  const unassignedOps = useMemo(() => transportOps.filter(o => !o.data_inizio), [transportOps]);
+
+  const unassignedGroups = useMemo(() => {
+    const groups = new Map<string, PlanningTask[]>();
+    const search = daAssegnareSearch.toLowerCase();
+
+    for (const t of unassignedTasks) {
+      if (search && !t.titolo.toLowerCase().includes(search)) continue;
+      const key = t.tipologia || "altro";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(t);
+    }
+    return groups;
+  }, [unassignedTasks, daAssegnareSearch]);
+
+  const filteredUnassignedOps = useMemo(() => {
+    if (!daAssegnareSearch) return unassignedOps;
+    const s = daAssegnareSearch.toLowerCase();
+    return unassignedOps.filter(o => o.matNome?.toLowerCase().includes(s) || o.taskTitolo?.toLowerCase().includes(s));
+  }, [unassignedOps, daAssegnareSearch]);
 
   // Navigation
   const goToPrevWeek = () => setWeekStart((d) => addDays(d, -7));
@@ -534,52 +560,99 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
         </div>
       </div>
 
-      {/* Da assegnare */}
-      {(() => {
-        const unassignedTasks = tasks.filter(t => !t.fornitore_id || !t.data_inizio);
-        const unassignedOps = transportOps.filter(o => !o.data_inizio);
-        if (unassignedTasks.length > 0 || unassignedOps.length > 0) {
-          return (
-            <div className="mt-6 border-t border-[#e5e5e7] pt-4">
-              <h3 className="text-[12px] font-semibold text-[#86868b] uppercase tracking-wide mb-3 px-4">Da assegnare</h3>
-              {unassignedTasks.length > 0 && (
-                <div className="px-4 mb-3">
-                  <div className="text-[10px] text-[#86868b] mb-1">Task ({unassignedTasks.length})</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {unassignedTasks.map(task => (
-                      <button key={task.id} onClick={() => { setSelectedOpId(null); setSelectedTaskId(task.id); }}
-                        className="text-left rounded-md px-2 py-1 text-[10px] bg-[#f5f5f7] hover:bg-[#ebebed] transition-colors border-l-2"
-                        style={{ borderLeftColor: STATO_BORDER[task.stato_calcolato || task.stato || ""] || "#C7C7CC" }}>
-                        <div className="font-medium text-[#1d1d1f] truncate max-w-[140px]">{TIPOLOGIA_SHORT[task.tipologia || ""] || ""} {task.titolo}</div>
+      {/* Da assegnare accordion */}
+      <div className="mt-4 border-t border-[#e5e5e7]">
+        <button
+          onClick={() => setDaAssegnareOpen(!daAssegnareOpen)}
+          className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-[#f5f5f7] transition-colors"
+        >
+          {daAssegnareOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span className="text-[12px] font-semibold text-[#1d1d1f]">Da assegnare</span>
+          <span className="text-[11px] text-[#86868b]">
+            — {unassignedTasks.length} task, {unassignedOps.length} operazioni
+          </span>
+        </button>
+
+        {daAssegnareOpen && (
+          <div className="px-4 pb-4">
+            {/* Mini search */}
+            <input
+              value={daAssegnareSearch}
+              onChange={e => setDaAssegnareSearch(e.target.value)}
+              placeholder="Cerca nelle non assegnate..."
+              className="w-full text-[11px] border border-[#e5e5e7] rounded-lg px-3 py-1.5 mb-3 outline-none focus:ring-1 focus:ring-ring bg-white"
+            />
+
+            {/* Groups by tipologia */}
+            {Array.from(unassignedGroups.entries()).sort((a, b) => b[1].length - a[1].length).map(([tipo, grpTasks]) => (
+              <div key={tipo} className="mb-2">
+                <button
+                  onClick={() => {
+                    const next = new Set(daAssegnareExpanded);
+                    if (next.has(tipo)) next.delete(tipo); else next.add(tipo);
+                    setDaAssegnareExpanded(next);
+                  }}
+                  className="flex items-center gap-1.5 py-1.5 text-left w-full hover:bg-[#f5f5f7] rounded px-2 -mx-2"
+                >
+                  {daAssegnareExpanded.has(tipo) ? <ChevronDown size={12} className="text-[#86868b]" /> : <ChevronRight size={12} className="text-[#86868b]" />}
+                  <span className="text-[11px] font-semibold text-[#1d1d1f] uppercase">{TIPOLOGIA_SHORT[tipo] || tipo} {tipo}</span>
+                  <span className="text-[10px] text-[#86868b]">({grpTasks.length})</span>
+                </button>
+
+                {daAssegnareExpanded.has(tipo) && (
+                  <div className="pl-4 space-y-1 mt-1">
+                    {grpTasks.map(task => (
+                      <button
+                        key={task.id}
+                        onClick={() => { setSelectedOpId(null); setSelectedTaskId(task.id); }}
+                        className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f5f5f7] transition-colors border-l-2"
+                        style={{ borderLeftColor: STATO_BORDER[task.stato_calcolato || task.stato || ""] || "#C7C7CC" }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12px] text-[#1d1d1f] font-medium">{task.titolo}</div>
+                          <div className="text-[10px] text-[#86868b]">{task.zona_nome} · {task.lavorazione_nome} {task.durata_ore ? `· ${task.durata_ore}h` : ""}</div>
+                        </div>
+                        <span className="text-[9px] text-[#86868b]">Apri</span>
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-              {unassignedOps.length > 0 && (
-                <div className="px-4">
-                  <div className="text-[10px] text-[#86868b] mb-1">Operazioni ({unassignedOps.length})</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {unassignedOps.map(op => (
+                )}
+              </div>
+            ))}
+
+            {/* Operazioni senza data */}
+            {filteredUnassignedOps.length > 0 && (
+              <div className="mb-2">
+                <button
+                  onClick={() => {
+                    const next = new Set(daAssegnareExpanded);
+                    if (next.has("_ops")) next.delete("_ops"); else next.add("_ops");
+                    setDaAssegnareExpanded(next);
+                  }}
+                  className="flex items-center gap-1.5 py-1.5 text-left w-full hover:bg-[#f5f5f7] rounded px-2 -mx-2"
+                >
+                  {daAssegnareExpanded.has("_ops") ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  <span className="text-[11px] font-semibold text-[#0ea5e9]/70 uppercase">Operazioni</span>
+                  <span className="text-[10px] text-[#86868b]">({filteredUnassignedOps.length})</span>
+                </button>
+                {daAssegnareExpanded.has("_ops") && (
+                  <div className="pl-4 space-y-1 mt-1">
+                    {filteredUnassignedOps.map(op => (
                       <button key={op.id} onClick={() => { setSelectedTaskId(null); setSelectedOpId(op.id); }}
-                        className="text-left rounded-md px-1.5 py-0.5 text-[9px] bg-[#f0f9ff] hover:bg-[#e0f2fe] transition-colors border-l-2"
-                        style={{ borderLeftColor: "rgba(14, 165, 233, 0.5)" }}>
-                        <div className="font-medium text-[#0ea5e9]/70 truncate max-w-[120px]">TRAS {op.matNome}</div>
+                        className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f0f9ff] transition-colors border-l-2 border-[#0ea5e9]/30">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] text-[#0ea5e9]/70 font-medium">TRAS {op.matNome}</div>
+                        </div>
+                        <span className="text-[9px] text-[#86868b]">Apri</span>
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        } else {
-          return (
-            <div className="mt-6 border-t border-[#e5e5e7] pt-4 px-4">
-              <p className="text-[11px] text-[#86868b]">Nessuna task o operazione da assegnare</p>
-            </div>
-          );
-        }
-      })()}
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Operazione drawer */}
       {selectedOpId && (

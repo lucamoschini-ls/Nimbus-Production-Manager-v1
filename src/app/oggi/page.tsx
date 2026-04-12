@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { OggiClient } from "./oggi-client";
 
+export const revalidate = 30;
+
 export default async function OggiPage() {
   const supabase = await createClient();
 

@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { MaterialiSuperficie } from "./materiali-superficie";
 
+export const revalidate = 30;
+
 async function MaterialiData() {
   const supabase = await createClient();
 

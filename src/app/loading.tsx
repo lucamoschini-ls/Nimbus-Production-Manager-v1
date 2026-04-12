@@ -1,38 +1,10 @@
-import { Skeleton } from "@/components/ui/skeleton";
-
-export default function DashboardLoading() {
+export default function Loading() {
   return (
-    <div className="space-y-8">
-      {/* Page title */}
-      <Skeleton className="h-8 w-48" />
-
-      {/* 4 counter cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-[12px] border border-[#e5e5e7] bg-white p-6"
-          >
-            <Skeleton className="mb-3 h-4 w-24" />
-            <Skeleton className="h-8 w-16" />
-          </div>
-        ))}
+    <div className="space-y-6 animate-pulse">
+      <div className="grid grid-cols-4 gap-4">
+        {[1,2,3,4].map(i => <div key={i} className="h-24 bg-[#f5f5f7] rounded-xl" />)}
       </div>
-
-      {/* 3x3 zone grid */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-[12px] border border-[#e5e5e7] bg-white p-6"
-          >
-            <Skeleton className="mb-4 h-5 w-32" />
-            <Skeleton className="mb-2 h-3 w-full" />
-            <Skeleton className="mb-2 h-3 w-3/4" />
-            <Skeleton className="h-3 w-1/2" />
-          </div>
-        ))}
-      </div>
+      <div className="h-48 bg-[#f5f5f7] rounded-xl" />
     </div>
   );
 }
