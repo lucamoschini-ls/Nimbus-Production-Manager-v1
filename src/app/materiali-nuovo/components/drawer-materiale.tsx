@@ -1,7 +1,10 @@
 "use client";
 
-import { Calculator } from "lucide-react";
+import { useState, useRef } from "react";
+import { Calculator, X } from "lucide-react";
+import { toast } from "sonner";
 import type { DrawerData } from "../materiali-superficie";
+import { aggiornaMateriale, eliminaLegameByComposite } from "../actions";
 
 const SEMAFORO_COLORS = {
   rosso: "bg-red-500",
@@ -9,12 +12,13 @@ const SEMAFORO_COLORS = {
   verde: "bg-green-500",
 };
 
-const PROV_LABELS: Record<string, string> = {
-  acquisto: "Acquisto",
-  in_loco: "In loco",
-  magazzino: "Magazzino",
-  noleggio: "Noleggio",
-};
+const PROV_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "acquisto", label: "Acquisto" },
+  { value: "in_loco", label: "In loco" },
+  { value: "magazzino", label: "Magazzino" },
+  { value: "noleggio", label: "Noleggio" },
+];
 
 interface Props {
   id: string;
@@ -23,8 +27,97 @@ interface Props {
   onOpenCalcoli: () => void;
 }
 
+function InlineField({
+  label,
+  value,
+  onSave,
+  type = "text",
+}: {
+  label: string;
+  value: string | number;
+  onSave: (v: string) => void;
+  type?: "text" | "number";
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleBlur = () => {
+    setEditing(false);
+    if (draft !== String(value)) {
+      onSave(draft);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div>
+        <div className="text-[#86868b] text-[10px] mb-0.5">{label}</div>
+        <div
+          className="font-medium text-[#1d1d1f] cursor-pointer hover:bg-[#f5f5f7] rounded px-1 -mx-1 py-0.5 text-[12px]"
+          onClick={() => {
+            setDraft(String(value));
+            setEditing(true);
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
+        >
+          {value || <span className="text-[#b0b0b5]">non impostato</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-[#86868b] text-[10px] mb-0.5">{label}</div>
+      <input
+        ref={inputRef}
+        type={type}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => { if (e.key === "Enter") handleBlur(); if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
+        className="w-full text-[12px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white outline-none focus:ring-1 focus:ring-ring"
+        autoFocus
+      />
+    </div>
+  );
+}
+
+function InlineSelect({
+  label,
+  value,
+  options,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (v: string) => void;
+}) {
+  return (
+    <div>
+      <div className="text-[#86868b] text-[10px] mb-0.5">{label}</div>
+      <select
+        value={value}
+        onChange={(e) => onSave(e.target.value)}
+        className="w-full text-[12px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white outline-none focus:ring-1 focus:ring-ring"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: Props) {
   const mat = drawerData.materialiMap.get(id);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(mat?.nome || "");
+
   if (!mat) {
     return (
       <p className="text-[12px] text-[#86868b]">Materiale non trovato</p>
@@ -33,13 +126,53 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
 
   const taskLinks = drawerData.taskLinksByCatalogo.get(id) || [];
 
+  const saveField = async (campo: string, valore: string | number | null) => {
+    drawerData.onUpdateCatalogo(id, campo, valore);
+    try {
+      await aggiornaMateriale(id, campo, valore);
+    } catch (e) {
+      toast.error("Errore salvataggio", { description: (e as Error).message });
+    }
+  };
+
+  const handleNameBlur = () => {
+    setEditingName(false);
+    if (nameDraft !== mat.nome && nameDraft.trim()) {
+      saveField("nome", nameDraft.trim());
+    }
+  };
+
+  const handleRemoveLink = async (link: { task_id: string; quantita: number | null; unita: string | null }) => {
+    if (!window.confirm("Rimuovere questo collegamento task-materiale?")) return;
+    drawerData.onRemoveLegame(link.task_id, id);
+    try {
+      await eliminaLegameByComposite(link.task_id, id);
+    } catch (e) {
+      toast.error("Errore eliminazione", { description: (e as Error).message });
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
       <div>
-        <h3 className="text-[15px] font-semibold text-[#1d1d1f]">
-          {mat.nome}
-        </h3>
+        {editingName ? (
+          <input
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={handleNameBlur}
+            onKeyDown={(e) => { if (e.key === "Enter") handleNameBlur(); if (e.key === "Escape") { setNameDraft(mat.nome); setEditingName(false); } }}
+            className="text-[15px] font-semibold text-[#1d1d1f] w-full border border-[#e5e5e7] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+            autoFocus
+          />
+        ) : (
+          <h3
+            className="text-[15px] font-semibold text-[#1d1d1f] cursor-pointer hover:bg-[#f5f5f7] rounded px-1 -mx-1 py-0.5"
+            onClick={() => { setNameDraft(mat.nome); setEditingName(true); }}
+          >
+            {mat.nome}
+          </h3>
+        )}
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
           {mat.categoria_comp ? (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -65,38 +198,28 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
           Dettagli
         </h4>
         <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 text-[12px]">
-          <div>
-            <div className="text-[#86868b] text-[10px] mb-0.5">Unita</div>
-            <div className="font-medium text-[#1d1d1f]">{mat.unita}</div>
-          </div>
-          <div>
-            <div className="text-[#86868b] text-[10px] mb-0.5">Prezzo</div>
-            <div className="font-medium text-[#1d1d1f]">
-              {mat.prezzo_unitario > 0 ? (
-                `${mat.prezzo_unitario} €/${mat.unita}`
-              ) : (
-                <span className="text-[#86868b] font-normal">
-                  non impostato
-                </span>
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-[#86868b] text-[10px] mb-0.5">Fornitore</div>
-            <div
-              className={`font-medium ${mat.fornitore === "Da assegnare" ? "text-[#86868b]" : "text-[#1d1d1f]"}`}
-            >
-              {mat.fornitore}
-            </div>
-          </div>
-          <div>
-            <div className="text-[#86868b] text-[10px] mb-0.5">
-              Provenienza
-            </div>
-            <div className="font-medium text-[#1d1d1f]">
-              {PROV_LABELS[mat.provenienza] || mat.provenienza}
-            </div>
-          </div>
+          <InlineField
+            label="Unita"
+            value={mat.unita}
+            onSave={(v) => saveField("unita", v || null)}
+          />
+          <InlineField
+            label="Prezzo"
+            value={mat.prezzo_unitario > 0 ? mat.prezzo_unitario : ""}
+            type="number"
+            onSave={(v) => saveField("prezzo", v ? parseFloat(v) : null)}
+          />
+          <InlineField
+            label="Fornitore"
+            value={mat.fornitore === "Da assegnare" ? "" : mat.fornitore}
+            onSave={(v) => saveField("fornitore", v || null)}
+          />
+          <InlineSelect
+            label="Provenienza"
+            value={mat.provenienza === "—" ? "" : mat.provenienza}
+            options={PROV_OPTIONS}
+            onSave={(v) => saveField("provenienza", v || null)}
+          />
         </div>
       </div>
 
@@ -167,25 +290,34 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
               const task = drawerData.taskMap.get(link.task_id);
               if (!task) return null;
               return (
-                <button
+                <div
                   key={`${link.task_id}-${i}`}
-                  onClick={() => onOpenTask(link.task_id)}
-                  className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#f5f5f7] transition-colors"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#f5f5f7] transition-colors group"
                 >
-                  <div className="flex-1 min-w-0">
+                  <button
+                    onClick={() => onOpenTask(link.task_id)}
+                    className="flex-1 min-w-0 text-left"
+                  >
                     <div className="text-[12px] text-[#1d1d1f] truncate">
                       {task.titolo}
                     </div>
                     <div className="text-[10px] text-[#86868b]">
                       {task.zona_nome} · {task.lavorazione_nome}
                     </div>
-                  </div>
+                  </button>
                   {link.quantita != null && (
                     <span className="text-[11px] text-[#86868b] flex-shrink-0">
                       {link.quantita} {link.unita || mat.unita}
                     </span>
                   )}
-                </button>
+                  <button
+                    onClick={() => handleRemoveLink(link)}
+                    className="opacity-0 group-hover:opacity-100 text-[#b0b0b5] hover:text-red-500 p-0.5 rounded transition-opacity"
+                    title="Rimuovi collegamento"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
               );
             })}
           </div>

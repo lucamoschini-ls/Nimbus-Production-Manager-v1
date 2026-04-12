@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { SuperficieState } from "../hooks/use-superficie-state";
 import type { MaterialeArricchito } from "../materiali-superficie";
@@ -108,6 +108,23 @@ function InlineEditor({
   );
 }
 
+// ---- CSV Export ----
+
+function exportCSV(materiali: MaterialeArricchito[]) {
+  const rows: string[][] = [["Fornitore", "Nome", "Da comprare", "Unita", "Prezzo", "Costo"]];
+  for (const m of materiali.filter(m => m.da_comprare > 0)) {
+    rows.push([m.fornitore, m.nome, String(m.da_comprare), m.unita, String(m.prezzo_unitario), String(m.costo_da_comprare)]);
+  }
+  const csv = rows.map(r => r.join(";")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `lista-spesa-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ---- Main component ----
 
 function formatDateGroup(dateStr: string): string {
@@ -120,13 +137,8 @@ function formatDateGroup(dateStr: string): string {
 }
 
 function isToday(dateStr: string): boolean {
-  const d = new Date(dateStr + "T00:00:00");
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }); // YYYY-MM-DD format
+  return dateStr === today;
 }
 
 export function ListaMateriali({
@@ -198,6 +210,12 @@ export function ListaMateriali({
   };
 
   const showCategoriaWarning = state.raggruppa === "categoria_comp";
+
+  const isAcquistiPreset =
+    state.raggruppa === "fornitore" &&
+    state.filtriCat.length === 1 &&
+    state.filtriCat[0] === "consumo" &&
+    state.finestra === "settimana";
 
   const renderItem = (m: MaterialeArricchito) => {
     const isEditing = editingId === m.id;
@@ -293,6 +311,20 @@ export function ListaMateriali({
 
   return (
     <div className="flex-1 overflow-y-auto bg-white">
+      {isAcquistiPreset && materiali.some(m => m.da_comprare > 0) && (
+        <div className="flex items-center justify-between px-4 py-2 bg-[#f5f5f7] border-b border-[#e5e5e7]">
+          <span className="text-[11px] text-[#86868b]">
+            {materiali.filter(m => m.da_comprare > 0).length} materiali da comprare
+          </span>
+          <button
+            onClick={() => exportCSV(materiali)}
+            className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] px-3 py-1.5 rounded-lg border border-[#e5e5e7] bg-white hover:bg-[#f5f5f7] transition-colors"
+          >
+            <Download size={12} />
+            Esporta CSV
+          </button>
+        </div>
+      )}
       {showCategoriaWarning && (
         <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 border-b border-amber-200 text-[12px] text-amber-800">
           <AlertTriangle

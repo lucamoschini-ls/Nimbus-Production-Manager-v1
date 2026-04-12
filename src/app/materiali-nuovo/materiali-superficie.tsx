@@ -12,7 +12,7 @@ import { calcolaMateriali } from "@/lib/calcolo-materiali";
 
 // ---- Raw data types (from server) ----
 
-interface CatalogoViewRow {
+export interface CatalogoViewRow {
   id: string;
   nome: string;
   tipologia_materiale: string;
@@ -28,7 +28,7 @@ interface CatalogoViewRow {
   costo_stimato: number | null;
 }
 
-interface CatalogoExtraRow {
+export interface CatalogoExtraRow {
   id: string;
   categoria_comportamentale: string | null;
   tipo_voce: string;
@@ -144,6 +144,10 @@ export interface DrawerData {
   coeffItems: CoefficienteRow[];
   onUpdateDriver: (id: string, valore: number) => void;
   onUpdateCoeff: (id: string, valore: number) => void;
+  onUpdateCatalogo: (id: string, campo: string, valore: string | number | null) => void;
+  onUpdateLegame: (taskId: string, catalogoId: string, quantita: number) => void;
+  onRemoveLegame: (taskId: string, catalogoId: string) => void;
+  onUpdateTask: (id: string, campo: string, valore: string | number | null) => void;
 }
 
 // ---- Props ----
@@ -180,12 +184,19 @@ export function MaterialiSuperficie({
     chiudereUltimoDrawer,
     resetSuperficie,
     applicaPreset,
+    setParam,
   } = useSuperficieState();
 
   // Local state — updated by inline editors, drives recomputation
+  const [catalogoViewState, setCatalogoViewState] = useState(catalogoView);
+  const [catalogoExtraState, setCatalogoExtraState] = useState(catalogoExtra);
+  const [materialiTaskState, setMaterialiTaskState] = useState(materialiTask);
   const [dispState, setDispState] = useState(disponibilita);
   const [driverState, setDriverState] = useState(driver);
   const [coeffState, setCoeffState] = useState(coefficienti);
+
+  // Sort state from URL
+  const ordina = state.ordina || "nome_asc";
 
   const handleUpdateDisp = useCallback(
     (
@@ -214,6 +225,63 @@ export function MaterialiSuperficie({
     );
   }, []);
 
+  const handleUpdateCatalogo = useCallback((id: string, campo: string, valore: string | number | null) => {
+    const viewFieldMap: Record<string, string> = {
+      nome: "nome", unita: "unita", prezzo: "prezzo_unitario",
+      fornitore: "fornitore_preferito", provenienza: "provenienza_default",
+      tipologia: "tipologia_materiale", note: "note",
+    };
+    const viewField = viewFieldMap[campo];
+    if (viewField) {
+      setCatalogoViewState(prev => prev.map(c => c.id === id ? { ...c, [viewField]: valore } : c));
+    }
+    if (campo === "categoria") {
+      setCatalogoExtraState(prev => prev.map(c => c.id === id ? { ...c, categoria_comportamentale: valore as string | null } : c));
+    }
+    if (campo === "tipologia") {
+      setCatalogoExtraState(prev => prev.map(c => c.id === id ? { ...c, tipo_voce: valore as string } : c));
+    }
+  }, []);
+
+  const handleAddMateriale = useCallback((newCatalogo: CatalogoViewRow, newExtra: CatalogoExtraRow) => {
+    setCatalogoViewState(prev => [...prev, newCatalogo]);
+    setCatalogoExtraState(prev => [...prev, newExtra]);
+    setDispState(prev => [...prev, { catalogo_id: newCatalogo.id, qta_magazzino: 0, qta_recupero: 0, qta_ordinata: 0 }]);
+  }, []);
+
+  const handleRemoveMateriale = useCallback((id: string) => {
+    setCatalogoViewState(prev => prev.filter(c => c.id !== id));
+    setCatalogoExtraState(prev => prev.filter(c => c.id !== id));
+    setMaterialiTaskState(prev => prev.filter(m => m.catalogo_id !== id));
+    setDispState(prev => prev.filter(d => d.catalogo_id !== id));
+  }, []);
+
+  const handleUpdateLegame = useCallback((legameTaskId: string, legameCatalogoId: string, quantita: number) => {
+    setMaterialiTaskState(prev => prev.map(m =>
+      (m.task_id === legameTaskId && m.catalogo_id === legameCatalogoId) ? { ...m, quantita } : m
+    ));
+  }, []);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleAddLegame = useCallback((taskId: string, catalogoId: string, quantita: number, unita: string) => {
+    setMaterialiTaskState(prev => [...prev, { task_id: taskId, catalogo_id: catalogoId, quantita, unita }]);
+  }, []);
+
+  const handleRemoveLegame = useCallback((taskId: string, catalogoId: string) => {
+    setMaterialiTaskState(prev => prev.filter(m => !(m.task_id === taskId && m.catalogo_id === catalogoId)));
+  }, []);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleUpdateTask = useCallback((_id: string, _campo: string, _valore: string | number | null) => {
+    // Task updates are persisted via server action in drawer-task.
+    // Full optimistic update of task state is deferred to a future mattone
+    // since tasks come from the server component prop and aren't in local state yet.
+  }, []);
+
+  const setOrdina = useCallback((v: string) => {
+    setParam({ ordina: v === "nome_asc" ? null : v });
+  }, [setParam]);
+
   // Call calcolaMateriali with reactive driver/coeff state
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const calcoloResults = useMemo(() => {
@@ -232,14 +300,14 @@ export function MaterialiSuperficie({
   // Build enriched array from v_catalogo_acquisti + extras
   const tuttiMateriali = useMemo(() => {
     const extraMap = new Map<string, CatalogoExtraRow>();
-    for (const e of catalogoExtra) extraMap.set(e.id, e);
+    for (const e of catalogoExtraState) extraMap.set(e.id, e);
 
     const dispMap = new Map<string, DisponibilitaRow>();
     for (const d of dispState) {
       if (d.catalogo_id) dispMap.set(d.catalogo_id, d);
     }
 
-    return catalogoView.map((c): MaterialeArricchito => {
+    return catalogoViewState.map((c): MaterialeArricchito => {
       const extra = extraMap.get(c.id);
       const disp = dispMap.get(c.id);
       const magazzino = disp?.qta_magazzino ?? 0;
@@ -275,7 +343,7 @@ export function MaterialiSuperficie({
         stato_semaforo: semaforo,
       };
     });
-  }, [catalogoView, catalogoExtra, dispState]);
+  }, [catalogoViewState, catalogoExtraState, dispState]);
 
   // ---- Drawer data lookups ----
 
@@ -317,7 +385,7 @@ export function MaterialiSuperficie({
 
   const taskLinksByCatalogo = useMemo(() => {
     const map = new Map<string, TaskLink[]>();
-    for (const m of materialiTask) {
+    for (const m of materialiTaskState) {
       if (!m.catalogo_id) continue;
       if (!map.has(m.catalogo_id)) map.set(m.catalogo_id, []);
       map.get(m.catalogo_id)!.push({
@@ -327,11 +395,11 @@ export function MaterialiSuperficie({
       });
     }
     return map;
-  }, [materialiTask]);
+  }, [materialiTaskState]);
 
   const matLinksByTask = useMemo(() => {
     const map = new Map<string, MaterialLink[]>();
-    for (const m of materialiTask) {
+    for (const m of materialiTaskState) {
       if (!m.catalogo_id) continue;
       if (!map.has(m.task_id)) map.set(m.task_id, []);
       map.get(m.task_id)!.push({
@@ -341,7 +409,7 @@ export function MaterialiSuperficie({
       });
     }
     return map;
-  }, [materialiTask]);
+  }, [materialiTaskState]);
 
   // Earliest task date per catalog item (for raggruppa-per-data)
   const materialeEarliestDate = useMemo(() => {
@@ -371,6 +439,10 @@ export function MaterialiSuperficie({
       coeffItems: coeffState,
       onUpdateDriver: handleUpdateDriver,
       onUpdateCoeff: handleUpdateCoeff,
+      onUpdateCatalogo: handleUpdateCatalogo,
+      onUpdateLegame: handleUpdateLegame,
+      onRemoveLegame: handleRemoveLegame,
+      onUpdateTask: handleUpdateTask,
     }),
     [
       materialiMap,
@@ -381,6 +453,10 @@ export function MaterialiSuperficie({
       coeffState,
       handleUpdateDriver,
       handleUpdateCoeff,
+      handleUpdateCatalogo,
+      handleUpdateLegame,
+      handleRemoveLegame,
+      handleUpdateTask,
     ]
   );
 
@@ -394,13 +470,13 @@ export function MaterialiSuperficie({
 
   const catalogoTaskIds = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const m of materialiTask) {
+    for (const m of materialiTaskState) {
       if (!m.catalogo_id) continue;
       if (!map.has(m.catalogo_id)) map.set(m.catalogo_id, new Set());
       map.get(m.catalogo_id)!.add(m.task_id);
     }
     return map;
-  }, [materialiTask]);
+  }, [materialiTaskState]);
 
   // ---- Filters ----
 
@@ -449,6 +525,21 @@ export function MaterialiSuperficie({
       const q = state.cerca.toLowerCase();
       result = result.filter((m) => m.nome.toLowerCase().includes(q));
     }
+
+    // Sort
+    result.sort((a, b) => {
+      switch (ordina) {
+        case "nome_desc": return b.nome.localeCompare(a.nome);
+        case "fabbisogno_asc": return a.fabbisogno_calcolato - b.fabbisogno_calcolato;
+        case "fabbisogno_desc": return b.fabbisogno_calcolato - a.fabbisogno_calcolato;
+        case "da_comprare_asc": return a.da_comprare - b.da_comprare;
+        case "da_comprare_desc": return b.da_comprare - a.da_comprare;
+        case "costo_asc": return a.costo_da_comprare - b.costo_da_comprare;
+        case "costo_desc": return b.costo_da_comprare - a.costo_da_comprare;
+        default: return a.nome.localeCompare(b.nome); // nome_asc
+      }
+    });
+
     return result;
   }, [
     tuttiMateriali,
@@ -456,6 +547,7 @@ export function MaterialiSuperficie({
     state.filtriCat,
     state.filtriForn,
     state.cerca,
+    ordina,
     catalogoTaskIds,
     taskDateMap,
   ]);
@@ -480,6 +572,7 @@ export function MaterialiSuperficie({
         onReset={resetSuperficie}
         onOpenCalcoli={() => aprireDrawer("calcoli", "main")}
         onSetTab={setTab}
+        onGoToLista={() => setParam({ drawer: null })}
       />
 
       {/* Tab bar */}
@@ -507,6 +600,8 @@ export function MaterialiSuperficie({
           <PannelloControllo
             state={state}
             fornitori={fornitoriDistinti}
+            ordina={ordina}
+            onOrdina={setOrdina}
             onRaggruppa={setRaggruppa}
             onToggleCat={toggleFiltroCat}
             onToggleForn={toggleFiltroForn}
@@ -532,7 +627,12 @@ export function MaterialiSuperficie({
       )}
 
       {state.tab === "catalogo" && (
-        <CatalogoTab materiali={tuttiMateriali} />
+        <CatalogoTab
+          materiali={tuttiMateriali}
+          onUpdateCatalogo={handleUpdateCatalogo}
+          onAddMateriale={handleAddMateriale}
+          onRemoveMateriale={handleRemoveMateriale}
+        />
       )}
 
       {state.tab === "calcolatore" && (

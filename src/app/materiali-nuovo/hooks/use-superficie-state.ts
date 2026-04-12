@@ -16,6 +16,7 @@ export interface SuperficieState {
   finestra: FinestraTemporale;
   cerca: string;
   drawers: DrawerEntry[];
+  ordina: string;
 }
 
 const MAX_DRAWERS = 3;
@@ -45,6 +46,7 @@ export function useSuperficieState() {
     finestra: (searchParams.get("finestra") as FinestraTemporale) || "stagione",
     cerca: searchParams.get("cerca") || "",
     drawers: parseDrawers(searchParams.get("drawer")),
+    ordina: searchParams.get("ordina") || "nome_asc",
   }), [searchParams]);
 
   const setParam = useCallback((updates: Record<string, string | null>) => {
@@ -127,5 +129,6 @@ export function useSuperficieState() {
     toggleFiltroCat, toggleFiltroForn,
     aprireDrawer, chiudereDrawer, chiudereUltimoDrawer,
     resetSuperficie, applicaPreset,
+    setParam,
   };
 }

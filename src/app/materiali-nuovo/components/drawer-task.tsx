@@ -1,6 +1,9 @@
 "use client";
 
+import { useState, useRef } from "react";
+import { toast } from "sonner";
 import type { DrawerData } from "../materiali-superficie";
+import { aggiornaTask } from "../actions";
 
 const STATO_COLORS: Record<string, string> = {
   da_fare: "bg-gray-100 text-gray-700",
@@ -24,6 +27,12 @@ const STATO_LABELS: Record<string, string> = {
   in_attesa_permesso: "Attesa permesso",
 };
 
+const STATO_OPTIONS = [
+  { value: "da_fare", label: "Da fare" },
+  { value: "in_corso", label: "In corso" },
+  { value: "completata", label: "Completata" },
+];
+
 const SEMAFORO_COLORS = {
   rosso: "bg-red-500",
   giallo: "bg-yellow-400",
@@ -44,8 +53,71 @@ function formatDate(d: string | null): string {
   });
 }
 
+function EditableTaskField({
+  label,
+  value,
+  onSave,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onSave: (v: string) => void;
+  type?: "text" | "date";
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleBlur = () => {
+    setEditing(false);
+    if (draft !== value) {
+      onSave(draft);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div>
+        <div className="text-[#86868b] text-[10px] mb-0.5">{label}</div>
+        <div
+          className="font-medium text-[#1d1d1f] cursor-pointer hover:bg-[#f5f5f7] rounded px-1 -mx-1 py-0.5 text-[12px]"
+          onClick={() => {
+            setDraft(value);
+            setEditing(true);
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
+        >
+          {type === "date" && value ? formatDate(value) : value || <span className="text-[#b0b0b5]">—</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-[#86868b] text-[10px] mb-0.5">{label}</div>
+      <input
+        ref={inputRef}
+        type={type}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleBlur();
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+        className="w-full text-[12px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white outline-none focus:ring-1 focus:ring-ring"
+        autoFocus
+      />
+    </div>
+  );
+}
+
 export function DrawerTask({ id, drawerData, onOpenMateriale }: Props) {
   const task = drawerData.taskMap.get(id);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(task?.titolo || "");
+
   if (!task) {
     return <p className="text-[12px] text-[#86868b]">Task non trovata</p>;
   }
@@ -53,22 +125,64 @@ export function DrawerTask({ id, drawerData, onOpenMateriale }: Props) {
   const matLinks = drawerData.matLinksByTask.get(id) || [];
   const statoKey = task.stato_calcolato || task.stato;
 
+  const saveField = async (campo: string, valore: string | number | null) => {
+    drawerData.onUpdateTask(id, campo, valore);
+    try {
+      await aggiornaTask(id, campo, valore);
+    } catch (e) {
+      toast.error("Errore salvataggio", { description: (e as Error).message });
+    }
+  };
+
+  const handleNameBlur = () => {
+    setEditingName(false);
+    if (nameDraft !== task.titolo && nameDraft.trim()) {
+      saveField("titolo", nameDraft.trim());
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
       <div>
-        <h3 className="text-[15px] font-semibold text-[#1d1d1f]">
-          {task.titolo}
-        </h3>
-        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-full ${STATO_COLORS[statoKey] || "bg-gray-100 text-gray-700"}`}
+        {editingName ? (
+          <input
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={handleNameBlur}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleNameBlur();
+              if (e.key === "Escape") { setNameDraft(task.titolo); setEditingName(false); }
+            }}
+            className="text-[15px] font-semibold text-[#1d1d1f] w-full border border-[#e5e5e7] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+            autoFocus
+          />
+        ) : (
+          <h3
+            className="text-[15px] font-semibold text-[#1d1d1f] cursor-pointer hover:bg-[#f5f5f7] rounded px-1 -mx-1 py-0.5"
+            onClick={() => { setNameDraft(task.titolo); setEditingName(true); }}
           >
-            {STATO_LABELS[statoKey] || statoKey}
-          </span>
+            {task.titolo}
+          </h3>
+        )}
+        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+          <select
+            value={task.stato}
+            onChange={(e) => saveField("stato", e.target.value)}
+            className={`text-[10px] px-2 py-0.5 rounded-full border-0 cursor-pointer ${STATO_COLORS[statoKey] || "bg-gray-100 text-gray-700"}`}
+          >
+            {STATO_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
           {task.tipologia && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
               {task.tipologia}
+            </span>
+          )}
+          {task.stato_calcolato !== task.stato && (
+            <span className="text-[9px] text-[#86868b]">
+              (calcolato: {STATO_LABELS[task.stato_calcolato] || task.stato_calcolato})
             </span>
           )}
         </div>
@@ -92,20 +206,18 @@ export function DrawerTask({ id, drawerData, onOpenMateriale }: Props) {
               {task.lavorazione_nome}
             </div>
           </div>
-          <div>
-            <div className="text-[#86868b] text-[10px] mb-0.5">
-              Data inizio
-            </div>
-            <div className="font-medium text-[#1d1d1f]">
-              {formatDate(task.data_inizio)}
-            </div>
-          </div>
-          <div>
-            <div className="text-[#86868b] text-[10px] mb-0.5">Data fine</div>
-            <div className="font-medium text-[#1d1d1f]">
-              {formatDate(task.data_fine)}
-            </div>
-          </div>
+          <EditableTaskField
+            label="Data inizio"
+            value={task.data_inizio || ""}
+            type="date"
+            onSave={(v) => saveField("data_inizio", v || null)}
+          />
+          <EditableTaskField
+            label="Data fine"
+            value={task.data_fine || ""}
+            type="date"
+            onSave={(v) => saveField("data_fine", v || null)}
+          />
           {task.durata_ore != null && (
             <div>
               <div className="text-[#86868b] text-[10px] mb-0.5">

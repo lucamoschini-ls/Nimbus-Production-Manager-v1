@@ -12,6 +12,7 @@ interface Props {
   onReset: () => void;
   onOpenCalcoli: () => void;
   onSetTab: (tab: TabSuperficie) => void;
+  onGoToLista: () => void;
 }
 
 const RAGGRUPPA_LABELS: Record<string, string> = {
@@ -35,6 +36,7 @@ export function BussolaBar({
   onReset,
   onOpenCalcoli,
   onSetTab,
+  onGoToLista,
 }: Props) {
   // Build breadcrumb segments with click handlers
   type Segment = { label: string; onClick?: () => void };
@@ -43,10 +45,10 @@ export function BussolaBar({
   // "Materiali" — always first, click resets to lista default
   segments.push({ label: "Materiali", onClick: onReset });
 
-  // Tab name
+  // Tab name — clicking "Lista" clears drawers without changing filters
   segments.push({
     label: TAB_LABELS[state.tab] || "Lista",
-    onClick: () => onSetTab(state.tab),
+    onClick: state.tab === "lista" ? onGoToLista : () => onSetTab(state.tab),
   });
 
   // Rest only for Lista tab

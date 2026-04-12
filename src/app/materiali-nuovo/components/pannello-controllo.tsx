@@ -36,6 +36,8 @@ const CAT_COLORS: Record<string, string> = {
 interface Props {
   state: SuperficieState;
   fornitori: string[];
+  ordina: string;
+  onOrdina: (v: string) => void;
   onRaggruppa: (v: Raggruppamento) => void;
   onToggleCat: (cat: string) => void;
   onToggleForn: (forn: string) => void;
@@ -47,6 +49,8 @@ interface Props {
 export function PannelloControllo({
   state,
   fornitori,
+  ordina,
+  onOrdina,
   onRaggruppa,
   onToggleCat,
   onToggleForn,
@@ -114,6 +118,25 @@ export function PannelloControllo({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Ordina per */}
+      <div>
+        <div className="text-[10px] text-[#86868b] font-semibold uppercase tracking-wide mb-2">
+          Ordina per
+        </div>
+        <select
+          value={ordina}
+          onChange={(e) => onOrdina(e.target.value)}
+          className="w-full text-[12px] border border-[#e5e5e7] rounded-lg px-2 py-1.5 bg-white outline-none"
+        >
+          <option value="nome_asc">Nome A-Z</option>
+          <option value="nome_desc">Nome Z-A</option>
+          <option value="da_comprare_desc">Da comprare (decrescente)</option>
+          <option value="da_comprare_asc">Da comprare (crescente)</option>
+          <option value="fabbisogno_desc">Fabbisogno (decrescente)</option>
+          <option value="costo_desc">Costo (decrescente)</option>
+        </select>
       </div>
 
       {/* Raggruppa per */}
