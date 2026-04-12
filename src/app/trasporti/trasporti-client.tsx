@@ -1,34 +1,53 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Truck, Filter, X } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useMemo } from "react";
+import { Truck, X, ChevronDown, ChevronRight } from "lucide-react";
 import { DrawerOperazione } from "@/app/materiali-nuovo/components/drawer-operazione";
-import { updateOperazioneField, cycleFornitoreStatoFromTrasporti } from "./actions";
 
-export interface TrasportoOp {
-  id: string; titolo: string; organizzato: boolean; stato: string; stato_calcolato: string | null; tipologia: string | null;
-  fornitore_id: string | null; luogo_id: string | null;
-  data_inizio: string | null; data_fine: string | null; note: string | null;
-  durata_ore: number | null; numero_persone: number | null; persone_necessarie: number | null; costo_ora: number | null;
-  motivo_blocco: string | null;
-  luogo: { id: string; nome: string } | null;
-  fornitore: { id: string; nome: string; stato: string } | null;
-  materiale: { id: string; nome: string; quantita: number | null; unita: string | null; task: { titolo: string; lavorazione: { nome: string; zona: { id: string; nome: string; colore: string } } } } | null;
+export interface Operazione {
+  id: string;
+  titolo: string;
+  tipologia: string | null;
+  stato: string;
+  organizzato: boolean;
+  fornitore_id: string | null;
+  luogo_id: string | null;
+  materiale_id: string | null;
+  data_inizio: string | null;
+  data_fine: string | null;
+  durata_ore: number | null;
+  numero_persone: number | null;
+  note: string | null;
+  fornitore: { id: string; nome: string } | { id: string; nome: string }[] | null;
+  luogo: { id: string; nome: string } | { id: string; nome: string }[] | null;
+  materiale_ref: { nome: string; catalogo_id: string | null } | { nome: string; catalogo_id: string | null }[] | null;
 }
 
-const STATO_COLORS: Record<string, string> = {
-  da_fare: "bg-gray-100 text-gray-600",
-  organizzato: "bg-blue-50 text-blue-600",
-  in_corso: "bg-yellow-50 text-yellow-700",
-  completata: "bg-green-50 text-green-600",
-  bloccata: "bg-red-50 text-red-600",
+interface Luogo {
+  id: string;
+  nome: string;
+}
+
+interface Props {
+  ops: Operazione[];
+  luoghi: Luogo[];
+}
+
+const STATO_BORDER: Record<string, string> = {
+  da_fare: "#C7C7CC",
+  organizzato: "#007AFF",
+  in_corso: "#FFD60A",
+  completata: "#34C759",
+  bloccata: "#FF3B30",
 };
 
-const STATO_FORN_CLS: Record<string, string> = {
-  da_trovare: "bg-[#FF3B30]/10 text-[#FF3B30]", contattato: "bg-[#FF9F0A]/10 text-[#FF9F0A]",
-  confermato: "bg-[#0071E3]/10 text-[#0071E3]", sopralluogo_fatto: "bg-[#5856D6]/10 text-[#5856D6]",
-  materiali_definiti: "bg-[#AF52DE]/10 text-[#AF52DE]", pronto: "bg-[#34C759]/10 text-[#34C759]",
+const STATO_FILTRI = ["tutti", "da_fare", "organizzato", "in_corso", "completata"] as const;
+const STATO_LABELS: Record<string, string> = {
+  tutti: "Tutti",
+  da_fare: "Da organizzare",
+  organizzato: "Organizzati",
+  in_corso: "In corso",
+  completata: "Completati",
 };
 
 const TIPOLOGIA_LABELS: Record<string, string> = {
@@ -42,252 +61,388 @@ const TIPOLOGIA_LABELS: Record<string, string> = {
   altro: "Altro",
 };
 
-function formatShortDate(d: string | null): string {
-  if (!d) return "--";
-  return d.slice(5).replace("-", "/");
+// Helpers to normalize PostgREST join results
+function normalizeOne<T>(val: T | T[] | null): T | null {
+  if (val == null) return null;
+  if (Array.isArray(val)) return val[0] ?? null;
+  return val;
 }
 
-interface Props {
-  ops: TrasportoOp[];
-  fornitori: { id: string; nome: string }[];
-  luoghi: { id: string; nome: string }[];
-  zone: { id: string; nome: string }[];
+function getToday(): string {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
 }
 
-export function TrasportiClient({ ops, fornitori, luoghi, zone }: Props) {
-  const [filterLuogo, setFilterLuogo] = useState("tutti");
-  const [filterStato, setFilterStato] = useState("tutti");
-  const [filterFornitore, setFilterFornitore] = useState("tutti");
-  const [filterZona, setFilterZona] = useState("tutti");
-  const [filterTipologia, setFilterTipologia] = useState("tutti");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
-  const filtered = useMemo(() => ops.filter((op) => {
-    if (filterLuogo !== "tutti" && (op.luogo?.id ?? "none") !== filterLuogo) return false;
-    if (filterStato === "organizzati" && !op.organizzato) return false;
-    if (filterStato === "da_organizzare" && op.organizzato) return false;
-    if (filterStato === "completata" && op.stato !== "completata") return false;
-    if (filterStato === "bloccata" && op.stato !== "bloccata") return false;
-    if (filterFornitore !== "tutti" && op.fornitore_id !== filterFornitore) return false;
-    if (filterZona !== "tutti" && op.materiale?.task?.lavorazione?.zona?.id !== filterZona) return false;
-    if (filterTipologia !== "tutti" && op.tipologia !== filterTipologia) return false;
-    return true;
-  }), [ops, filterLuogo, filterStato, filterFornitore, filterZona, filterTipologia]);
+function formatDateLabel(dateStr: string, today: string): string {
+  const [, m, d] = dateStr.split("-");
+  const label = `${d}/${m}`;
+  if (dateStr === today) return `OGGI ${label}`;
+  if (dateStr === addDays(today, 1)) return `Domani ${label}`;
+  return label;
+}
 
-  const daOrganizzare = ops.filter((o) => !o.organizzato).length;
-  const organizzati = ops.filter((o) => o.organizzato).length;
-  const completate = ops.filter((o) => o.stato === "completata").length;
+export function TrasportiClient({ ops, luoghi }: Props) {
+  const [filterStato, setFilterStato] = useState<string>("tutti");
+  const [filterTipologia, setFilterTipologia] = useState<string>("tutti");
+  const [filterFornitore, setFilterFornitore] = useState<string>("tutti");
+  const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
+  const [expandedSenzaData, setExpandedSenzaData] = useState<Set<string>>(new Set());
 
-  // Group by luogo
-  const grouped = useMemo(() => {
-    const map: Record<string, TrasportoOp[]> = {};
-    filtered.forEach((op) => {
-      const k = op.luogo?.nome ?? "Da definire";
-      if (!map[k]) map[k] = [];
-      map[k].push(op);
-    });
-    return map;
-  }, [filtered]);
-  const luoghiKeys = Object.keys(grouped).sort((a, b) => a === "Da definire" ? 1 : b === "Da definire" ? -1 : a.localeCompare(b));
+  const today = getToday();
+  const nextWeekStr = addDays(today, 7);
 
-  // Distinct tipologie in data
+  // Distinct tipologie and fornitori for filter dropdowns
   const tipologieInData = useMemo(() => {
     const set = new Set<string>();
     ops.forEach((op) => { if (op.tipologia) set.add(op.tipologia); });
     return Array.from(set).sort();
   }, [ops]);
 
+  const fornitoriInData = useMemo(() => {
+    const map = new Map<string, string>();
+    ops.forEach((op) => {
+      const f = normalizeOne(op.fornitore);
+      if (f) map.set(f.id, f.nome);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [ops]);
+
+  // Filtered ops
+  const filtered = useMemo(() => ops.filter((op) => {
+    if (filterStato === "da_fare" && op.organizzato) return false;
+    if (filterStato === "da_fare" && op.stato === "completata") return false;
+    if (filterStato === "organizzato" && !op.organizzato) return false;
+    if (filterStato === "in_corso" && op.stato !== "in_corso") return false;
+    if (filterStato === "completata" && op.stato !== "completata") return false;
+    if (filterTipologia !== "tutti" && op.tipologia !== filterTipologia) return false;
+    if (filterFornitore !== "tutti") {
+      const f = normalizeOne(op.fornitore);
+      if (f?.id !== filterFornitore) return false;
+    }
+    return true;
+  }), [ops, filterStato, filterTipologia, filterFornitore]);
+
+  // Narrative header data
+  const narrativeHeader = useMemo(() => {
+    const oggiOps = ops.filter((o) => o.data_inizio === today);
+    const prossimi7 = ops.filter(
+      (o) => o.data_inizio && o.data_inizio >= today && o.data_inizio <= nextWeekStr
+    );
+    const daOrganizzare = ops.filter((o) => !o.organizzato && o.stato !== "completata").length;
+
+    const parts: string[] = [];
+    if (prossimi7.length > 0) {
+      parts.push(`Prossimi 7 giorni: ${prossimi7.length} operazioni schedulat${prossimi7.length === 1 ? "a" : "e"}.`);
+    }
+    if (oggiOps.length > 0) {
+      // Group today's ops by luogo
+      const luoghiOggi = new Set<string>();
+      oggiOps.forEach((o) => {
+        const l = normalizeOne(o.luogo);
+        if (l) luoghiOggi.add(l.nome);
+      });
+      const luoghiStr = Array.from(luoghiOggi).join(", ");
+      parts.push(`Oggi ${oggiOps.length} operazion${oggiOps.length === 1 ? "e" : "i"}${luoghiStr ? ` (${luoghiStr})` : ""}.`);
+    }
+    if (daOrganizzare > 0) {
+      parts.push(`${daOrganizzare} da organizzare.`);
+    }
+    if (parts.length === 0) {
+      parts.push("Nessuna operazione schedulata nei prossimi 7 giorni.");
+    }
+    return parts.join(" ");
+  }, [ops, today, nextWeekStr]);
+
+  // Build matrix data: dates (sorted) and "senza data"
+  const { dateRows, senzaDataByLuogo } = useMemo(() => {
+    const dateSet = new Set<string>();
+    const senzaData: Record<string, Operazione[]> = {};
+
+    // Initialize senza data buckets for all luoghi + "no_luogo"
+    luoghi.forEach((l) => { senzaData[l.id] = []; });
+    senzaData["no_luogo"] = [];
+
+    // Always include today
+    dateSet.add(today);
+
+    filtered.forEach((op) => {
+      const luogoId = normalizeOne(op.luogo)?.id ?? "no_luogo";
+      if (op.data_inizio) {
+        dateSet.add(op.data_inizio);
+      } else {
+        if (!senzaData[luogoId]) senzaData[luogoId] = [];
+        senzaData[luogoId].push(op);
+      }
+    });
+
+    const sortedDates = Array.from(dateSet).sort();
+
+    // Build rows: for each date, for each luogo, find ops
+    const rows = sortedDates.map((date) => {
+      const cells: Record<string, Operazione[]> = {};
+      luoghi.forEach((l) => { cells[l.id] = []; });
+      cells["no_luogo"] = [];
+
+      filtered.forEach((op) => {
+        if (op.data_inizio === date) {
+          const luogoId = normalizeOne(op.luogo)?.id ?? "no_luogo";
+          if (!cells[luogoId]) cells[luogoId] = [];
+          cells[luogoId].push(op);
+        }
+      });
+
+      return { date, cells };
+    });
+
+    return { dateRows: rows, senzaDataByLuogo: senzaData };
+  }, [filtered, luoghi, today]);
+
+  // Check if "no_luogo" column has any data
+  const hasNoLuogoColumn = useMemo(() => {
+    const hasInDates = dateRows.some((row) => (row.cells["no_luogo"]?.length ?? 0) > 0);
+    const hasInSenza = (senzaDataByLuogo["no_luogo"]?.length ?? 0) > 0;
+    return hasInDates || hasInSenza;
+  }, [dateRows, senzaDataByLuogo]);
+
+  const columns = useMemo(() => {
+    const cols = [...luoghi];
+    if (hasNoLuogoColumn) {
+      cols.push({ id: "no_luogo", nome: "Senza luogo" });
+    }
+    return cols;
+  }, [luoghi, hasNoLuogoColumn]);
+
+  const totalSenzaData = useMemo(() => {
+    return Object.values(senzaDataByLuogo).reduce((sum, arr) => sum + arr.length, 0);
+  }, [senzaDataByLuogo]);
+
+  const toggleSenzaData = (luogoId: string) => {
+    setExpandedSenzaData((prev) => {
+      const next = new Set(prev);
+      if (next.has(luogoId)) next.delete(luogoId);
+      else next.add(luogoId);
+      return next;
+    });
+  };
+
   return (
     <div className="flex h-full">
-      {/* Main list */}
-      <div className={`flex-1 min-w-0 overflow-y-auto ${selectedId ? "" : ""}`}>
-        <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-4">Operazioni</h1>
+      {/* Main content */}
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-2">Operazioni</h1>
 
-        {/* Contatori */}
-        <div className="flex flex-wrap gap-3 mb-4">
-          <div className="bg-white rounded-[12px] border border-[#e5e5e7] px-4 py-3">
-            <p className="text-[10px] text-[#86868b] font-medium">Totale</p>
-            <p className="text-lg font-semibold text-[#1d1d1f] mt-0.5" suppressHydrationWarning>{mounted ? ops.length : "\u2014"}</p>
+        {/* Narrative header */}
+        <p className="text-[13px] text-[#86868b] mb-5" suppressHydrationWarning>
+          {narrativeHeader}
+        </p>
+
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-3 mb-5">
+          {/* Stato segmented control */}
+          <div className="flex bg-[#f5f5f7] rounded-lg p-0.5">
+            {STATO_FILTRI.map((s) => (
+              <button
+                key={s}
+                onClick={() => setFilterStato(s)}
+                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
+                  filterStato === s
+                    ? "bg-white text-[#1d1d1f] shadow-sm"
+                    : "text-[#86868b] hover:text-[#1d1d1f]"
+                }`}
+              >
+                {STATO_LABELS[s]}
+              </button>
+            ))}
           </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-3">
-            <p className="text-[10px] text-amber-700 font-medium">Da organizzare</p>
-            <p className="text-lg font-semibold text-amber-700 mt-0.5" suppressHydrationWarning>{mounted ? daOrganizzare : "\u2014"}</p>
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-[12px] px-4 py-3">
-            <p className="text-[10px] text-green-700 font-medium">Organizzati</p>
-            <p className="text-lg font-semibold text-green-700 mt-0.5" suppressHydrationWarning>{mounted ? organizzati : "\u2014"}</p>
-          </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-[12px] px-4 py-3">
-            <p className="text-[10px] text-blue-700 font-medium">Completate</p>
-            <p className="text-lg font-semibold text-blue-700 mt-0.5" suppressHydrationWarning>{mounted ? completate : "\u2014"}</p>
-          </div>
+
+          {/* Tipologia select */}
+          <select
+            value={filterTipologia}
+            onChange={(e) => setFilterTipologia(e.target.value)}
+            className="text-[11px] border border-[#e5e5e7] rounded-md px-2 py-1.5 bg-white text-[#1d1d1f]"
+          >
+            <option value="tutti">Tutte le tipologie</option>
+            {tipologieInData.map((t) => (
+              <option key={t} value={t}>{TIPOLOGIA_LABELS[t] || t}</option>
+            ))}
+          </select>
+
+          {/* Fornitore select */}
+          <select
+            value={filterFornitore}
+            onChange={(e) => setFilterFornitore(e.target.value)}
+            className="text-[11px] border border-[#e5e5e7] rounded-md px-2 py-1.5 bg-white text-[#1d1d1f]"
+          >
+            <option value="tutti">Tutti i fornitori</option>
+            {fornitoriInData.map(([id, nome]) => (
+              <option key={id} value={id}>{nome}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Filtri */}
-        <div className="flex flex-wrap gap-3 mb-4">
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Tipologia</span>
-            <Select value={filterTipologia} onValueChange={setFilterTipologia}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Tipologia" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tutti">Tutte</SelectItem>
-                {tipologieInData.map((t) => <SelectItem key={t} value={t}>{TIPOLOGIA_LABELS[t] || t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Luogo</span>
-            <Select value={filterLuogo} onValueChange={setFilterLuogo}>
-              <SelectTrigger className="w-[150px]"><Filter size={14} className="mr-1.5 text-[#86868b]" /><SelectValue placeholder="Luogo" /></SelectTrigger>
-              <SelectContent><SelectItem value="tutti">Tutti i luoghi</SelectItem><SelectItem value="none">Da definire</SelectItem>{luoghi.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Stato</span>
-            <Select value={filterStato} onValueChange={setFilterStato}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Stato" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tutti">Tutti</SelectItem>
-                <SelectItem value="da_organizzare">Da organizzare</SelectItem>
-                <SelectItem value="organizzati">Organizzati</SelectItem>
-                <SelectItem value="completata">Completate</SelectItem>
-                <SelectItem value="bloccata">Bloccate</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Fornitore</span>
-            <Select value={filterFornitore} onValueChange={setFilterFornitore}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Fornitore" /></SelectTrigger>
-              <SelectContent><SelectItem value="tutti">Tutti</SelectItem>{fornitori.map((f) => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <span className="text-[9px] text-[#86868b] block mb-0.5">Zona</span>
-            <Select value={filterZona} onValueChange={setFilterZona}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Zona" /></SelectTrigger>
-              <SelectContent><SelectItem value="tutti">Tutte le zone</SelectItem>{zone.map((z) => <SelectItem key={z.id} value={z.id}>{z.nome}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        </div>
-
+        {/* Matrix */}
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-[#86868b]">
             <Truck size={40} strokeWidth={1.2} />
             <p className="text-sm mt-3 font-medium">Nessuna operazione trovata</p>
           </div>
         ) : (
-          <div className="space-y-5">
-            {luoghiKeys.map((luogo) => {
-              const grp = grouped[luogo];
-              const orgCount = grp.filter((o) => o.organizzato).length;
-              return (
-                <div key={luogo}>
-                  <h3 className="text-xs font-semibold text-[#86868b] uppercase tracking-wide mb-2">
-                    {luogo}{" "}
-                    <span className="font-normal">
-                      ({grp.length} -- {orgCount} organizzati)
-                    </span>
-                  </h3>
-                  <div className="bg-white rounded-[12px] border border-[#e5e5e7] divide-y divide-[#f0f0f0]">
-                    {grp.map((op) => {
-                      const isSelected = selectedId === op.id;
+          <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-x-auto">
+            <table className="w-full border-collapse min-w-[600px]">
+              <thead>
+                <tr className="border-b border-[#e5e5e7]">
+                  <th className="text-left text-[10px] font-semibold text-[#86868b] uppercase tracking-wide px-3 py-2 w-[80px]">
+                    Data
+                  </th>
+                  {columns.map((l) => (
+                    <th
+                      key={l.id}
+                      className="text-left text-[10px] font-semibold text-[#86868b] uppercase tracking-wide px-3 py-2"
+                    >
+                      {l.nome}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dateRows.map((row) => {
+                  const isToday = row.date === today;
+                  const hasAnyOps = columns.some((l) => (row.cells[l.id]?.length ?? 0) > 0);
+                  if (!hasAnyOps && !isToday) return null;
+
+                  return (
+                    <tr
+                      key={row.date}
+                      className={`border-b border-[#f0f0f0] ${isToday ? "border-l-4 border-l-blue-400" : ""}`}
+                    >
+                      <td
+                        className={`px-3 py-2 align-top text-[11px] whitespace-nowrap ${
+                          isToday ? "font-bold text-[#1d1d1f]" : "text-[#86868b]"
+                        }`}
+                        suppressHydrationWarning
+                      >
+                        {formatDateLabel(row.date, today)}
+                      </td>
+                      {columns.map((l) => {
+                        const cellOps = row.cells[l.id] ?? [];
+                        return (
+                          <td
+                            key={l.id}
+                            className={`px-2 py-2 align-top ${cellOps.length === 0 ? "bg-[#fafafa]" : ""}`}
+                          >
+                            {cellOps.map((op) => (
+                              <OpChip
+                                key={op.id}
+                                op={op}
+                                isSelected={selectedOpId === op.id}
+                                onClick={() => setSelectedOpId(selectedOpId === op.id ? null : op.id)}
+                              />
+                            ))}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+
+                {/* Senza data row */}
+                {totalSenzaData > 0 && (
+                  <tr className="border-t border-[#e5e5e7]">
+                    <td className="px-3 py-2 align-top text-[11px] text-[#86868b] font-medium whitespace-nowrap">
+                      Senza data
+                    </td>
+                    {columns.map((l) => {
+                      const cellOps = senzaDataByLuogo[l.id] ?? [];
+                      const isExpanded = expandedSenzaData.has(l.id);
+                      if (cellOps.length === 0) {
+                        return <td key={l.id} className="px-2 py-2 align-top bg-[#fafafa]" />;
+                      }
                       return (
-                        <button
-                          key={op.id}
-                          onClick={() => setSelectedId(isSelected ? null : op.id)}
-                          className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors hover:bg-[#fafafa] ${isSelected ? "bg-[#f0f4ff]" : ""}`}
-                        >
-                          {/* Checkbox organizzato */}
-                          <input
-                            type="checkbox"
-                            checked={op.organizzato}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => updateOperazioneField(op.id, { organizzato: e.target.checked })}
-                            className="w-4 h-4 rounded border-[#e5e5e7] flex-shrink-0"
-                          />
-
-                          {/* Zona dot */}
-                          {op.materiale?.task?.lavorazione?.zona?.colore && (
-                            <span
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: op.materiale.task.lavorazione.zona.colore }}
+                        <td key={l.id} className="px-2 py-2 align-top">
+                          <button
+                            onClick={() => toggleSenzaData(l.id)}
+                            className="flex items-center gap-1 text-[11px] text-[#86868b] hover:text-[#1d1d1f] font-medium mb-1"
+                          >
+                            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                            {cellOps.length} operazion{cellOps.length === 1 ? "e" : "i"}
+                          </button>
+                          {isExpanded && cellOps.map((op) => (
+                            <OpChip
+                              key={op.id}
+                              op={op}
+                              isSelected={selectedOpId === op.id}
+                              onClick={() => setSelectedOpId(selectedOpId === op.id ? null : op.id)}
                             />
-                          )}
-
-                          {/* Main info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[13px] font-medium text-[#1d1d1f] truncate">
-                                {op.titolo}
-                              </span>
-                              {op.tipologia && (
-                                <span className="text-[9px] text-[#86868b] bg-[#f5f5f7] px-1.5 py-0.5 rounded flex-shrink-0">
-                                  {TIPOLOGIA_LABELS[op.tipologia] || op.tipologia}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-[#86868b] mt-0.5 truncate">
-                              {op.materiale?.task?.lavorazione?.zona?.nome && (
-                                <>{op.materiale.task.lavorazione.zona.nome} &gt; </>
-                              )}
-                              {op.materiale?.nome || "—"}
-                              {op.materiale?.quantita != null && (
-                                <span className="ml-1">({op.materiale.quantita}{op.materiale.unita ? ` ${op.materiale.unita}` : ""})</span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Fornitore + stato */}
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {op.fornitore && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); cycleFornitoreStatoFromTrasporti(op.fornitore!.id, op.fornitore!.stato); }}
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-medium cursor-pointer hover:opacity-80 ${STATO_FORN_CLS[op.fornitore.stato] ?? "bg-gray-100"}`}
-                                title={`${op.fornitore.nome} — click per avanzare`}
-                              >
-                                {op.fornitore.nome}
-                              </button>
-                            )}
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-medium ${STATO_COLORS[op.stato] || "bg-gray-100 text-gray-600"}`}>
-                              {op.stato.replace(/_/g, " ")}
-                            </span>
-                          </div>
-
-                          {/* Date */}
-                          <div className="text-[10px] text-[#86868b] w-[50px] text-right flex-shrink-0">
-                            {formatShortDate(op.data_fine)}
-                          </div>
-                        </button>
+                          ))}
+                        </td>
                       );
                     })}
-                  </div>
-                </div>
-              );
-            })}
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* Detail drawer */}
-      {selectedId && (
+      {/* Drawer */}
+      {selectedOpId && (
         <div className="w-[380px] flex-shrink-0 border-l border-[#e5e5e7] bg-white flex flex-col overflow-hidden ml-4">
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5e5e7] bg-[#fafafa]">
             <span className="text-[11px] text-[#86868b] font-medium uppercase">Dettaglio</span>
             <button
-              onClick={() => setSelectedId(null)}
+              onClick={() => setSelectedOpId(null)}
               className="text-[#86868b] hover:text-[#1d1d1f] p-0.5 rounded hover:bg-[#f0f0f0]"
             >
               <X size={14} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
-            <DrawerOperazione key={selectedId} id={selectedId} />
+            <DrawerOperazione key={selectedOpId} id={selectedOpId} />
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// --- OpChip sub-component ---
+
+function OpChip({
+  op,
+  isSelected,
+  onClick,
+}: {
+  op: Operazione;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  const fornitore = normalizeOne(op.fornitore);
+  const materiale = normalizeOne(op.materiale_ref);
+  const borderColor = STATO_BORDER[op.stato] ?? "#C7C7CC";
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left rounded px-2 py-1 mb-1 text-[11px] transition-colors ${
+        isSelected ? "bg-[#f0f4ff] ring-1 ring-blue-200" : "hover:bg-[#f5f5f7]"
+      }`}
+      style={{ borderLeft: `3px solid ${borderColor}` }}
+    >
+      <div className="font-medium truncate text-[#1d1d1f]">
+        {materiale?.nome || op.titolo}
+      </div>
+      <div className="text-[9px] text-[#86868b] truncate">
+        {op.tipologia ? (TIPOLOGIA_LABELS[op.tipologia] || op.tipologia) : ""}
+        {fornitore ? ` · ${fornitore.nome}` : ""}
+        {!op.tipologia && !fornitore ? "—" : ""}
+      </div>
+    </button>
   );
 }

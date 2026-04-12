@@ -4,38 +4,25 @@ import { TrasportiClient } from "./trasporti-client";
 export default async function TrasportiPage() {
   const supabase = await createClient();
 
-  const [{ data: ops }, { data: fornitori }, { data: luoghi }, { data: zone }] = await Promise.all([
+  const [{ data: ops }, { data: luoghi }] = await Promise.all([
     supabase
       .from("operazioni")
       .select(`
-        id, titolo, tipologia, stato, stato_calcolato, organizzato,
-        data_inizio, data_fine, durata_ore, numero_persone,
-        persone_necessarie, costo_ora, note, motivo_blocco,
-        fornitore_id, luogo_id,
-        fornitore:fornitori!operazioni_fornitore_id_fkey(id, nome, stato),
+        id, titolo, tipologia, stato, organizzato,
+        data_inizio, data_fine, durata_ore, numero_persone, note,
+        fornitore_id, luogo_id, materiale_id,
+        fornitore:fornitori!operazioni_fornitore_id_fkey(id, nome),
         luogo:luoghi!operazioni_luogo_id_fkey(id, nome),
-        materiale:materiali!operazioni_materiale_id_fkey(
-          id, nome, quantita, unita,
-          task:task!materiali_task_id_fkey(
-            titolo,
-            lavorazione:lavorazioni!task_lavorazione_id_fkey(
-              nome, zona:zone!lavorazioni_zona_id_fkey(id, nome, colore)
-            )
-          )
-        )
+        materiale_ref:materiali!operazioni_materiale_id_fkey(nome, catalogo_id)
       `)
-      .order("data_fine", { ascending: true, nullsFirst: false }),
-    supabase.from("fornitori").select("id, nome").order("nome"),
+      .order("data_inizio", { ascending: true, nullsFirst: false }),
     supabase.from("luoghi").select("id, nome").order("ordine"),
-    supabase.from("zone").select("id, nome").order("ordine"),
   ]);
 
   return (
     <TrasportiClient
-      ops={(ops ?? []) as unknown as import("./trasporti-client").TrasportoOp[]}
-      fornitori={(fornitori ?? []) as { id: string; nome: string }[]}
+      ops={(ops ?? []) as unknown as import("./trasporti-client").Operazione[]}
       luoghi={(luoghi ?? []) as { id: string; nome: string }[]}
-      zone={(zone ?? []) as { id: string; nome: string }[]}
     />
   );
 }
