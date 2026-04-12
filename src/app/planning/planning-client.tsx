@@ -11,8 +11,9 @@ import {
   startOfDay,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
+import { DrawerOperazione } from "@/app/materiali-nuovo/components/drawer-operazione";
 import { useRouter } from "next/navigation";
 import { SchedulingTab } from "./scheduling-tab";
 import { AppTooltip } from "@/components/ui/app-tooltip";
@@ -141,6 +142,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"planning" | "scheduling">("planning");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
 
   // Default week: the Monday of the week containing April 14, 2026
   const [weekStart, setWeekStart] = useState<Date>(
@@ -431,7 +433,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                                 </>}
                               >
                                 <button
-                                  onClick={() => setSelectedTaskId(op.taskId)}
+                                  onClick={() => { setSelectedTaskId(null); setSelectedOpId(op.id); }}
                                   className="w-full text-left rounded-md px-1.5 py-0.5 transition-opacity hover:opacity-80 cursor-pointer"
                                   style={{
                                     minHeight: "24px",
@@ -461,7 +463,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                                 </>}
                               >
                                 <button
-                                  onClick={() => setSelectedTaskId(task.id)}
+                                  onClick={() => { setSelectedOpId(null); setSelectedTaskId(task.id); }}
                                   className="relative text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80"
                                   style={{
                                     minHeight: "32px",
@@ -531,6 +533,66 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
           </table>
         </div>
       </div>
+
+      {/* Da assegnare */}
+      {(() => {
+        const unassignedTasks = tasks.filter(t => !t.fornitore_id || !t.data_inizio);
+        const unassignedOps = transportOps.filter(o => !o.data_inizio);
+        if (unassignedTasks.length > 0 || unassignedOps.length > 0) {
+          return (
+            <div className="mt-6 border-t border-[#e5e5e7] pt-4">
+              <h3 className="text-[12px] font-semibold text-[#86868b] uppercase tracking-wide mb-3 px-4">Da assegnare</h3>
+              {unassignedTasks.length > 0 && (
+                <div className="px-4 mb-3">
+                  <div className="text-[10px] text-[#86868b] mb-1">Task ({unassignedTasks.length})</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {unassignedTasks.map(task => (
+                      <button key={task.id} onClick={() => { setSelectedOpId(null); setSelectedTaskId(task.id); }}
+                        className="text-left rounded-md px-2 py-1 text-[10px] bg-[#f5f5f7] hover:bg-[#ebebed] transition-colors border-l-2"
+                        style={{ borderLeftColor: STATO_BORDER[task.stato_calcolato || task.stato || ""] || "#C7C7CC" }}>
+                        <div className="font-medium text-[#1d1d1f] truncate max-w-[140px]">{TIPOLOGIA_SHORT[task.tipologia || ""] || ""} {task.titolo}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {unassignedOps.length > 0 && (
+                <div className="px-4">
+                  <div className="text-[10px] text-[#86868b] mb-1">Operazioni ({unassignedOps.length})</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {unassignedOps.map(op => (
+                      <button key={op.id} onClick={() => { setSelectedTaskId(null); setSelectedOpId(op.id); }}
+                        className="text-left rounded-md px-1.5 py-0.5 text-[9px] bg-[#f0f9ff] hover:bg-[#e0f2fe] transition-colors border-l-2"
+                        style={{ borderLeftColor: "rgba(14, 165, 233, 0.5)" }}>
+                        <div className="font-medium text-[#0ea5e9]/70 truncate max-w-[120px]">TRAS {op.matNome}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        } else {
+          return (
+            <div className="mt-6 border-t border-[#e5e5e7] pt-4 px-4">
+              <p className="text-[11px] text-[#86868b]">Nessuna task o operazione da assegnare</p>
+            </div>
+          );
+        }
+      })()}
+
+      {/* Operazione drawer */}
+      {selectedOpId && (
+        <div className="fixed right-0 top-0 h-screen w-[380px] bg-white border-l border-[#e5e5e7] z-40 overflow-y-auto p-4 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-[11px] text-[#86868b] font-medium uppercase">Operazione</span>
+            <button onClick={() => setSelectedOpId(null)} className="text-[#86868b] hover:text-[#1d1d1f] p-0.5 rounded hover:bg-[#f0f0f0]">
+              <X size={14} />
+            </button>
+          </div>
+          <DrawerOperazione id={selectedOpId} />
+        </div>
+      )}
 
       {/* Task Detail Overlay */}
       <TaskDetailOverlay

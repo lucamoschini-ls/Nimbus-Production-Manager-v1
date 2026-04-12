@@ -2,7 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { Truck, X, ChevronDown, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { DrawerOperazione } from "@/app/materiali-nuovo/components/drawer-operazione";
+import { creaOperazione } from "@/app/materiali-nuovo/actions";
 
 export interface Operazione {
   id: string;
@@ -93,6 +95,8 @@ export function TrasportiClient({ ops, luoghi }: Props) {
   const [filterFornitore, setFilterFornitore] = useState<string>("tutti");
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
   const [expandedSenzaData, setExpandedSenzaData] = useState<Set<string>>(new Set());
+  const [newOpDialog, setNewOpDialog] = useState<{ date: string; luogoId: string; luogoNome: string } | null>(null);
+  const [newOpTitle, setNewOpTitle] = useState("");
 
   const today = getToday();
   const nextWeekStr = addDays(today, 7);
@@ -334,7 +338,8 @@ export function TrasportiClient({ ops, luoghi }: Props) {
                         return (
                           <td
                             key={l.id}
-                            className={`px-2 py-2 align-top ${cellOps.length === 0 ? "bg-[#fafafa]" : ""}`}
+                            className={`px-2 py-2 align-top ${cellOps.length === 0 ? "bg-[#fafafa] cursor-pointer hover:bg-[#f0f0f0]" : ""}`}
+                            onClick={cellOps.length === 0 ? () => setNewOpDialog({ date: row.date, luogoId: l.id, luogoNome: l.nome }) : undefined}
                           >
                             {cellOps.map((op) => (
                               <OpChip
@@ -405,6 +410,37 @@ export function TrasportiClient({ ops, luoghi }: Props) {
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             <DrawerOperazione key={selectedOpId} id={selectedOpId} />
+          </div>
+        </div>
+      )}
+
+      {/* New operation dialog */}
+      {newOpDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setNewOpDialog(null)}>
+          <div className="fixed inset-0 bg-black/20" />
+          <div className="relative bg-white rounded-xl shadow-2xl border border-[#e5e5e7] w-[420px] p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-[15px] font-semibold text-[#1d1d1f] mb-4">
+              Nuova operazione — {newOpDialog.luogoNome} il {new Date(newOpDialog.date + "T00:00:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })}
+            </h3>
+            <div className="space-y-3">
+              <input value={newOpTitle} onChange={e => setNewOpTitle(e.target.value)}
+                placeholder="Titolo operazione (obbligatorio)" autoFocus
+                className="w-full text-[13px] border border-[#e5e5e7] rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => { setNewOpDialog(null); setNewOpTitle(""); }}
+                className="text-[12px] text-[#86868b] px-3 py-1.5">Annulla</button>
+              <button onClick={async () => {
+                if (!newOpTitle.trim()) return;
+                try {
+                  await creaOperazione({ titolo: newOpTitle.trim(), data_inizio: newOpDialog.date, luogo_id: newOpDialog.luogoId, tipologia: "trasporto" });
+                  setNewOpDialog(null); setNewOpTitle("");
+                  window.location.reload();
+                } catch (e) { toast.error("Errore", { description: (e as Error).message }); }
+              }}
+                className="text-[12px] font-medium px-4 py-1.5 rounded-lg bg-[#1d1d1f] text-white hover:bg-[#333]"
+                disabled={!newOpTitle.trim()}>Crea operazione</button>
+            </div>
           </div>
         </div>
       )}

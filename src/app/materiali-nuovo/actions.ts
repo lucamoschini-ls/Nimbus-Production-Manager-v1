@@ -36,6 +36,37 @@ export async function aggiornaCoefficiente(id: string, valore: number) {
 
 // ---- CRUD Operazioni ----
 
+export async function creaOperazione(data: {
+  titolo: string;
+  tipologia?: string;
+  data_inizio?: string;
+  luogo_id?: string;
+  materiale_id?: string;
+  fornitore_id?: string;
+  note?: string;
+}): Promise<string> {
+  const supabase = await createClient();
+  const insertData: Record<string, unknown> = {
+    titolo: data.titolo,
+    stato: "da_fare",
+    organizzato: false,
+    tipologia: data.tipologia || "trasporto",
+  };
+  if (data.data_inizio) insertData.data_inizio = data.data_inizio;
+  if (data.luogo_id) insertData.luogo_id = data.luogo_id;
+  if (data.materiale_id) insertData.materiale_id = data.materiale_id;
+  if (data.fornitore_id) insertData.fornitore_id = data.fornitore_id;
+  if (data.note) insertData.note = data.note;
+
+  const { data: row, error } = await supabase
+    .from("operazioni")
+    .insert(insertData)
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return row.id as string;
+}
+
 export async function aggiornaOperazione(
   id: string,
   campo: string,
