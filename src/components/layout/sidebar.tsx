@@ -12,9 +12,11 @@ import {
   DollarSign,
   Settings,
   ClipboardList,
+  Sun,
 } from "lucide-react";
 
 const navItems = [
+  { href: "/oggi", label: "Oggi", icon: Sun },
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/lavorazioni", label: "Lavorazioni", icon: Layers },
   { href: "/gantt", label: "Gantt", icon: GanttChart },

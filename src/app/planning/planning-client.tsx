@@ -11,7 +11,7 @@ import {
   startOfDay,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { TaskDetailOverlay } from "@/components/task-detail-overlay";
 import { useRouter } from "next/navigation";
 import { SchedulingTab } from "./scheduling-tab";
@@ -24,6 +24,7 @@ interface PlanningTask {
   id: string;
   titolo: string;
   tipologia: string | null;
+  stato: string | null;
   fornitore_nome: string | null;
   fornitore_id: string | null;
   data_inizio: string | null;
@@ -73,6 +74,17 @@ const TIPOLOGIA_SHORT: Record<string, string> = {
   trasporto: "TRAS",
   acquisto: "ACQ",
   acquisto_e_trasporto: "A+T",
+};
+
+const STATO_BORDER: Record<string, string> = {
+  completata: "#34C759",
+  in_corso: "#FFD60A",
+  bloccata: "#FF3B30",
+  da_fare: "#C7C7CC",
+  in_attesa_fornitore: "#FF9500",
+  in_attesa_dipendenza: "#FF9500",
+  in_attesa_materiali: "#FF9500",
+  in_attesa_permesso: "#FF9500",
 };
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -341,14 +353,17 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                 <th className="sticky left-0 z-10 bg-[#f5f5f7] text-left text-xs font-medium text-[#86868b] px-4 py-3 border-b border-r border-[#e5e5e7]" style={{ width: 180, minWidth: 180 }}>
                   Fornitore
                 </th>
-                {weekDays.map((day, i) => (
+                {weekDays.map((day, i) => {
+                  const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+                  return (
                   <th
                     key={i}
-                    className={`text-center text-xs font-medium text-[#86868b] px-2 py-3 border-b border-r border-[#e5e5e7] last:border-r-0 ${i === 6 ? "bg-[#F9F9F9]" : "bg-[#f5f5f7]"}`}
+                    className={`text-center text-xs font-medium px-2 py-3 border-b border-r border-[#e5e5e7] last:border-r-0 ${i === 6 ? "bg-[#F9F9F9]" : "bg-[#f5f5f7]"} ${isToday ? "border-x-2 border-x-blue-400 text-blue-600 font-bold" : "text-[#86868b]"}`}
                   >
                     {dayLabels[i]} {format(day, "dd/MM")}
                   </th>
-                ))}
+                  );
+                })}
                 <th className="bg-[#f5f5f7] text-center text-xs font-medium text-[#86868b] px-3 py-3 border-b border-[#e5e5e7]" style={{ width: 70 }}>
                   Ore
                 </th>
@@ -392,10 +407,11 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                       {dayTasksMap.map((dayTasks, dayIdx) => {
                         const dayOps = dayOpsMap[dayIdx];
                         const hasContent = dayTasks.length > 0 || dayOps.length > 0;
+                        const isTodayCol = format(weekDays[dayIdx], "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
                         return (
                         <td
                           key={dayIdx}
-                          className={`px-1 py-1 border-r border-[#e5e5e7] last:border-r-0 align-top ${dayIdx === 6 ? "bg-[#F9F9F9]" : ""}`}
+                          className={`px-1 py-1 border-r border-[#e5e5e7] last:border-r-0 align-top ${dayIdx === 6 ? "bg-[#F9F9F9]" : ""} ${isTodayCol ? "border-x-2 border-x-blue-400 bg-blue-50/30" : ""}`}
                           style={{ minHeight: 60 }}
                         >
                           <div className="flex flex-col gap-1 min-h-[52px]">
@@ -428,7 +444,10 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                                 </button>
                               </AppTooltip>
                             ))}
-                            {dayTasks.map((task) => (
+                            {dayTasks.map((task) => {
+                              const todayStr = format(new Date(), "yyyy-MM-dd");
+                              const isOverdue = !!(task.data_fine && task.data_fine < todayStr && task.stato !== "completata" && task.stato_calcolato !== "completata");
+                              return (
                               <AppTooltip
                                 key={task.id}
                                 content={<>
@@ -437,20 +456,31 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                                   {task.fornitore_nome && <><br />Fornitore: {task.fornitore_nome}</>}
                                   {task.tipologia && <><br />Tipo: {task.tipologia.replace(/_/g, " ")}</>}
                                   {task.stato_calcolato && <><br />Stato: {task.stato_calcolato.replace(/_/g, " ")}</>}
+                                  {isOverdue && <><br /><span className="text-red-500 font-medium">In ritardo</span></>}
                                 </>}
                               >
                                 <button
                                   onClick={() => setSelectedTaskId(task.id)}
-                                  className="text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80"
+                                  className="relative text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80"
                                   style={{
+                                    minHeight: "32px",
+                                    height: `${Math.max(32, (task.durata_ore || 1) * 12)}px`,
                                     backgroundColor: task.tipologia && tipColorMap[task.tipologia]
                                       ? hexToRgba(tipColorMap[task.tipologia], 0.2)
                                       : task.zona_colore
                                         ? hexToRgba(task.zona_colore, 0.15)
                                         : "rgba(0,0,0,0.05)",
-                                    borderLeft: `3px solid ${(task.tipologia && tipColorMap[task.tipologia]) || task.zona_colore || "#ccc"}`,
+                                    borderLeft: `4px solid ${STATO_BORDER[task.stato_calcolato || task.stato || ""] || "#C7C7CC"}`,
+                                    border: isOverdue ? "2px solid #FF3B30" : undefined,
+                                    borderLeftWidth: isOverdue ? "4px" : undefined,
+                                    borderLeftColor: isOverdue ? "#FF3B30" : undefined,
                                   }}
                                 >
+                                  {isOverdue && (
+                                    <div className="absolute top-0.5 right-0.5">
+                                      <Clock size={10} className="text-red-500" />
+                                    </div>
+                                  )}
                                   <div className="text-[10px] font-medium text-[#1d1d1f] truncate max-w-[120px]">
                                     {task.tipologia
                                       ? TIPOLOGIA_SHORT[task.tipologia] ||
@@ -460,7 +490,8 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                                   </div>
                                 </button>
                               </AppTooltip>
-                            ))}
+                              );
+                            })}
                           </div>
                         </td>
                         );
@@ -479,14 +510,17 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                   <td className="sticky left-0 z-10 bg-[#f5f5f7] text-xs font-semibold text-[#1d1d1f] px-4 py-3 border-r border-[#e5e5e7]">
                     Totale
                   </td>
-                  {dayTotals.map((total, i) => (
+                  {dayTotals.map((total, i) => {
+                    const isTodayFooter = format(weekDays[i], "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+                    return (
                     <td
                       key={i}
-                      className={`text-center text-xs font-semibold text-[#1d1d1f] px-2 py-3 border-r border-[#e5e5e7] last:border-r-0 ${i === 6 ? "bg-[#F9F9F9]" : "bg-[#f5f5f7]"}`}
+                      className={`text-center text-xs font-semibold text-[#1d1d1f] px-2 py-3 border-r border-[#e5e5e7] last:border-r-0 ${i === 6 ? "bg-[#F9F9F9]" : "bg-[#f5f5f7]"} ${isTodayFooter ? "border-x-2 border-x-blue-400" : ""}`}
                     >
                       {Math.round(total)}h
                     </td>
-                  ))}
+                    );
+                  })}
                   <td className="bg-[#f5f5f7] text-center text-xs font-bold text-[#1d1d1f] px-2 py-3">
                     {Math.round(grandTotal)}h
                   </td>

@@ -9,7 +9,7 @@ export default async function PlanningPage() {
       supabase
         .from("v_task_completa")
         .select(
-          "id, titolo, tipologia, fornitore_nome, fornitore_id, data_inizio, data_fine, durata_ore, numero_persone, zona_nome, zona_colore, lavorazione_nome, stato_calcolato"
+          "id, titolo, tipologia, stato, fornitore_nome, fornitore_id, data_inizio, data_fine, durata_ore, numero_persone, zona_nome, zona_colore, lavorazione_nome, stato_calcolato"
         ),
       supabase.from("zone").select("id, nome").order("ordine"),
       supabase.from("tipologie").select("nome, colore").order("ordine"),
