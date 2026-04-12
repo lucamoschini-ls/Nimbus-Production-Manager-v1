@@ -57,11 +57,17 @@ interface Props {
   id: string;
 }
 
+interface LuogoOption {
+  id: string;
+  nome: string;
+}
+
 export function DrawerOperazione({ id }: Props) {
   const [op, setOp] = useState<OperazioneData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [luoghiList, setLuoghiList] = useState<LuogoOption[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,7 +125,15 @@ export function DrawerOperazione({ id }: Props) {
       setNameDraft(row.titolo as string);
       setLoading(false);
     }
+    async function loadLuoghi() {
+      const supabase = createClient();
+      const { data: luoghi } = await supabase.from("luoghi").select("id, nome").order("nome");
+      if (!cancelled) {
+        setLuoghiList(luoghi || []);
+      }
+    }
     load();
+    loadLuoghi();
     return () => { cancelled = true; };
   }, [id]);
 
@@ -267,9 +281,16 @@ export function DrawerOperazione({ id }: Props) {
           </div>
           <div>
             <div className="text-[#86868b] text-[10px] mb-0.5">Luogo</div>
-            <div className="font-medium text-[#1d1d1f]">
-              {op.luogo_nome || <span className="text-[#b0b0b5]">--</span>}
-            </div>
+            <select
+              value={op.luogo_id || ""}
+              onChange={(e) => saveField("luogo_id", e.target.value || null)}
+              className="w-full text-[12px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white"
+            >
+              <option value="">--</option>
+              {luoghiList.map((l) => (
+                <option key={l.id} value={l.id}>{l.nome}</option>
+              ))}
+            </select>
           </div>
           <div>
             <div className="text-[#86868b] text-[10px] mb-0.5">Materiale</div>

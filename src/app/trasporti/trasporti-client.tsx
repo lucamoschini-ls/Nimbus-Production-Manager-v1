@@ -63,6 +63,13 @@ const TIPOLOGIA_LABELS: Record<string, string> = {
   altro: "Altro",
 };
 
+const DATE_FILTER_LABELS: Record<string, string> = {
+  oggi: "Oggi",
+  settimana: "Questa settimana",
+  "2settimane": "Prossime 2 settimane",
+  tutte: "Tutte",
+};
+
 // Helpers to normalize PostgREST join results
 function normalizeOne<T>(val: T | T[] | null): T | null {
   if (val == null) return null;
@@ -93,6 +100,8 @@ export function TrasportiClient({ ops, luoghi }: Props) {
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [filterTipologia, setFilterTipologia] = useState<string>("tutti");
   const [filterFornitore, setFilterFornitore] = useState<string>("tutti");
+  const [dateFilter, setDateFilter] = useState<"oggi" | "settimana" | "2settimane" | "tutte">("2settimane");
+  const [dateFilterOpen, setDateFilterOpen] = useState(false);
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
   const [expandedSenzaData, setExpandedSenzaData] = useState<Set<string>>(new Set());
   const [newOpDialog, setNewOpDialog] = useState<{ date: string; luogoId: string; luogoNome: string } | null>(null);
@@ -163,6 +172,15 @@ export function TrasportiClient({ ops, luoghi }: Props) {
     return parts.join(" ");
   }, [ops, today, nextWeekStr]);
 
+  // Compute date range based on dateFilter
+  const dateRange = useMemo(() => {
+    if (dateFilter === "tutte") return { start: null, end: null };
+    if (dateFilter === "oggi") return { start: today, end: today };
+    if (dateFilter === "settimana") return { start: today, end: addDays(today, 6) };
+    // 2settimane
+    return { start: today, end: addDays(today, 13) };
+  }, [today, dateFilter]);
+
   // Build matrix data: dates (sorted) and "senza data"
   const { dateRows, senzaDataByLuogo } = useMemo(() => {
     const dateSet = new Set<string>();
@@ -172,12 +190,17 @@ export function TrasportiClient({ ops, luoghi }: Props) {
     luoghi.forEach((l) => { senzaData[l.id] = []; });
     senzaData["no_luogo"] = [];
 
-    // Always include today
-    dateSet.add(today);
+    // Always include today if within range
+    if (!dateRange.start || (today >= dateRange.start && today <= (dateRange.end ?? today))) {
+      dateSet.add(today);
+    }
 
     filtered.forEach((op) => {
       const luogoId = normalizeOne(op.luogo)?.id ?? "no_luogo";
       if (op.data_inizio) {
+        // Apply date filter
+        if (dateRange.start && op.data_inizio < dateRange.start) return;
+        if (dateRange.end && op.data_inizio > dateRange.end) return;
         dateSet.add(op.data_inizio);
       } else {
         if (!senzaData[luogoId]) senzaData[luogoId] = [];
@@ -195,6 +218,9 @@ export function TrasportiClient({ ops, luoghi }: Props) {
 
       filtered.forEach((op) => {
         if (op.data_inizio === date) {
+          // Already filtered by date range above, but double check
+          if (dateRange.start && op.data_inizio < dateRange.start) return;
+          if (dateRange.end && op.data_inizio > dateRange.end) return;
           const luogoId = normalizeOne(op.luogo)?.id ?? "no_luogo";
           if (!cells[luogoId]) cells[luogoId] = [];
           cells[luogoId].push(op);
@@ -205,7 +231,7 @@ export function TrasportiClient({ ops, luoghi }: Props) {
     });
 
     return { dateRows: rows, senzaDataByLuogo: senzaData };
-  }, [filtered, luoghi, today]);
+  }, [filtered, luoghi, today, dateRange]);
 
   // Check if "no_luogo" column has any data
   const hasNoLuogoColumn = useMemo(() => {
@@ -288,6 +314,32 @@ export function TrasportiClient({ ops, luoghi }: Props) {
               <option key={id} value={id}>{nome}</option>
             ))}
           </select>
+
+          {/* Date filter dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setDateFilterOpen(!dateFilterOpen)}
+              className="text-[11px] border border-[#e5e5e7] rounded-md px-2 py-1.5 bg-white text-[#1d1d1f] flex items-center gap-1 hover:bg-[#f5f5f7] transition-colors"
+            >
+              Date: {DATE_FILTER_LABELS[dateFilter]}
+              <ChevronDown size={12} className={`transition-transform ${dateFilterOpen ? "rotate-180" : ""}`} />
+            </button>
+            {dateFilterOpen && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-[#e5e5e7] rounded-lg shadow-lg z-20 py-1 min-w-[180px]">
+                {(["oggi", "settimana", "2settimane", "tutte"] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => { setDateFilter(opt); setDateFilterOpen(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-[#f5f5f7] transition-colors ${
+                      dateFilter === opt ? "font-semibold text-[#1d1d1f]" : "text-[#86868b]"
+                    }`}
+                  >
+                    {DATE_FILTER_LABELS[opt]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Matrix */}
@@ -297,17 +349,17 @@ export function TrasportiClient({ ops, luoghi }: Props) {
             <p className="text-sm mt-3 font-medium">Nessuna operazione trovata</p>
           </div>
         ) : (
-          <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-x-auto">
+          <div className="bg-white rounded-[12px] border border-[#e5e5e7] overflow-auto max-h-[calc(100vh-220px)]">
             <table className="w-full border-collapse min-w-[600px]">
               <thead>
                 <tr className="border-b border-[#e5e5e7]">
-                  <th className="text-left text-[10px] font-semibold text-[#86868b] uppercase tracking-wide px-3 py-2 w-[80px]">
+                  <th className="sticky top-0 left-0 z-20 bg-white text-left text-[10px] font-semibold text-[#86868b] uppercase tracking-wide px-3 py-2 w-[80px]">
                     Data
                   </th>
                   {columns.map((l) => (
                     <th
                       key={l.id}
-                      className="text-left text-[10px] font-semibold text-[#86868b] uppercase tracking-wide px-3 py-2"
+                      className="sticky top-0 z-10 bg-white text-left text-[10px] font-semibold text-[#86868b] uppercase tracking-wide px-3 py-2"
                     >
                       {l.nome}
                     </th>
@@ -326,7 +378,7 @@ export function TrasportiClient({ ops, luoghi }: Props) {
                       className={`border-b border-[#f0f0f0] ${isToday ? "border-l-4 border-l-blue-400" : ""}`}
                     >
                       <td
-                        className={`px-3 py-2 align-top text-[11px] whitespace-nowrap ${
+                        className={`sticky left-0 z-10 bg-white px-3 py-2 align-top text-[11px] whitespace-nowrap ${
                           isToday ? "font-bold text-[#1d1d1f]" : "text-[#86868b]"
                         }`}
                         suppressHydrationWarning
@@ -359,7 +411,7 @@ export function TrasportiClient({ ops, luoghi }: Props) {
                 {/* Senza data row */}
                 {totalSenzaData > 0 && (
                   <tr className="border-t border-[#e5e5e7]">
-                    <td className="px-3 py-2 align-top text-[11px] text-[#86868b] font-medium whitespace-nowrap">
+                    <td className="sticky left-0 z-10 bg-white px-3 py-2 align-top text-[11px] text-[#86868b] font-medium whitespace-nowrap">
                       Senza data
                     </td>
                     {columns.map((l) => {

@@ -1,17 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
-import { cycleFornitoreStato } from "./lavorazioni/cycle-actions";
-
-const STATO_LABELS: Record<string, string> = {
-  da_trovare: "Da trovare",
-  contattato: "Contattato",
-  confermato: "Confermato",
-  sopralluogo_fatto: "Sopralluogo fatto",
-  materiali_definiti: "Mat. definiti",
-  pronto: "Pronto",
-};
 
 const STATO_FORNITORE_COLORS: Record<string, string> = {
   da_trovare: "bg-[#FF3B30]/10 text-[#FF3B30]",
@@ -20,6 +9,15 @@ const STATO_FORNITORE_COLORS: Record<string, string> = {
   sopralluogo_fatto: "bg-[#5856D6]/10 text-[#5856D6]",
   materiali_definiti: "bg-[#AF52DE]/10 text-[#AF52DE]",
   pronto: "bg-[#34C759]/10 text-[#34C759]",
+};
+
+const STATO_LABELS: Record<string, string> = {
+  da_trovare: "Da trovare",
+  contattato: "Contattato",
+  confermato: "Confermato",
+  sopralluogo_fatto: "Sopralluogo",
+  materiali_definiti: "Mat. definiti",
+  pronto: "Pronto",
 };
 
 interface ZonaRiepilogo {
@@ -34,34 +32,40 @@ interface ZonaRiepilogo {
   percentuale: number;
 }
 
-interface FornitoreNonPronto {
+interface TrendPoint {
+  date: string;
+  completate: number;
+}
+
+interface FornitoreLoad {
   id: string;
   nome: string;
+  ore: number;
   stato: string;
-  task_totali: number;
-  task_bloccate_da_me: number;
 }
 
 interface Props {
   zoneRiepilogo: ZonaRiepilogo[];
-  fornitoriNonPronti: FornitoreNonPronto[];
   totalTasks: number;
   completedTasks: number;
   blockedTasks: number;
-  fornitoriDaTrovare: number;
-  materialiDaAcquistare: number;
+  totalFornitori: number;
+  readyFornitori: number;
   trasportiDaOrganizzare: number;
+  trendData: TrendPoint[];
+  fornitoreLoads: FornitoreLoad[];
 }
 
 export function DashboardClient({
   zoneRiepilogo,
-  fornitoriNonPronti,
   totalTasks,
   completedTasks,
   blockedTasks,
-  fornitoriDaTrovare,
-  materialiDaAcquistare,
+  totalFornitori,
+  readyFornitori,
   trasportiDaOrganizzare,
+  trendData,
+  fornitoreLoads,
 }: Props) {
   // Countdown
   const apertura = new Date("2026-05-01");
@@ -69,171 +73,143 @@ export function DashboardClient({
   const giorniApertura = Math.ceil((apertura.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
   const pctCompletate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Priority actions: top 5 fornitori blocking the most tasks
-  const topBlockingFornitori = fornitoriNonPronti
-    .filter((f) => f.task_bloccate_da_me > 0)
-    .sort((a, b) => b.task_bloccate_da_me - a.task_bloccate_da_me)
-    .slice(0, 5);
+  const backlogCount = blockedTasks + trasportiDaOrganizzare;
 
-  // Fornitori needing action (da_trovare or contattato)
-  const fornitoriNeedAction = fornitoriNonPronti
-    .filter((f) => f.stato === "da_trovare" || f.stato === "contattato")
-    .sort((a, b) => b.task_bloccate_da_me - a.task_bloccate_da_me);
+  // For the simple bar chart: last 7 days of trendData
+  const recentTrend = trendData.slice(-14);
+  const maxCompletate = Math.max(1, ...recentTrend.map((d) => d.completate));
 
   return (
     <div>
       <h1 className="text-[22px] font-semibold text-[#1d1d1f] mb-6">Dashboard</h1>
 
-      {/* A) COUNTERS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        {/* Giorni all'apertura */}
-        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
-          <p className="text-[12px] text-[#86868b] font-medium">Giorni all&apos;apertura</p>
-          <p className={`text-[28px] font-bold mt-1 leading-none ${giorniApertura <= 30 ? "text-[#FF3B30]" : "text-[#1d1d1f]"}`}>
-            {giorniApertura}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <Link href="/lavorazioni" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow">
+          <p className="text-xs uppercase text-[#86868b] font-medium tracking-wide">Task completate</p>
+          <p className="text-4xl font-bold text-[#1d1d1f] mt-2 leading-none">
+            {completedTasks}<span className="text-lg font-normal text-[#86868b]">/{totalTasks}</span>
           </p>
-          <p className="text-[11px] text-[#86868b] mt-1">1 maggio 2026</p>
-        </div>
-
-        {/* Completate */}
-        <Link href="/lavorazioni" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow cursor-pointer">
-          <p className="text-[12px] text-[#86868b] font-medium">Completate</p>
-          <p className="text-[28px] font-bold text-[#1d1d1f] mt-1 leading-none">
-            {completedTasks}<span className="text-[16px] font-normal text-[#86868b]">/{totalTasks}</span>
-          </p>
+          <p className="text-xs text-[#86868b] mt-1">{pctCompletate}%</p>
           <div className="h-1.5 bg-[#e5e5e7] rounded-full mt-2 overflow-hidden">
             <div className="h-full bg-[#34C759] rounded-full transition-all" style={{ width: `${pctCompletate}%` }} />
           </div>
         </Link>
 
-        {/* Bloccate */}
-        <Link href="/lavorazioni" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow cursor-pointer">
-          <p className="text-[12px] text-[#86868b] font-medium">Bloccate</p>
-          <p className={`text-[28px] font-bold mt-1 leading-none ${blockedTasks > 0 ? "text-[#FF3B30]" : "text-[#34C759]"}`}>
-            {blockedTasks}
+        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
+          <p className="text-xs uppercase text-[#86868b] font-medium tracking-wide">Giorni all&apos;apertura</p>
+          <p className={`text-4xl font-bold mt-2 leading-none ${giorniApertura <= 30 ? "text-[#FF3B30]" : "text-[#1d1d1f]"}`}>
+            {giorniApertura}
+          </p>
+          <p className="text-xs text-[#86868b] mt-1">1 maggio 2026</p>
+        </div>
+
+        <Link href="/fornitori" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow">
+          <p className="text-xs uppercase text-[#86868b] font-medium tracking-wide">Fornitori operativi</p>
+          <p className="text-4xl font-bold text-[#1d1d1f] mt-2 leading-none">
+            {readyFornitori}<span className="text-lg font-normal text-[#86868b]">/{totalFornitori}</span>
           </p>
         </Link>
 
-        {/* Fornitori da trovare */}
-        <Link href="/fornitori" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow cursor-pointer">
-          <p className="text-[12px] text-[#86868b] font-medium">Fornitori da trovare</p>
-          <p className={`text-[28px] font-bold mt-1 leading-none ${fornitoriDaTrovare > 0 ? "text-[#FF9F0A]" : "text-[#34C759]"}`}>
-            {fornitoriDaTrovare}
+        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
+          <p className="text-xs uppercase text-[#86868b] font-medium tracking-wide">Backlog</p>
+          <p className={`text-4xl font-bold mt-2 leading-none ${backlogCount > 0 ? "text-[#FF3B30]" : "text-[#34C759]"}`}>
+            {backlogCount}
           </p>
-        </Link>
+          <p className="text-xs text-[#86868b] mt-1">task bloccate + op da organizzare</p>
+        </div>
       </div>
 
-      {/* B) AZIONI PRIORITARIE */}
-      {(topBlockingFornitori.length > 0 || materialiDaAcquistare > 0 || trasportiDaOrganizzare > 0) && (
-        <div className="mb-8">
-          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-3">Azioni prioritarie</h2>
-          <div className="bg-white rounded-[12px] border border-[#e5e5e7] divide-y divide-[#e5e5e7]">
-            {topBlockingFornitori.map((f) => (
-              <div key={f.id} className="px-4 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-[#1d1d1f]">
-                    {f.stato === "da_trovare" ? "Trovare" : "Avanzare"}{" "}
-                    <span className="font-semibold">{f.nome}</span>
-                  </p>
-                  <p className="text-[11px] text-[#FF3B30]">
-                    Sblocca {f.task_bloccate_da_me} task
-                  </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* a) Progresso per zona */}
+        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
+          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-4">Progresso per zona</h2>
+          <div className="space-y-3">
+            {zoneRiepilogo.map((z) => (
+              <div key={z.id} className="flex items-center gap-3">
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: z.colore }} />
+                <span className="text-[13px] font-medium text-[#1d1d1f] w-[120px] truncate flex-shrink-0">{z.nome}</span>
+                <div className="flex-1 h-2 bg-[#e5e5e7] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${z.percentuale}%`, backgroundColor: z.colore }}
+                  />
                 </div>
-                <button
-                  onClick={() => cycleFornitoreStato(f.id, f.stato)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0 ${STATO_FORNITORE_COLORS[f.stato] ?? "bg-gray-100 text-gray-600"}`}
-                  title="Click per avanzare stato"
-                >
-                  {STATO_LABELS[f.stato] ?? f.stato}
-                </button>
-              </div>
-            ))}
-
-            {materialiDaAcquistare > 0 && (
-              <Link href="/materiali" className="px-4 py-3 flex items-center gap-3 hover:bg-[#f5f5f7] transition-colors">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-[#1d1d1f]">
-                    <span className="font-semibold text-[#FF3B30]">{materialiDaAcquistare}</span> materiali da acquistare
-                  </p>
-                </div>
-                <span className="text-[12px] text-[#86868b]">Vai a Materiali</span>
-                <ChevronRight size={14} className="text-[#86868b] flex-shrink-0" />
-              </Link>
-            )}
-
-            {trasportiDaOrganizzare > 0 && (
-              <Link href="/trasporti" className="px-4 py-3 flex items-center gap-3 hover:bg-[#f5f5f7] transition-colors">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-[#1d1d1f]">
-                    <span className="font-semibold text-[#FF9F0A]">{trasportiDaOrganizzare}</span> trasporti da organizzare
-                  </p>
-                </div>
-                <span className="text-[12px] text-[#86868b]">Vai a Trasporti</span>
-                <ChevronRight size={14} className="text-[#86868b] flex-shrink-0" />
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* C) PROGRESSO ZONE — compact horizontal bars */}
-      <div className="mb-8">
-        <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-3">Progresso zone</h2>
-        <div className="bg-white rounded-[12px] border border-[#e5e5e7] divide-y divide-[#e5e5e7]">
-          {zoneRiepilogo.map((z) => (
-            <div key={z.id} className="px-4 py-3 flex items-center gap-3">
-              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: z.colore }} />
-              <span className="text-[13px] font-medium text-[#1d1d1f] w-[140px] truncate flex-shrink-0">{z.nome}</span>
-              <div className="flex-1 h-2 bg-[#e5e5e7] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${z.percentuale}%`, backgroundColor: z.colore }}
-                />
-              </div>
-              <span className="text-[12px] text-[#86868b] w-[50px] text-right flex-shrink-0">
-                {z.task_completate}/{z.task_totali}
-              </span>
-              {z.task_bloccate > 0 ? (
-                <span className="text-[11px] text-[#FF3B30] font-medium flex-shrink-0 w-[70px] text-right">
-                  {z.task_bloccate} bloccat{z.task_bloccate === 1 ? "a" : "e"}
+                <span className="text-[12px] text-[#86868b] w-[44px] text-right flex-shrink-0">
+                  {z.task_completate}/{z.task_totali}
                 </span>
-              ) : (
-                <span className="w-[70px] flex-shrink-0" />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* D) FORNITORI — only needing action */}
-      {fornitoriNeedAction.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-3">Fornitori da gestire</h2>
-          <div className="bg-white rounded-[12px] border border-[#e5e5e7] divide-y divide-[#e5e5e7]">
-            {fornitoriNeedAction.map((f) => (
-              <div key={f.id} className="px-4 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-[#1d1d1f]">{f.nome}</p>
-                  {f.task_bloccate_da_me > 0 && (
-                    <p className="text-[11px] text-[#FF3B30]">{f.task_bloccate_da_me} task bloccate</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => cycleFornitoreStato(f.id, f.stato)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0 ${STATO_FORNITORE_COLORS[f.stato] ?? "bg-gray-100 text-gray-600"}`}
-                  title="Click per avanzare stato"
-                >
-                  {STATO_LABELS[f.stato] ?? f.stato}
-                </button>
+                {z.task_bloccate > 0 ? (
+                  <span className="text-[10px] text-[#FF3B30] font-medium flex-shrink-0 w-[60px] text-right">
+                    {z.task_bloccate} bloccat{z.task_bloccate === 1 ? "a" : "e"}
+                  </span>
+                ) : (
+                  <span className="w-[60px] flex-shrink-0" />
+                )}
               </div>
             ))}
-            <Link href="/fornitori" className="px-4 py-3 flex items-center justify-center gap-1 hover:bg-[#f5f5f7] transition-colors">
-              <span className="text-[12px] text-[#0071E3] font-medium">Vedi tutti</span>
-              <ChevronRight size={12} className="text-[#0071E3]" />
-            </Link>
           </div>
         </div>
-      )}
+
+        {/* b) Trend settimanale — placeholder since recharts not installed */}
+        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
+          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-4">Trend completamenti</h2>
+          {recentTrend.length === 0 || recentTrend.every((d) => d.completate === 0) ? (
+            <div className="flex items-center justify-center h-[180px] text-[13px] text-[#86868b]">
+              Nessuna task completata nel periodo
+            </div>
+          ) : (
+            <div className="flex items-end gap-[3px] h-[180px] pt-4">
+              {recentTrend.map((d) => {
+                const barHeight = d.completate > 0 ? Math.max(8, (d.completate / maxCompletate) * 150) : 2;
+                const dateLabel = d.date.slice(8, 10) + "/" + d.date.slice(5, 7);
+                return (
+                  <div key={d.date} className="flex flex-col items-center flex-1 min-w-0 justify-end h-full">
+                    {d.completate > 0 && (
+                      <span className="text-[9px] text-[#86868b] mb-1">{d.completate}</span>
+                    )}
+                    <div
+                      className="w-full rounded-t bg-[#34C759] min-w-[4px] max-w-[28px] mx-auto"
+                      style={{ height: `${barHeight}px` }}
+                      title={`${dateLabel}: ${d.completate} completate`}
+                    />
+                    <span className="text-[8px] text-[#86868b] mt-1 truncate w-full text-center">{dateLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* c) Carichi fornitori */}
+        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
+          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-4">Carichi fornitori questa settimana</h2>
+          {fornitoreLoads.length === 0 ? (
+            <div className="flex items-center justify-center h-[100px] text-[13px] text-[#86868b]">
+              Nessuna operazione schedulata questa settimana
+            </div>
+          ) : (
+            <div className="divide-y divide-[#f0f0f0]">
+              {fornitoreLoads.map((fl) => (
+                <div key={fl.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span className="text-[13px] font-medium text-[#1d1d1f] flex-1 truncate">{fl.nome}</span>
+                  <span className="text-[13px] text-[#1d1d1f] font-semibold flex-shrink-0">{fl.ore}h</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${STATO_FORNITORE_COLORS[fl.stato] ?? "bg-gray-100 text-gray-600"}`}>
+                    {STATO_LABELS[fl.stato] ?? fl.stato}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* d) Traguardi settimanali */}
+        <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
+          <h2 className="text-[15px] font-semibold text-[#1d1d1f] mb-4">Traguardi settimanali</h2>
+          <div className="flex items-center justify-center h-[100px] text-[13px] text-[#86868b]">
+            Segna le task cruciali per vedere i traguardi settimanali qui.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
