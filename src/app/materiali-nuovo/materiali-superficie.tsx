@@ -142,6 +142,7 @@ export interface DrawerData {
   matLinksByTask: Map<string, MaterialLink[]>;
   driverItems: DriverRow[];
   coeffItems: CoefficienteRow[];
+  fornitoriDistinti: string[];
   onUpdateDriver: (id: string, valore: number) => void;
   onUpdateCoeff: (id: string, valore: number) => void;
   onUpdateCatalogo: (id: string, campo: string, valore: string | number | null) => void;
@@ -429,6 +430,12 @@ export function MaterialiSuperficie({
     return map;
   }, [taskLinksByCatalogo, taskMap]);
 
+  const fornitoriDistinti = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of tuttiMateriali) set.add(m.fornitore);
+    return Array.from(set).sort();
+  }, [tuttiMateriali]);
+
   const drawerData: DrawerData = useMemo(
     () => ({
       materialiMap,
@@ -437,6 +444,7 @@ export function MaterialiSuperficie({
       matLinksByTask,
       driverItems: driverState,
       coeffItems: coeffState,
+      fornitoriDistinti,
       onUpdateDriver: handleUpdateDriver,
       onUpdateCoeff: handleUpdateCoeff,
       onUpdateCatalogo: handleUpdateCatalogo,
@@ -451,6 +459,7 @@ export function MaterialiSuperficie({
       matLinksByTask,
       driverState,
       coeffState,
+      fornitoriDistinti,
       handleUpdateDriver,
       handleUpdateCoeff,
       handleUpdateCatalogo,
@@ -552,12 +561,6 @@ export function MaterialiSuperficie({
     taskDateMap,
   ]);
 
-  const fornitoriDistinti = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of tuttiMateriali) set.add(m.fornitore);
-    return Array.from(set).sort();
-  }, [tuttiMateriali]);
-
   const TAB_ITEMS: { key: typeof state.tab; label: string }[] = [
     { key: "lista", label: "Lista" },
     { key: "catalogo", label: "Catalogo" },
@@ -627,12 +630,23 @@ export function MaterialiSuperficie({
       )}
 
       {state.tab === "catalogo" && (
-        <CatalogoTab
-          materiali={tuttiMateriali}
-          onUpdateCatalogo={handleUpdateCatalogo}
-          onAddMateriale={handleAddMateriale}
-          onRemoveMateriale={handleRemoveMateriale}
-        />
+        <div className="flex flex-1 overflow-hidden">
+          <CatalogoTab
+            materiali={tuttiMateriali}
+            fornitoriDistinti={fornitoriDistinti}
+            onUpdateCatalogo={handleUpdateCatalogo}
+            onAddMateriale={handleAddMateriale}
+            onRemoveMateriale={handleRemoveMateriale}
+            onOpenDrawer={aprireDrawer}
+          />
+          <DrawerStack
+            drawers={state.drawers}
+            drawerData={drawerData}
+            onClose={chiudereDrawer}
+            onCloseUltimo={chiudereUltimoDrawer}
+            onOpenDrawer={aprireDrawer}
+          />
+        </div>
       )}
 
       {state.tab === "calcolatore" && (

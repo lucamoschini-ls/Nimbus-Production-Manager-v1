@@ -62,11 +62,20 @@ export async function aggiornaMateriale(
   if (error) throw new Error(error.message);
 }
 
-export async function creaMateriale(nome: string): Promise<string> {
+export async function creaMateriale(
+  nome: string,
+  extra?: { unita?: string; prezzo?: number; fornitore?: string; provenienza?: string; tipologia?: string }
+): Promise<string> {
   const supabase = await createClient();
+  const insertData: Record<string, unknown> = { nome, tipologia_materiale: extra?.tipologia || "consumo" };
+  if (extra?.unita) insertData.unita_default = extra.unita;
+  if (extra?.prezzo) insertData.prezzo_unitario_default = extra.prezzo;
+  if (extra?.fornitore) insertData.fornitore_preferito = extra.fornitore;
+  if (extra?.provenienza) insertData.provenienza_default = extra.provenienza;
+
   const { data, error } = await supabase
     .from("catalogo_materiali")
-    .insert({ nome, tipologia_materiale: "consumo" })
+    .insert(insertData)
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -167,6 +176,16 @@ export async function eliminaLegameByComposite(taskId: string, catalogoId: strin
   const { error } = await supabase
     .from("materiali")
     .delete()
+    .eq("task_id", taskId)
+    .eq("catalogo_id", catalogoId);
+  if (error) throw new Error(error.message);
+}
+
+export async function aggiornaLegameByComposite(taskId: string, catalogoId: string, quantita: number) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("materiali")
+    .update({ quantita })
     .eq("task_id", taskId)
     .eq("catalogo_id", catalogoId);
   if (error) throw new Error(error.message);

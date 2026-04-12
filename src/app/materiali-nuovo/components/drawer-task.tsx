@@ -281,6 +281,16 @@ export function DrawerTask({ id, drawerData, onOpenMateriale }: Props) {
           </div>
         )}
       </div>
+
+      {/* Link to Lavorazioni */}
+      <div className="border-t border-[#f0f0f0] pt-3">
+        <a
+          href="/lavorazioni"
+          className="text-[11px] text-[#86868b] hover:text-[#1d1d1f] underline"
+        >
+          Apri in Lavorazioni →
+        </a>
+      </div>
     </div>
   );
 }

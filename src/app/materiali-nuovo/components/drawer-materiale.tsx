@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { Calculator, X } from "lucide-react";
 import { toast } from "sonner";
 import type { DrawerData } from "../materiali-superficie";
-import { aggiornaMateriale, eliminaLegameByComposite } from "../actions";
+import { aggiornaMateriale, eliminaLegameByComposite, aggiornaLegameByComposite } from "../actions";
 
 const SEMAFORO_COLORS = {
   rosso: "bg-red-500",
@@ -18,6 +18,14 @@ const PROV_OPTIONS = [
   { value: "in_loco", label: "In loco" },
   { value: "magazzino", label: "Magazzino" },
   { value: "noleggio", label: "Noleggio" },
+];
+
+export const UNITA_OPTIONS = [
+  { value: "pz", label: "pz" },
+  { value: "lt", label: "lt" },
+  { value: "ml", label: "ml" },
+  { value: "mq", label: "mq" },
+  { value: "kg", label: "kg" },
 ];
 
 interface Props {
@@ -113,6 +121,48 @@ function InlineSelect({
   );
 }
 
+function FornitoreCombobox({ value, fornitori, onSave }: { value: string; fornitori: string[]; onSave: (v: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+
+  if (!editing) {
+    return (
+      <div>
+        <div className="text-[#86868b] text-[10px] mb-0.5">Fornitore</div>
+        <div
+          className="font-medium text-[#1d1d1f] cursor-pointer hover:bg-[#f5f5f7] rounded px-1 -mx-1 py-0.5 text-[12px]"
+          onClick={() => { setDraft(value || ""); setEditing(true); }}
+        >
+          {value || <span className="text-[#b0b0b5]">non impostato</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-[#86868b] text-[10px] mb-0.5">Fornitore</div>
+      <div className="relative">
+        <input
+          list="fornitori-list-drawer"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => { setEditing(false); if (draft !== (value || "")) onSave(draft || null); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { setEditing(false); if (draft !== (value || "")) onSave(draft || null); }
+            if (e.key === "Escape") { setDraft(value || ""); setEditing(false); }
+          }}
+          className="w-full text-[12px] border border-[#e5e5e7] rounded px-1 py-0.5 bg-white outline-none focus:ring-1 focus:ring-ring"
+          autoFocus
+        />
+        <datalist id="fornitori-list-drawer">
+          {fornitori.filter(f => f !== "Da assegnare").map(f => <option key={f} value={f} />)}
+        </datalist>
+      </div>
+    </div>
+  );
+}
+
 export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: Props) {
   const mat = drawerData.materialiMap.get(id);
   const [editingName, setEditingName] = useState(false);
@@ -198,9 +248,10 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
           Dettagli
         </h4>
         <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 text-[12px]">
-          <InlineField
+          <InlineSelect
             label="Unita"
             value={mat.unita}
+            options={UNITA_OPTIONS}
             onSave={(v) => saveField("unita", v || null)}
           />
           <InlineField
@@ -209,10 +260,10 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
             type="number"
             onSave={(v) => saveField("prezzo", v ? parseFloat(v) : null)}
           />
-          <InlineField
-            label="Fornitore"
+          <FornitoreCombobox
             value={mat.fornitore === "Da assegnare" ? "" : mat.fornitore}
-            onSave={(v) => saveField("fornitore", v || null)}
+            fornitori={drawerData.fornitoriDistinti}
+            onSave={(v) => saveField("fornitore", v)}
           />
           <InlineSelect
             label="Provenienza"
@@ -305,11 +356,26 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
                       {task.zona_nome} · {task.lavorazione_nome}
                     </div>
                   </button>
-                  {link.quantita != null && (
-                    <span className="text-[11px] text-[#86868b] flex-shrink-0">
-                      {link.quantita} {link.unita || mat.unita}
-                    </span>
-                  )}
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    defaultValue={link.quantita ?? 0}
+                    onBlur={async (e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      if (val !== (link.quantita ?? 0)) {
+                        drawerData.onUpdateLegame(link.task_id, id, val);
+                        try {
+                          await aggiornaLegameByComposite(link.task_id, id, val);
+                        } catch (err) {
+                          toast.error("Errore aggiornamento quantita", { description: (err as Error).message });
+                        }
+                      }
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    className="w-16 text-[12px] text-right border border-[#e5e5e7] rounded px-2 py-0.5 bg-white outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <span className="text-[10px] text-[#86868b] w-6">{link.unita || mat.unita}</span>
                   <button
                     onClick={() => handleRemoveLink(link)}
                     className="opacity-0 group-hover:opacity-100 text-[#b0b0b5] hover:text-red-500 p-0.5 rounded transition-opacity"

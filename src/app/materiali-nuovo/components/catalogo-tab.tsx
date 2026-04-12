@@ -4,7 +4,9 @@ import { useMemo, useState, useRef } from "react";
 import { Search, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import type { MaterialeArricchito, CatalogoViewRow, CatalogoExtraRow } from "../materiali-superficie";
+import type { DrawerEntry } from "../hooks/use-superficie-state";
 import { aggiornaMateriale, creaMateriale, eliminaMateriale } from "../actions";
+import { UNITA_OPTIONS } from "./drawer-materiale";
 
 const SEMAFORO_COLORS = {
   rosso: "bg-red-500",
@@ -14,9 +16,28 @@ const SEMAFORO_COLORS = {
 
 interface Props {
   materiali: MaterialeArricchito[];
+  fornitoriDistinti: string[];
   onUpdateCatalogo: (id: string, campo: string, valore: string | number | null) => void;
   onAddMateriale: (newCatalogo: CatalogoViewRow, newExtra: CatalogoExtraRow) => void;
   onRemoveMateriale: (id: string) => void;
+  onOpenDrawer: (tipo: DrawerEntry["tipo"], id: string) => void;
+}
+
+function FornitoreComboboxInline({ value, fornitori, onChange }: { value: string; fornitori: string[]; onChange: (v: string) => void }) {
+  return (
+    <div className="relative flex-1">
+      <input
+        list="fornitori-list-catalogo"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Fornitore"
+        className="w-full text-[12px] border border-[#e5e5e7] rounded px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-ring"
+      />
+      <datalist id="fornitori-list-catalogo">
+        {fornitori.filter(f => f !== "Da assegnare").map(f => <option key={f} value={f} />)}
+      </datalist>
+    </div>
+  );
 }
 
 function EditableCell({
@@ -48,7 +69,8 @@ function EditableCell({
     return (
       <div
         className={`cursor-pointer hover:bg-[#f0f0f0] rounded px-1 -mx-1 py-0.5 min-h-[24px] ${className}`}
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           setDraft(String(value ?? ""));
           setEditing(true);
           setTimeout(() => inputRef.current?.focus(), 0);
@@ -83,11 +105,26 @@ function EditableCell({
   );
 }
 
-export function CatalogoTab({ materiali, onUpdateCatalogo, onAddMateriale, onRemoveMateriale }: Props) {
+export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, onAddMateriale, onRemoveMateriale, onOpenDrawer }: Props) {
   const [cerca, setCerca] = useState("");
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newUnita, setNewUnita] = useState("pz");
+  const [newPrezzo, setNewPrezzo] = useState("");
+  const [newFornitore, setNewFornitore] = useState("");
+  const [newProvenienza, setNewProvenienza] = useState("acquisto");
+  const [newTipologia, setNewTipologia] = useState("consumo");
   const newInputRef = useRef<HTMLInputElement>(null);
+
+  const resetDialog = () => {
+    setShowNewDialog(false);
+    setNewName("");
+    setNewUnita("pz");
+    setNewPrezzo("");
+    setNewFornitore("");
+    setNewProvenienza("acquisto");
+    setNewTipologia("consumo");
+  };
 
   const filtrati = useMemo(() => {
     if (!cerca) return materiali;
@@ -111,19 +148,25 @@ export function CatalogoTab({ materiali, onUpdateCatalogo, onAddMateriale, onRem
   const handleCreate = async () => {
     const nome = newName.trim();
     if (!nome) return;
-    setShowNewDialog(false);
-    setNewName("");
+    const extra = {
+      unita: newUnita || undefined,
+      prezzo: newPrezzo ? parseFloat(newPrezzo) : undefined,
+      fornitore: newFornitore || undefined,
+      provenienza: newProvenienza || undefined,
+      tipologia: newTipologia || undefined,
+    };
+    resetDialog();
     try {
-      const newId = await creaMateriale(nome);
+      const newId = await creaMateriale(nome, extra);
       const newCatalogo: CatalogoViewRow = {
         id: newId,
         nome,
-        tipologia_materiale: "consumo",
-        unita: null,
-        prezzo_unitario: null,
+        tipologia_materiale: extra.tipologia || "consumo",
+        unita: extra.unita || null,
+        prezzo_unitario: extra.prezzo || null,
         quantita_disponibile_globale: 0,
-        fornitore_preferito: null,
-        provenienza_default: null,
+        fornitore_preferito: extra.fornitore || null,
+        provenienza_default: extra.provenienza || null,
         note: null,
         quantita_totale_necessaria: 0,
         num_task: 0,
@@ -186,31 +229,59 @@ export function CatalogoTab({ materiali, onUpdateCatalogo, onAddMateriale, onRem
 
       {/* New material dialog */}
       {showNewDialog && (
-        <div className="flex items-center gap-2 px-6 py-2 bg-blue-50 border-b border-blue-200">
-          <input
-            ref={newInputRef}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreate();
-              if (e.key === "Escape") { setShowNewDialog(false); setNewName(""); }
-            }}
-            placeholder="Nome del nuovo materiale..."
-            className="flex-1 text-[12px] border border-[#e5e5e7] rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-ring bg-white"
-            autoFocus
-          />
-          <button
-            onClick={handleCreate}
-            className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-[#1d1d1f] text-white hover:bg-[#333]"
-          >
-            Crea
-          </button>
-          <button
-            onClick={() => { setShowNewDialog(false); setNewName(""); }}
-            className="text-[11px] text-[#86868b] hover:text-[#1d1d1f] px-2 py-1.5"
-          >
-            Annulla
-          </button>
+        <div className="px-6 py-3 bg-blue-50 border-b border-blue-200 space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              ref={newInputRef}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreate();
+                if (e.key === "Escape") resetDialog();
+              }}
+              placeholder="Nome materiale (obbligatorio)"
+              className="flex-1 text-[12px] border border-[#e5e5e7] rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-ring bg-white"
+              autoFocus
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <select value={newUnita} onChange={e => setNewUnita(e.target.value)} className="text-[12px] border border-[#e5e5e7] rounded px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-ring">
+              {UNITA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <input
+              type="number"
+              value={newPrezzo}
+              onChange={(e) => setNewPrezzo(e.target.value)}
+              placeholder="Prezzo €"
+              className="w-24 text-[12px] border border-[#e5e5e7] rounded px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-ring"
+            />
+            <FornitoreComboboxInline value={newFornitore} fornitori={fornitoriDistinti} onChange={setNewFornitore} />
+            <select value={newProvenienza} onChange={e => setNewProvenienza(e.target.value)} className="text-[12px] border border-[#e5e5e7] rounded px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-ring">
+              <option value="acquisto">Acquisto</option>
+              <option value="in_loco">In loco</option>
+              <option value="magazzino">Magazzino</option>
+              <option value="noleggio">Noleggio</option>
+            </select>
+            <select value={newTipologia} onChange={e => setNewTipologia(e.target.value)} className="text-[12px] border border-[#e5e5e7] rounded px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-ring">
+              <option value="consumo">consumo</option>
+              <option value="strutturale">strutturale</option>
+              <option value="attrezzo">attrezzo</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCreate}
+              className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-[#1d1d1f] text-white hover:bg-[#333]"
+            >
+              Crea
+            </button>
+            <button
+              onClick={() => resetDialog()}
+              className="text-[11px] text-[#86868b] hover:text-[#1d1d1f] px-2 py-1.5"
+            >
+              Annulla
+            </button>
+          </div>
         </div>
       )}
 
@@ -232,7 +303,8 @@ export function CatalogoTab({ materiali, onUpdateCatalogo, onAddMateriale, onRem
         {filtrati.map((m) => (
           <div
             key={m.id}
-            className="grid grid-cols-[auto_1fr_60px_80px_120px_80px_80px_80px_32px] gap-2 px-6 py-2 border-b border-[#f0f0f0] text-[12px] hover:bg-[#f5f5f7] transition-colors group"
+            onClick={() => onOpenDrawer("materiale", m.id)}
+            className="grid grid-cols-[auto_1fr_60px_80px_120px_80px_80px_80px_32px] gap-2 px-6 py-2 border-b border-[#f0f0f0] text-[12px] hover:bg-[#f5f5f7] transition-colors group cursor-pointer"
           >
             <span
               className={`w-2.5 h-2.5 rounded-full mt-0.5 ${SEMAFORO_COLORS[m.stato_semaforo]}`}
@@ -282,7 +354,7 @@ export function CatalogoTab({ materiali, onUpdateCatalogo, onAddMateriale, onRem
                 : "—"}
             </div>
             <button
-              onClick={() => handleDelete(m.id, m.nome)}
+              onClick={(e) => { e.stopPropagation(); handleDelete(m.id, m.nome); }}
               className="opacity-0 group-hover:opacity-100 text-[#b0b0b5] hover:text-red-500 p-1 rounded transition-opacity self-center"
               title="Elimina materiale"
             >
