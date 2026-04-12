@@ -5,7 +5,7 @@ import { useCallback, useMemo } from "react";
 
 export type Raggruppamento = "nessuno" | "fornitore" | "categoria_comp" | "categoria_tech" | "zona" | "data" | "gruppo_merceologico";
 export type FinestraTemporale = "oggi" | "settimana" | "stagione" | string; // string for "range:DDMM-DDMM"
-export type DrawerEntry = { tipo: "materiale" | "task" | "calcoli"; id: string };
+export type DrawerEntry = { tipo: "materiale" | "task" | "calcoli" | "operazione"; id: string };
 export type TabSuperficie = "lista" | "catalogo" | "calcolatore";
 
 export interface SuperficieState {

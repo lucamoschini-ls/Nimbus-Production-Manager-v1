@@ -432,13 +432,14 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
                               >
                                 <button
                                   onClick={() => setSelectedTaskId(op.taskId)}
-                                  className="w-full text-left rounded-md px-2 py-1 transition-opacity hover:opacity-80 cursor-pointer"
+                                  className="w-full text-left rounded-md px-1.5 py-0.5 transition-opacity hover:opacity-80 cursor-pointer"
                                   style={{
-                                    backgroundColor: "rgba(14, 165, 233, 0.15)",
-                                    borderLeft: "3px solid #0ea5e9",
+                                    minHeight: "24px",
+                                    backgroundColor: "rgba(14, 165, 233, 0.08)",
+                                    borderLeft: "2px solid rgba(14, 165, 233, 0.5)",
                                   }}
                                 >
-                                  <div className="text-[10px] font-medium text-[#0ea5e9] truncate max-w-[120px]">
+                                  <div className="text-[9px] font-medium text-[#0ea5e9]/70 truncate max-w-[120px]">
                                     TRAS {op.matNome}{op.persone ? ` (${op.persone} pax)` : ""}
                                   </div>
                                 </button>

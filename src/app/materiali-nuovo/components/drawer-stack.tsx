@@ -7,6 +7,7 @@ import type { DrawerData } from "../materiali-superficie";
 import { DrawerMateriale } from "./drawer-materiale";
 import { DrawerTask } from "./drawer-task";
 import { DrawerCalcoli } from "./drawer-calcoli";
+import { DrawerOperazione } from "./drawer-operazione";
 
 interface Props {
   drawers: DrawerEntry[];
@@ -114,6 +115,9 @@ export function DrawerStack({
             )}
             {d.tipo === "calcoli" && (
               <DrawerCalcoli id={d.id} drawerData={drawerData} />
+            )}
+            {d.tipo === "operazione" && (
+              <DrawerOperazione id={d.id} />
             )}
           </div>
         </div>

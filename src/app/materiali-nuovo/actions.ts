@@ -34,6 +34,21 @@ export async function aggiornaCoefficiente(id: string, valore: number) {
   if (error) throw new Error(error.message);
 }
 
+// ---- CRUD Operazioni ----
+
+export async function aggiornaOperazione(
+  id: string,
+  campo: string,
+  valore: string | number | boolean | null
+) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("operazioni")
+    .update({ [campo]: valore })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 // ---- CRUD Catalogo materiali ----
 
 const CAMPO_MAP: Record<string, string> = {
