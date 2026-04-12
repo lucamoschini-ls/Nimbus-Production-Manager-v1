@@ -6,8 +6,10 @@ import { useCallback, useMemo } from "react";
 export type Raggruppamento = "nessuno" | "fornitore" | "categoria_comp" | "categoria_tech" | "zona" | "data";
 export type FinestraTemporale = "oggi" | "settimana" | "stagione" | string; // string for "range:DDMM-DDMM"
 export type DrawerEntry = { tipo: "materiale" | "task" | "calcoli"; id: string };
+export type TabSuperficie = "lista" | "catalogo" | "calcolatore";
 
 export interface SuperficieState {
+  tab: TabSuperficie;
   raggruppa: Raggruppamento;
   filtriCat: string[];
   filtriForn: string[];
@@ -36,6 +38,7 @@ export function useSuperficieState() {
   const pathname = usePathname();
 
   const state: SuperficieState = useMemo(() => ({
+    tab: (searchParams.get("tab") as TabSuperficie) || "lista",
     raggruppa: (searchParams.get("raggruppa") as Raggruppamento) || "nessuno",
     filtriCat: searchParams.get("filtri_cat")?.split(",").filter(Boolean) || [],
     filtriForn: searchParams.get("filtri_forn")?.split(",").filter(Boolean) || [],
@@ -50,6 +53,14 @@ export function useSuperficieState() {
       if (v === null || v === "" || v === "nessuno" || v === "stagione") params.delete(k);
       else params.set(k, v);
     }
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? "?" + qs : ""}`, { scroll: false });
+  }, [searchParams, router, pathname]);
+
+  const setTab = useCallback((v: TabSuperficie) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (v === "lista") params.delete("tab");
+    else params.set("tab", v);
     const qs = params.toString();
     router.replace(`${pathname}${qs ? "?" + qs : ""}`, { scroll: false });
   }, [searchParams, router, pathname]);
@@ -112,7 +123,7 @@ export function useSuperficieState() {
 
   return {
     state,
-    setRaggruppa, setFinestra, setCerca,
+    setTab, setRaggruppa, setFinestra, setCerca,
     toggleFiltroCat, toggleFiltroForn,
     aprireDrawer, chiudereDrawer, chiudereUltimoDrawer,
     resetSuperficie, applicaPreset,

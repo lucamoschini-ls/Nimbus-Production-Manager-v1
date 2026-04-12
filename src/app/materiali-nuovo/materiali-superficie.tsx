@@ -5,6 +5,8 @@ import { BussolaBar } from "./components/bussola-bar";
 import { PannelloControllo } from "./components/pannello-controllo";
 import { ListaMateriali } from "./components/lista-materiali";
 import { DrawerStack } from "./components/drawer-stack";
+import { CatalogoTab } from "./components/catalogo-tab";
+import { CalcoloPanel } from "./components/calcolo-panel";
 import { useSuperficieState } from "./hooks/use-superficie-state";
 import { calcolaMateriali } from "@/lib/calcolo-materiali";
 
@@ -167,6 +169,7 @@ export function MaterialiSuperficie({
 }: Props) {
   const {
     state,
+    setTab,
     setRaggruppa,
     setFinestra,
     setCerca,
@@ -463,6 +466,12 @@ export function MaterialiSuperficie({
     return Array.from(set).sort();
   }, [tuttiMateriali]);
 
+  const TAB_ITEMS: { key: typeof state.tab; label: string }[] = [
+    { key: "lista", label: "Lista" },
+    { key: "catalogo", label: "Catalogo" },
+    { key: "calcolatore", label: "Calcolatore" },
+  ];
+
   return (
     <div className="flex flex-col h-screen -m-6 -mb-24 md:-mb-6">
       <BussolaBar
@@ -470,33 +479,72 @@ export function MaterialiSuperficie({
         materiali={materialiFiltrati}
         onReset={resetSuperficie}
         onOpenCalcoli={() => aprireDrawer("calcoli", "main")}
+        onSetTab={setTab}
       />
-      <div className="flex flex-1 overflow-hidden">
-        <PannelloControllo
-          state={state}
-          fornitori={fornitoriDistinti}
-          onRaggruppa={setRaggruppa}
-          onToggleCat={toggleFiltroCat}
-          onToggleForn={toggleFiltroForn}
-          onFinestra={setFinestra}
-          onCerca={setCerca}
-          onPreset={applicaPreset}
-        />
-        <ListaMateriali
-          state={state}
-          materiali={materialiFiltrati}
-          materialeEarliestDate={materialeEarliestDate}
-          onOpenDrawer={aprireDrawer}
-          onUpdateDisp={handleUpdateDisp}
-        />
-        <DrawerStack
-          drawers={state.drawers}
-          drawerData={drawerData}
-          onClose={chiudereDrawer}
-          onCloseUltimo={chiudereUltimoDrawer}
-          onOpenDrawer={aprireDrawer}
-        />
+
+      {/* Tab bar */}
+      <div className="flex-shrink-0 bg-white border-b border-[#e5e5e7] px-4">
+        <div className="flex gap-0">
+          {TAB_ITEMS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-[12px] font-medium border-b-2 transition-colors ${
+                state.tab === t.key
+                  ? "border-[#1d1d1f] text-[#1d1d1f]"
+                  : "border-transparent text-[#86868b] hover:text-[#1d1d1f]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Tab content */}
+      {state.tab === "lista" && (
+        <div className="flex flex-1 overflow-hidden">
+          <PannelloControllo
+            state={state}
+            fornitori={fornitoriDistinti}
+            onRaggruppa={setRaggruppa}
+            onToggleCat={toggleFiltroCat}
+            onToggleForn={toggleFiltroForn}
+            onFinestra={setFinestra}
+            onCerca={setCerca}
+            onPreset={applicaPreset}
+          />
+          <ListaMateriali
+            state={state}
+            materiali={materialiFiltrati}
+            materialeEarliestDate={materialeEarliestDate}
+            onOpenDrawer={aprireDrawer}
+            onUpdateDisp={handleUpdateDisp}
+          />
+          <DrawerStack
+            drawers={state.drawers}
+            drawerData={drawerData}
+            onClose={chiudereDrawer}
+            onCloseUltimo={chiudereUltimoDrawer}
+            onOpenDrawer={aprireDrawer}
+          />
+        </div>
+      )}
+
+      {state.tab === "catalogo" && (
+        <CatalogoTab materiali={tuttiMateriali} />
+      )}
+
+      {state.tab === "calcolatore" && (
+        <div className="flex-1 overflow-y-auto p-6 max-w-3xl">
+          <CalcoloPanel
+            driverItems={driverState}
+            coeffItems={coeffState}
+            onUpdateDriver={handleUpdateDriver}
+            onUpdateCoeff={handleUpdateCoeff}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -107,10 +107,10 @@ export function PannelloControllo({
               className={`flex-1 text-[11px] font-medium px-2 py-1.5 rounded-lg border transition-colors capitalize ${presetMatch(p) ? "bg-[#1d1d1f] text-white border-[#1d1d1f]" : "bg-white text-[#86868b] border-[#e5e5e7] hover:text-[#1d1d1f]"}`}
             >
               {p === "cantiere"
-                ? "Cantiere"
+                ? "Cosa serve oggi"
                 : p === "acquisti"
-                  ? "Acquisti"
-                  : "Catalogo"}
+                  ? "Da comprare"
+                  : "Tutti i materiali"}
             </button>
           ))}
         </div>
