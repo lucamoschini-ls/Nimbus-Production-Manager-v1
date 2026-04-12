@@ -271,6 +271,16 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
             options={PROV_OPTIONS}
             onSave={(v) => saveField("provenienza", v || null)}
           />
+          <InlineSelect
+            label="Tipologia"
+            value={mat.tipologia || "consumo"}
+            options={[
+              { value: "consumo", label: "consumo" },
+              { value: "strutturale", label: "strutturale" },
+              { value: "attrezzo", label: "attrezzo" },
+            ]}
+            onSave={(v) => saveField("tipologia", v)}
+          />
         </div>
       </div>
 
