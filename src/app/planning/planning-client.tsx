@@ -144,9 +144,9 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
 
-  // Default week: the Monday of the week containing April 14, 2026
+  // Default week: current week's Monday (local timezone, consistent with parseISO)
   const [weekStart, setWeekStart] = useState<Date>(
-    () => new Date("2026-04-13")
+    () => startOfWeek(new Date(), { weekStartsOn: 1 })
   );
   const [filterZona, setFilterZona] = useState<string>("");
   const [filterTipologia, setFilterTipologia] = useState<string>("");
