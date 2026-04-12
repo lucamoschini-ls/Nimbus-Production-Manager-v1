@@ -5,6 +5,7 @@ import { Calculator, X } from "lucide-react";
 import { toast } from "sonner";
 import type { DrawerData } from "../materiali-superficie";
 import { aggiornaMateriale, eliminaLegameByComposite, aggiornaLegameByComposite } from "../actions";
+import { GRUPPO_OPTIONS } from "../utils/gruppi";
 
 const SEMAFORO_COLORS = {
   rosso: "bg-red-500",
@@ -236,6 +237,9 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
             {mat.tipologia || "—"}
           </span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {mat.gruppo_merceologico || "Senza gruppo"}
+          </span>
           <span
             className={`w-2 h-2 rounded-full ${SEMAFORO_COLORS[mat.stato_semaforo]}`}
           />
@@ -280,6 +284,12 @@ export function DrawerMateriale({ id, drawerData, onOpenTask, onOpenCalcoli }: P
               { value: "attrezzo", label: "attrezzo" },
             ]}
             onSave={(v) => saveField("tipologia", v)}
+          />
+          <InlineSelect
+            label="Gruppo"
+            value={mat.gruppo_merceologico || ""}
+            options={[{ value: "", label: "\u2014" }, ...GRUPPO_OPTIONS]}
+            onSave={(v) => saveField("gruppo_merceologico", v || null)}
           />
         </div>
       </div>

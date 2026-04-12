@@ -7,6 +7,7 @@ import type { MaterialeArricchito, CatalogoViewRow, CatalogoExtraRow } from "../
 import type { DrawerEntry } from "../hooks/use-superficie-state";
 import { aggiornaMateriale, creaMateriale, eliminaMateriale } from "../actions";
 import { UNITA_OPTIONS } from "./drawer-materiale";
+import { GRUPPI_MERCEOLOGICI } from "../utils/gruppi";
 
 const SEMAFORO_COLORS = {
   rosso: "bg-red-500",
@@ -114,6 +115,7 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
   const [newFornitore, setNewFornitore] = useState("");
   const [newProvenienza, setNewProvenienza] = useState("acquisto");
   const [newTipologia, setNewTipologia] = useState("consumo");
+  const [newGruppo, setNewGruppo] = useState("");
   const newInputRef = useRef<HTMLInputElement>(null);
 
   const resetDialog = () => {
@@ -124,6 +126,7 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
     setNewFornitore("");
     setNewProvenienza("acquisto");
     setNewTipologia("consumo");
+    setNewGruppo("");
   };
 
   const filtrati = useMemo(() => {
@@ -154,6 +157,7 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
       fornitore: newFornitore || undefined,
       provenienza: newProvenienza || undefined,
       tipologia: newTipologia || undefined,
+      gruppo: newGruppo || undefined,
     };
     resetDialog();
     try {
@@ -177,6 +181,7 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
         id: newId,
         categoria_comportamentale: null,
         tipo_voce: "standard",
+        gruppo_merceologico: extra.gruppo || null,
       };
       onAddMateriale(newCatalogo, newExtra);
       toast.success(`Materiale "${nome}" creato`);
@@ -267,6 +272,10 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
               <option value="strutturale">strutturale</option>
               <option value="attrezzo">attrezzo</option>
             </select>
+            <select value={newGruppo} onChange={e => setNewGruppo(e.target.value)} className="text-[12px] border border-[#e5e5e7] rounded px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-ring">
+              <option value="">Gruppo (opzionale)</option>
+              {GRUPPI_MERCEOLOGICI.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -286,12 +295,13 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
       )}
 
       {/* Table header */}
-      <div className="grid grid-cols-[auto_1fr_60px_80px_120px_80px_80px_80px_32px] gap-2 px-6 py-2 bg-[#fafafa] border-b border-[#e5e5e7] text-[10px] text-[#86868b] font-semibold uppercase tracking-wide">
+      <div className="grid grid-cols-[auto_1fr_60px_80px_120px_120px_80px_80px_80px_32px] gap-2 px-6 py-2 bg-[#fafafa] border-b border-[#e5e5e7] text-[10px] text-[#86868b] font-semibold uppercase tracking-wide">
         <div className="w-3" />
         <div>Nome</div>
         <div>Unita</div>
         <div className="text-right">Prezzo</div>
         <div>Fornitore</div>
+        <div>Gruppo</div>
         <div className="text-right">Necessario</div>
         <div className="text-right">Disponibile</div>
         <div className="text-right">Da comprare</div>
@@ -304,7 +314,7 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
           <div
             key={m.id}
             onClick={() => onOpenDrawer("materiale", m.id)}
-            className="grid grid-cols-[auto_1fr_60px_80px_120px_80px_80px_80px_32px] gap-2 px-6 py-2 border-b border-[#f0f0f0] text-[12px] hover:bg-[#f5f5f7] transition-colors group cursor-pointer"
+            className="grid grid-cols-[auto_1fr_60px_80px_120px_120px_80px_80px_80px_32px] gap-2 px-6 py-2 border-b border-[#f0f0f0] text-[12px] hover:bg-[#f5f5f7] transition-colors group cursor-pointer"
           >
             <span
               className={`w-2.5 h-2.5 rounded-full mt-0.5 ${SEMAFORO_COLORS[m.stato_semaforo]}`}
@@ -336,6 +346,16 @@ export function CatalogoTab({ materiali, fornitoriDistinti, onUpdateCatalogo, on
               onSave={(v) => handleFieldSave(m.id, "fornitore", v)}
               className={`truncate ${m.fornitore === "Da assegnare" ? "text-[#b0b0b5]" : "text-[#1d1d1f]"}`}
             />
+            <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
+              <select
+                value={m.gruppo_merceologico || ""}
+                onChange={(e) => handleFieldSave(m.id, "gruppo_merceologico", e.target.value)}
+                className="w-full text-[11px] border border-transparent hover:border-[#e5e5e7] rounded px-1 py-0.5 bg-transparent outline-none focus:ring-1 focus:ring-ring focus:border-[#e5e5e7] truncate"
+              >
+                <option value="">—</option>
+                {GRUPPI_MERCEOLOGICI.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
             <div className="text-right text-[#1d1d1f]">
               {m.fabbisogno_calcolato > 0
                 ? m.fabbisogno_calcolato.toLocaleString("it-IT")

@@ -32,6 +32,7 @@ export interface CatalogoExtraRow {
   id: string;
   categoria_comportamentale: string | null;
   tipo_voce: string;
+  gruppo_merceologico: string | null;
 }
 
 interface MaterialeTaskRow {
@@ -95,6 +96,7 @@ export interface MaterialeArricchito {
   categoria_comp: string | null;
   tipologia: string | null;
   tipo_voce: string;
+  gruppo_merceologico: string | null;
   unita: string;
   prezzo_unitario: number;
   provenienza: string;
@@ -180,6 +182,7 @@ export function MaterialiSuperficie({
     setCerca,
     toggleFiltroCat,
     toggleFiltroForn,
+    toggleFiltroGruppo,
     aprireDrawer,
     chiudereDrawer,
     chiudereUltimoDrawer,
@@ -241,6 +244,9 @@ export function MaterialiSuperficie({
     }
     if (campo === "tipologia") {
       setCatalogoExtraState(prev => prev.map(c => c.id === id ? { ...c, tipo_voce: valore as string } : c));
+    }
+    if (campo === "gruppo_merceologico") {
+      setCatalogoExtraState(prev => prev.map(c => c.id === id ? { ...c, gruppo_merceologico: valore as string | null } : c));
     }
   }, []);
 
@@ -331,6 +337,7 @@ export function MaterialiSuperficie({
         categoria_comp: extra?.categoria_comportamentale ?? null,
         tipologia: c.tipologia_materiale ?? null,
         tipo_voce: extra?.tipo_voce || "standard",
+        gruppo_merceologico: extra?.gruppo_merceologico ?? null,
         unita: c.unita || "pz",
         prezzo_unitario: c.prezzo_unitario ?? 0,
         provenienza: c.provenienza_default || "—",
@@ -436,6 +443,12 @@ export function MaterialiSuperficie({
     return Array.from(set).sort();
   }, [tuttiMateriali]);
 
+  const gruppiDistinti = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of tuttiMateriali) if (m.gruppo_merceologico) set.add(m.gruppo_merceologico);
+    return Array.from(set).sort();
+  }, [tuttiMateriali]);
+
   const drawerData: DrawerData = useMemo(
     () => ({
       materialiMap,
@@ -530,6 +543,11 @@ export function MaterialiSuperficie({
     if (state.filtriForn.length > 0) {
       result = result.filter((m) => state.filtriForn.includes(m.fornitore));
     }
+    if (state.filtriGruppo.length > 0) {
+      result = result.filter(
+        (m) => m.gruppo_merceologico != null && state.filtriGruppo.includes(m.gruppo_merceologico)
+      );
+    }
     if (state.cerca) {
       const q = state.cerca.toLowerCase();
       result = result.filter((m) => m.nome.toLowerCase().includes(q));
@@ -555,6 +573,7 @@ export function MaterialiSuperficie({
     state.finestra,
     state.filtriCat,
     state.filtriForn,
+    state.filtriGruppo,
     state.cerca,
     ordina,
     catalogoTaskIds,
@@ -603,11 +622,13 @@ export function MaterialiSuperficie({
           <PannelloControllo
             state={state}
             fornitori={fornitoriDistinti}
+            gruppiDistinti={gruppiDistinti}
             ordina={ordina}
             onOrdina={setOrdina}
             onRaggruppa={setRaggruppa}
             onToggleCat={toggleFiltroCat}
             onToggleForn={toggleFiltroForn}
+            onToggleGruppo={toggleFiltroGruppo}
             onFinestra={setFinestra}
             onCerca={setCerca}
             onPreset={applicaPreset}

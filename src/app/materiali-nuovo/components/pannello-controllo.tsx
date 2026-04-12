@@ -13,6 +13,7 @@ const RAGGRUPPAMENTI: { value: Raggruppamento; label: string }[] = [
   { value: "fornitore", label: "Fornitore" },
   { value: "categoria_comp", label: "Categoria" },
   { value: "categoria_tech", label: "Tipologia" },
+  { value: "gruppo_merceologico", label: "Gruppo merceologico" },
   { value: "zona", label: "Zona" },
   { value: "data", label: "Data" },
 ];
@@ -36,11 +37,13 @@ const CAT_COLORS: Record<string, string> = {
 interface Props {
   state: SuperficieState;
   fornitori: string[];
+  gruppiDistinti: string[];
   ordina: string;
   onOrdina: (v: string) => void;
   onRaggruppa: (v: Raggruppamento) => void;
   onToggleCat: (cat: string) => void;
   onToggleForn: (forn: string) => void;
+  onToggleGruppo: (gruppo: string) => void;
   onFinestra: (v: FinestraTemporale) => void;
   onCerca: (v: string) => void;
   onPreset: (p: "acquisti" | "cantiere" | "catalogo") => void;
@@ -49,11 +52,13 @@ interface Props {
 export function PannelloControllo({
   state,
   fornitori,
+  gruppiDistinti,
   ordina,
   onOrdina,
   onRaggruppa,
   onToggleCat,
   onToggleForn,
+  onToggleGruppo,
   onFinestra,
   onCerca,
   onPreset,
@@ -210,6 +215,27 @@ export function PannelloControllo({
                 >
                   {f}
                 </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Gruppo merceologico */}
+      <div>
+        <div className="text-[10px] text-[#86868b] font-semibold uppercase tracking-wide mb-2">
+          Gruppo
+          {state.filtriGruppo?.length > 0 && (
+            <span className="ml-1 text-[#1d1d1f]">({state.filtriGruppo.length})</span>
+          )}
+        </div>
+        <div className="max-h-[160px] overflow-y-auto space-y-0.5 border border-[#e5e5e7] rounded-lg p-2 bg-white">
+          {gruppiDistinti.map((g) => {
+            const active = state.filtriGruppo?.includes(g) || false;
+            return (
+              <label key={g} className="flex items-center gap-2 cursor-pointer py-0.5 hover:bg-[#f5f5f7] px-1 rounded">
+                <input type="checkbox" checked={active} onChange={() => onToggleGruppo(g)} className="w-3 h-3 rounded" />
+                <span className={`text-[11px] truncate ${active ? "text-[#1d1d1f] font-medium" : "text-[#86868b]"}`}>{g}</span>
               </label>
             );
           })}

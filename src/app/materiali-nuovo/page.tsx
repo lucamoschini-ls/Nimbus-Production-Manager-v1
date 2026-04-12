@@ -18,7 +18,7 @@ async function MaterialiData() {
     supabase.from("v_catalogo_acquisti").select("*").order("nome"),
     supabase
       .from("catalogo_materiali")
-      .select("id, categoria_comportamentale, tipo_voce"),
+      .select("id, categoria_comportamentale, tipo_voce, gruppo_merceologico"),
     supabase.from("materiali").select("task_id, catalogo_id, quantita, unita"),
     supabase
       .from("materiali_disponibilita")

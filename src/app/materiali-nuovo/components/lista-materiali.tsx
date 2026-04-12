@@ -184,6 +184,9 @@ export function ListaMateriali({
         case "zona":
           k = "Tutte le zone";
           break;
+        case "gruppo_merceologico":
+          k = m.gruppo_merceologico || "Senza gruppo";
+          break;
         case "data":
           k = materialeEarliestDate.get(m.id) || "senza-data";
           break;

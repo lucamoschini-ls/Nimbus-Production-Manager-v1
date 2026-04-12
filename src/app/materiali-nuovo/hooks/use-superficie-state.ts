@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
-export type Raggruppamento = "nessuno" | "fornitore" | "categoria_comp" | "categoria_tech" | "zona" | "data";
+export type Raggruppamento = "nessuno" | "fornitore" | "categoria_comp" | "categoria_tech" | "zona" | "data" | "gruppo_merceologico";
 export type FinestraTemporale = "oggi" | "settimana" | "stagione" | string; // string for "range:DDMM-DDMM"
 export type DrawerEntry = { tipo: "materiale" | "task" | "calcoli"; id: string };
 export type TabSuperficie = "lista" | "catalogo" | "calcolatore";
@@ -13,6 +13,7 @@ export interface SuperficieState {
   raggruppa: Raggruppamento;
   filtriCat: string[];
   filtriForn: string[];
+  filtriGruppo: string[];
   finestra: FinestraTemporale;
   cerca: string;
   drawers: DrawerEntry[];
@@ -43,6 +44,7 @@ export function useSuperficieState() {
     raggruppa: (searchParams.get("raggruppa") as Raggruppamento) || "nessuno",
     filtriCat: searchParams.get("filtri_cat")?.split(",").filter(Boolean) || [],
     filtriForn: searchParams.get("filtri_forn")?.split(",").filter(Boolean) || [],
+    filtriGruppo: searchParams.get("filtri_gruppo")?.split(",").filter(Boolean) || [],
     finestra: (searchParams.get("finestra") as FinestraTemporale) || "stagione",
     cerca: searchParams.get("cerca") || "",
     drawers: parseDrawers(searchParams.get("drawer")),
@@ -85,6 +87,13 @@ export function useSuperficieState() {
     setParam({ filtri_forn: next.length ? next.join(",") : null });
   }, [state.filtriForn, setParam]);
 
+  const toggleFiltroGruppo = useCallback((gruppo: string) => {
+    const next = state.filtriGruppo.includes(gruppo)
+      ? state.filtriGruppo.filter(g => g !== gruppo)
+      : [...state.filtriGruppo, gruppo];
+    setParam({ filtri_gruppo: next.length ? next.join(",") : null });
+  }, [state.filtriGruppo, setParam]);
+
   const aprireDrawer = useCallback((tipo: DrawerEntry["tipo"], id: string) => {
     // Don't duplicate
     const existing = state.drawers.findIndex(d => d.tipo === tipo && d.id === id);
@@ -126,7 +135,7 @@ export function useSuperficieState() {
   return {
     state,
     setTab, setRaggruppa, setFinestra, setCerca,
-    toggleFiltroCat, toggleFiltroForn,
+    toggleFiltroCat, toggleFiltroForn, toggleFiltroGruppo,
     aprireDrawer, chiudereDrawer, chiudereUltimoDrawer,
     resetSuperficie, applicaPreset,
     setParam,

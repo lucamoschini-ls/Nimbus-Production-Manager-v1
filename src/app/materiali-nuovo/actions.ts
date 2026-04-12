@@ -44,6 +44,7 @@ const CAMPO_MAP: Record<string, string> = {
   provenienza: "provenienza_default",
   tipologia: "tipologia_materiale",
   categoria: "categoria_comportamentale",
+  gruppo_merceologico: "gruppo_merceologico",
   note: "note",
 };
 
@@ -64,7 +65,7 @@ export async function aggiornaMateriale(
 
 export async function creaMateriale(
   nome: string,
-  extra?: { unita?: string; prezzo?: number; fornitore?: string; provenienza?: string; tipologia?: string }
+  extra?: { unita?: string; prezzo?: number; fornitore?: string; provenienza?: string; tipologia?: string; gruppo?: string }
 ): Promise<string> {
   const supabase = await createClient();
   const insertData: Record<string, unknown> = { nome, tipologia_materiale: extra?.tipologia || "consumo" };
@@ -72,6 +73,7 @@ export async function creaMateriale(
   if (extra?.prezzo) insertData.prezzo_unitario_default = extra.prezzo;
   if (extra?.fornitore) insertData.fornitore_preferito = extra.fornitore;
   if (extra?.provenienza) insertData.provenienza_default = extra.provenienza;
+  if (extra?.gruppo) insertData.gruppo_merceologico = extra.gruppo;
 
   const { data, error } = await supabase
     .from("catalogo_materiali")
