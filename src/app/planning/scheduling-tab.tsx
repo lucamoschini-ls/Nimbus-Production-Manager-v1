@@ -236,10 +236,13 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
     router.refresh();
   };
 
-  // Clear all
+  // Clear all (protegge le task completate)
   const handleClearAll = () => {
     const next = new Map<string, DateRange | null>();
-    for (const t of fornTasks) next.set(t.id, null);
+    for (const t of fornTasks) {
+      if (t.stato_calcolato === "completata") continue;
+      next.set(t.id, null);
+    }
     setAssignments(next);
     setConflicts(null);
     setVerified(false);
