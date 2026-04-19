@@ -390,14 +390,39 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
               />
             </div>
             <div className="p-3 space-y-4">
-              {unassignedByFornitore.map(([fname, ftasks], idx) => (
-                <div key={fname} className={idx > 0 ? "border-t-2 border-[#e5e5e7]" : ""}>
-                  <div className="flex items-center gap-1.5 py-3">
-                    <span className="text-[16px] font-bold text-gray-900">{fname} · {ftasks.length}</span>
+              {unassignedByFornitore.map(([fname, ftasks], idx) => {
+                // Group ftasks by zone
+                const byZona = new Map<string, { color: string; tasks: Task[] }>();
+                for (const t of ftasks) {
+                  const zname = t.zona_nome || "Senza zona";
+                  if (!byZona.has(zname)) byZona.set(zname, { color: t.zona_colore || "#c7c7cc", tasks: [] });
+                  byZona.get(zname)!.tasks.push(t);
+                }
+                const zoneGroups = Array.from(byZona.entries())
+                  .sort((a, b) => b[1].tasks.length - a[1].tasks.length);
+                for (const [, zg] of zoneGroups) {
+                  zg.tasks.sort((a, b) => a.titolo.localeCompare(b.titolo, "it", { sensitivity: "base" }));
+                }
+                return (
+                  <div key={fname} className={idx > 0 ? "border-t-2 border-[#e5e5e7]" : ""}>
+                    <div className="flex items-center gap-1.5 py-3">
+                      <span className="text-[16px] font-bold text-gray-900">{fname} · {ftasks.length}</span>
+                    </div>
+                    <div className="space-y-3">
+                      {zoneGroups.map(([zname, zg]) => (
+                        <div key={zname}>
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: zg.color }} />
+                            <span className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wide">{zname}</span>
+                            <span className="text-[10px] text-[#c7c7cc]">({zg.tasks.length})</span>
+                          </div>
+                          <div className="space-y-1.5">{zg.tasks.map(t => renderCard(t, false))}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1.5">{ftasks.map(t => renderCard(t, false))}</div>
-                </div>
-              ))}
+                );
+              })}
               {filteredUnassigned.length === 0 && (
                 <div className="text-center text-[11px] text-[#86868b] py-8">
                   {unassignedSearch ? "Nessuna corrispondenza" : "Tutte le task sono assegnate"}
