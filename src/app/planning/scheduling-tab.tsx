@@ -74,7 +74,7 @@ export function SchedulingTab({ tasks, fornitori, tipColorMap }: Props) {
 
   // LEFT panel: unassigned tasks
   const unassigned = useMemo(() =>
-    fornTasks.filter(t => getDates(t) === null),
+    fornTasks.filter(t => getDates(t) === null && t.stato_calcolato !== "completata"),
     [fornTasks, getDates]
   );
 

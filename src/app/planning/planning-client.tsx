@@ -256,7 +256,7 @@ export function PlanningClient({ tasks, zone, tipologie, transportOps = [], tipC
   const grandTotal = dayTotals.reduce((a, b) => a + b, 0);
 
   // Unassigned tasks & ops
-  const unassignedTasks = useMemo(() => tasks.filter(t => !t.fornitore_id || !t.data_inizio), [tasks]);
+  const unassignedTasks = useMemo(() => tasks.filter(t => (!t.fornitore_id || !t.data_inizio) && t.stato_calcolato !== "completata" && t.stato !== "completata"), [tasks]);
   const unassignedOps = useMemo(() => transportOps.filter(o => !o.data_inizio), [transportOps]);
 
   const unassignedGroups = useMemo(() => {
