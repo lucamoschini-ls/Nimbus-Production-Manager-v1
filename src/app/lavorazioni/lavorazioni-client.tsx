@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaskDetailSheet } from "./task-detail-sheet";
+import { TabellaTaskView } from "./tabella-task-view";
 import { updateTask, createTask, createLavorazione, deleteLavorazione, deleteTask, updateLavorazione } from "./actions";
 import { cycleTaskStato } from "./cycle-actions";
 import type { Zona, StatoFornitore } from "@/lib/types";
@@ -129,6 +130,7 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   const [selectedTask, setSelectedTask] = useState<TaskCompleta | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [filterFornitore, setFilterFornitore] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"board" | "tabella">("board");
   const [fornitoreSortByDate, setFornitoreSortByDate] = useState(false);
   const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
   const [newLavName, setNewLavName] = useState("");
@@ -307,7 +309,57 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
       </AlertDialog>
 
       {/* FIX 1: h-screen + overflow-hidden forces inner panels to scroll */}
-      <div className="hidden md:flex gap-0 -mx-6 -mt-6 h-screen overflow-hidden">
+      <div className="hidden md:flex md:flex-col -mx-6 -mt-6 h-screen overflow-hidden">
+        {/* View tabs */}
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-[#e5e5e7] bg-white flex-shrink-0">
+          <button
+            onClick={() => setViewMode("board")}
+            className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${viewMode === "board" ? "bg-[#1d1d1f] text-white" : "text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"}`}
+          >
+            Board
+          </button>
+          <button
+            onClick={() => setViewMode("tabella")}
+            className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${viewMode === "tabella" ? "bg-[#1d1d1f] text-white" : "text-[#86868b] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]"}`}
+          >
+            Tabella
+          </button>
+        </div>
+
+        {viewMode === "tabella" ? (
+          <TabellaTaskView
+            tasks={tasks.map(t => ({
+              id: t.id,
+              titolo: t.titolo,
+              stato: t.stato,
+              stato_calcolato: t.stato_calcolato,
+              motivo_blocco: t.motivo_blocco,
+              tipologia: t.tipologia,
+              fornitore_id: t.fornitore_id,
+              fornitore_nome: t.fornitore_nome,
+              fornitore_supporto_id: (t as unknown as Record<string, unknown>).fornitore_supporto_id as string | null ?? null,
+              fornitore_supporto_nome: (t as unknown as Record<string, unknown>).fornitore_supporto_nome as string | null ?? null,
+              lavorazione_id: t.lavorazione_id,
+              lavorazione_nome: t.lavorazione_nome,
+              zona_nome: t.zona_nome,
+              data_inizio: t.data_inizio,
+              data_fine: t.data_fine,
+              durata_ore: t.durata_ore,
+              numero_persone: t.numero_persone,
+            }))}
+            fornitori={fornitori}
+            tipologie={tipologie}
+            zone={zone}
+            lavorazioni={lavorazioni}
+            dipendenze={dipendenze}
+            onSelectTask={(taskId) => {
+              const t = tasks.find(tk => tk.id === taskId);
+              if (t) setSelectedTask(t);
+            }}
+          />
+        ) : (
+
+      <div className="flex gap-0 flex-1 overflow-hidden">
         {/* Left sidebar */}
         <div className="w-[280px] min-w-[280px] border-r border-[#e5e5e7] bg-white overflow-y-auto">
           <div className="p-4 border-b border-[#e5e5e7]">
@@ -713,6 +765,8 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
             <div className="flex items-center justify-center h-64 text-[#86868b] text-sm">Seleziona una lavorazione dalla sidebar</div>
           )}
         </div>
+      </div>
+        )}
       </div>
 
       {/* Mobile */}
