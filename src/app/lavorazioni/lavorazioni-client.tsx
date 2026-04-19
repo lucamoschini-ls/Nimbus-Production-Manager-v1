@@ -18,6 +18,7 @@ import type { Zona, StatoFornitore } from "@/lib/types";
 
 // FIX 2: module-level variable survives re-mounts from loading.tsx
 let _savedLavId: string | null = null;
+let _savedViewMode: "board" | "tabella" = "board";
 
 const STATO_COLORS: Record<string, string> = {
   da_fare: "bg-[#86868B]/10 text-[#86868B]", in_corso: "bg-[#0071E3]/10 text-[#0071E3]",
@@ -130,7 +131,8 @@ export function LavorazioniClient({ zone, lavorazioni, tasks, fornitori, tipolog
   const [selectedTask, setSelectedTask] = useState<TaskCompleta | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [filterFornitore, setFilterFornitore] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"board" | "tabella">("board");
+  const [viewMode, setViewModeRaw] = useState<"board" | "tabella">(_savedViewMode);
+  const setViewMode = (v: "board" | "tabella") => { _savedViewMode = v; setViewModeRaw(v); };
   const [fornitoreSortByDate, setFornitoreSortByDate] = useState(false);
   const [addingLavTo, setAddingLavTo] = useState<string | null>(null);
   const [newLavName, setNewLavName] = useState("");
