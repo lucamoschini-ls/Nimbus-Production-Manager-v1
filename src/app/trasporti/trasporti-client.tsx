@@ -100,7 +100,7 @@ export function TrasportiClient({ ops, luoghi }: Props) {
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [filterTipologia, setFilterTipologia] = useState<string>("tutti");
   const [filterFornitore, setFilterFornitore] = useState<string>("tutti");
-  const [dateFilter, setDateFilter] = useState<"oggi" | "settimana" | "2settimane" | "tutte">("2settimane");
+  const [dateFilter, setDateFilter] = useState<"oggi" | "settimana" | "2settimane" | "tutte">("tutte");
   const [dateFilterOpen, setDateFilterOpen] = useState(false);
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
   const [expandedSenzaData, setExpandedSenzaData] = useState<Set<string>>(new Set());

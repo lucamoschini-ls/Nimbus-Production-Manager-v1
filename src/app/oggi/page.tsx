@@ -6,51 +6,38 @@ export const revalidate = 30;
 export default async function OggiPage() {
   const supabase = await createClient();
 
-  // Use Italy timezone for "today"
-  const today = new Date().toLocaleDateString("en-CA", {
-    timeZone: "Europe/Rome",
-  }); // "YYYY-MM-DD"
-  const threeDaysFromNow = new Date(
-    new Date(today).getTime() + 3 * 24 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .split("T")[0];
-
   const [
     { data: todayTasks },
     { data: todayOps },
     { data: blockedTasks },
     { data: fornitori },
   ] = await Promise.all([
-    // Tasks active today: data_inizio <= today AND (data_fine >= today OR data_fine IS NULL)
+    // Tutte le task non completate, indipendentemente dalla data
     supabase
       .from("v_task_completa")
       .select(
         "id, titolo, tipologia, stato, stato_calcolato, data_inizio, data_fine, durata_ore, numero_persone, fornitore_id, fornitore_nome, fornitore_stato, zona_nome, zona_colore, lavorazione_nome"
       )
-      .lte("data_inizio", today)
-      .or(`data_fine.gte.${today},data_fine.is.null`),
+      .neq("stato", "completata"),
 
-    // Operazioni active today
+    // Tutte le operazioni non completate
     supabase
       .from("operazioni")
       .select(
-        `id, titolo, tipologia, data_inizio, data_fine,
+        `id, titolo, tipologia, stato, data_inizio, data_fine,
         fornitore:fornitori!operazioni_fornitore_id_fkey(id, nome, stato),
         materiale:materiali!operazioni_materiale_id_fkey(nome)`
       )
-      .lte("data_inizio", today)
-      .or(`data_fine.gte.${today},data_fine.is.null`),
+      .neq("stato", "completata"),
 
-    // Tasks to unblock: in_attesa_* with data_inizio in next 3 days
+    // Task da sbloccare: in_attesa_* (qualsiasi data)
     supabase
       .from("v_task_completa")
       .select(
         "id, titolo, stato_calcolato, data_inizio, fornitore_nome, zona_nome, lavorazione_nome"
       )
       .like("stato_calcolato", "in_attesa%")
-      .lte("data_inizio", threeDaysFromNow)
-      .order("data_inizio", { ascending: true })
+      .order("data_inizio", { ascending: true, nullsFirst: false })
       .limit(8),
 
     // All fornitori for reference
@@ -90,6 +77,7 @@ export interface OggiOp {
   id: string;
   titolo: string | null;
   tipologia: string | null;
+  stato: string | null;
   data_inizio: string | null;
   data_fine: string | null;
   fornitore: { id: string; nome: string; stato: string } | { id: string; nome: string; stato: string }[] | null;

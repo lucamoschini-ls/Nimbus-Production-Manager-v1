@@ -97,11 +97,24 @@ export function DashboardClient({
         </Link>
 
         <div className="bg-white rounded-[12px] border border-[#e5e5e7] p-5">
-          <p className="text-xs uppercase text-[#86868b] font-medium tracking-wide">Giorni all&apos;apertura</p>
-          <p className={`text-4xl font-bold mt-2 leading-none ${giorniApertura <= 30 ? "text-[#FF3B30]" : "text-[#1d1d1f]"}`}>
-            {giorniApertura}
+          <p className="text-xs uppercase text-[#86868b] font-medium tracking-wide">
+            {giorniApertura > 0 ? "Giorni all'apertura" : "Apertura"}
           </p>
-          <p className="text-xs text-[#86868b] mt-1">1 maggio 2026</p>
+          {giorniApertura > 0 ? (
+            <>
+              <p className={`text-4xl font-bold mt-2 leading-none ${giorniApertura <= 30 ? "text-[#FF3B30]" : "text-[#1d1d1f]"}`}>
+                {giorniApertura}
+              </p>
+              <p className="text-xs text-[#86868b] mt-1">1 maggio 2026</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold mt-2 leading-none text-[#34C759]">
+                1 maggio 2026
+              </p>
+              <p className="text-xs text-[#86868b] mt-1">Stagione in corso</p>
+            </>
+          )}
         </div>
 
         <Link href="/fornitori" className="bg-white rounded-[12px] border border-[#e5e5e7] p-5 hover:shadow-md transition-shadow">

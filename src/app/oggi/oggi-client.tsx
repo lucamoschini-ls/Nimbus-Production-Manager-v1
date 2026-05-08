@@ -191,7 +191,7 @@ export function OggiClient({
               </>
             )}
             {inCorsoCount === 0 && activeFornitoriCount === 0 && (
-              <>Nessuna attivita programmata per oggi.</>
+              <>Nessuna task aperta in cantiere.</>
             )}
           </p>
         </div>
@@ -199,7 +199,7 @@ export function OggiClient({
         <div className="bg-white border border-[#e5e5e7] rounded-[12px] overflow-hidden">
           {fornitoreGroups.length === 0 && unassignedTasks.length === 0 && (
             <div className="text-center text-sm text-[#86868b] py-12">
-              Nessuna task programmata per oggi
+              Nessuna task aperta in cantiere
             </div>
           )}
 
@@ -355,7 +355,7 @@ export function OggiClient({
           {blockedTasks.length === 0 ? (
             <div className="p-4">
               <p className="text-sm text-[#86868b]">
-                Nessuna task bloccata nei prossimi 3 giorni
+                Nessuna task bloccata
               </p>
             </div>
           ) : (
